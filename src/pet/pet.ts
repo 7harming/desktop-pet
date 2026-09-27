@@ -1,9 +1,7 @@
 import { BehaviorEngine } from '../shared/behavior';
-import type { Step } from '../shared/graph';
 import type { PetInit } from '../shared/ipc';
 import { clickLine, commandLine, pickLine, reminderLine } from '../shared/lines';
 import { isAsleep, poseValueAt, showsShadow } from '../shared/pose-geometry';
-import type { Pack, PoseDef } from '../shared/types';
 import { arriveGlidePx, departGlidePx, planWalkIn, planWalkOut, type WalkPlan } from '../shared/walk-plan';
 import { Bubbles } from './bubble';
 import { Interactions } from './interactions';
@@ -16,21 +14,8 @@ const shadow = document.getElementById('shadow')!;
 const cat = document.getElementById('cat')!;
 const stage = document.getElementById('stage')!;
 
-const WALK_IN = '__walkIn';
-const WALK_OUT = '__walkOut';
-
-/** The pack plus a pose for each end of walking, so the shadow, bubbles and status work while arrive and depart play. */
-function withWalkPoses(pack: Pack): Pack {
-  const w = pack.walk;
-  if (!w) return pack;
-  const start = pack.poses[pack.start];
-  const walking = (label: string, centerX: number): PoseDef => ({ label, ground: start.ground, centerX, head: w.head, shadow: true });
-  return { ...pack, poses: { ...pack.poses, [WALK_IN]: walking('走過來', w.centerX), [WALK_OUT]: walking('離開', w.departX) } };
-}
-
 api.onInit((init: PetInit) => {
   const { pack } = init;
-  const geo = withWalkPoses(pack);   // geometry and labels; the engine keeps the plain pack
   const engine = new BehaviorEngine(pack, Math.random);
   engine.auto = init.auto;
   engine.setAllowed(init.actions);
@@ -48,7 +33,7 @@ api.onInit((init: PetInit) => {
   };
   player.onStepStart = step => {
     history.push(step.clip);
-    api.reportStatus(geo.poses[step.to].label);
+    api.reportStatus(pack.poses[step.to].label);
     player.keep(engine.upcomingClips());
   };
   player.onEnded = advance;
@@ -75,8 +60,8 @@ api.onInit((init: PetInit) => {
   api.onFrameX(setFrameX);
 
   const bubbles = new Bubbles(stage, () => ({
-    x: frameX + poseValueAt(geo, player.step, player.progress, 'centerX') * frameW(),
-    y: (g0 - poseValueAt(geo, player.step, player.progress, 'head')) * window.innerHeight - 8,
+    x: frameX + poseValueAt(pack, player.step, player.progress, 'centerX') * frameW(),
+    y: (g0 - poseValueAt(pack, player.step, player.progress, 'head')) * window.innerHeight - 8,
   }));
   if (init.debug) Object.assign((window as unknown as Record<string, object>).__pet, { bubbles });
 
@@ -131,9 +116,9 @@ api.onInit((init: PetInit) => {
     const step = player.step;
     const k = player.progress;
     // the window is placed for the start pose; shift the video if this pose's ground line differs
-    const dy = Math.round((g0 - poseValueAt(geo, step, k, 'ground')) * H);
-    const cx = Math.round(poseValueAt(geo, step, k, 'centerX') * W);
-    const shade = showsShadow(geo, step) ? '1' : '0';
+    const dy = Math.round((g0 - poseValueAt(pack, step, k, 'ground')) * H);
+    const cx = Math.round(poseValueAt(pack, step, k, 'centerX') * W);
+    const shade = showsShadow(pack, step) ? '1' : '0';
     const key = `${W}|${H}|${dy}|${cx}|${shade}`;
     if (key !== drawn) {
       drawn = key;
@@ -149,7 +134,6 @@ api.onInit((init: PetInit) => {
   const walk = pack.walk;
   const walker = walk ? new Walker(stage, new URL(pack.clips[walk.loop].file, init.packUrl).href, walk) : null;
   if (debug) Object.assign(debug, { walker });
-  const clipStep = (clip: string, from: string, to: string): Step => ({ clip, from, to, rate: pack.clips[clip].rate ?? 1, fadeIn: 0 });
   const walkLoops = (plan: WalkPlan, mirror: boolean, onFirstFrame?: () => void) =>
     walker!.run({ plan, frameW: frameW(), frameH: window.innerHeight, ground: g0, mirror, onFirstFrame });
   const greet = (ms: number) => setTimeout(() => { if (mode === 'live') bubbles.say(pickLine(pack.lines.greet, Math.random)); }, ms);
@@ -166,10 +150,10 @@ api.onInit((init: PetInit) => {
     await walker!.playClip({ url: clipUrl(walk!.arrive), base: arriveFrom, glide: walk!.arriveGlide, frameW: W, frameH: window.innerHeight, ground: g0 });
     // home: the engine carries on from the start pose, and its first idle covers the walker's last frame
     cat.style.visibility = '';
-    engine.follow(clipStep(walk!.arrive, WALK_IN, pack.start));
-    mode = 'live'; busy = false;
-    await player.play(engine.next());
+    await player.play(engine.start());   // home: it rests a moment in its start pose before doing anything else
     walker!.clear();
+    // only now: leaving any earlier would start depart on the walker, and the clear above would stop it
+    mode = 'live'; busy = false;
     if (exitWanted) leave(); else greet(300);
   };
 

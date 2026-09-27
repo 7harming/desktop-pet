@@ -1,5 +1,4 @@
 import { BehaviorEngine } from '../shared/behavior';
-import type { Step } from '../shared/graph';
 import type { BreakInit } from '../shared/ipc';
 import { arriveGlidePx, departGlidePx, planWalkIn, planWalkOut, type WalkPlan } from '../shared/walk-plan';
 import { Player } from '../pet/player';
@@ -32,7 +31,6 @@ api.onInit((init: BreakInit) => {
   engine.auto = false;                   // it just lies there, with its idles
   const player = new Player($('layer'), pack, init.packUrl);
   const walker = walk ? new Walker(area, new URL(pack.clips[walk.loop].file, init.packUrl).href, walk) : null;
-  const clipStep = (clip: string, from: string, to: string): Step => ({ clip, from, to, rate: pack.clips[clip].rate ?? 1, fadeIn: 0 });
   const loops = (plan: WalkPlan, mirror: boolean, onFirstFrame?: () => void) =>
     walker!.run({ plan, frameW, frameH, ground: start.ground, mirror, onFirstFrame });
   if (init.debug) (window as unknown as Record<string, unknown>).__break = { engine, player, walker };
@@ -89,10 +87,9 @@ api.onInit((init: BreakInit) => {
     await loops(planWalkIn(walk, frameW, from, await walker!.duration()), false);
     await walker!.playClip({ url: clipUrl(walk.arrive), base: from, glide: walk.arriveGlide, frameW, frameH, ground: start.ground });
     cat.style.visibility = '';
-    engine.follow(clipStep(walk.arrive, pack.start, pack.start));
-    phase = 'resting';
-    await player.play(engine.next());   // its first idle covers the walker's last frame
+    await player.play(engine.start());  // its first idle covers the walker's last frame
     walker!.clear();
+    phase = 'resting';                   // only now, so a depart cannot start before the clear above
     if (timeUp) void depart();
   };
   void arrive();

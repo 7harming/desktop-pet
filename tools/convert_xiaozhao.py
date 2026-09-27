@@ -18,8 +18,13 @@ CLIPS = ['idle_lie', 'idle_lie_groom', 'idle_sit', 'lie_to_sit', 'sit_to_lie', '
          'box_enter', 'box_idle', 'box_exit', 'pillow_enter', 'pillow_idle', 'pillow_exit', 'walk_loop', 'walk_arrive', 'walk_depart']
 STILLS = {'lie': 'lie.png', 'sit': 'sit.png', 'sleep': 'sleep.png', 'boxBelly': 'end_box.png', 'pillow': 'end_pillow.png'}
 # walking: the loop goes from walk_start to walk_end; depart ends as walk_left (spike step 21)
-WALK_STILLS = {'start': 'walk_start.png', 'end': 'walk_end.png', 'left': 'walk_left.png'}
-WALK_RATE = 1.6           # the generated stroll is slow; played this much faster it walks at a relaxed, ordinary pace
+# walking (spike steps 23-26): the loop is one stride cycle cut from a Veo tracking walk (walk_loop_start is its first frame);
+# arrive / depart are Veo clips joined to it; depart's first second is the cat still lying, so it is cut
+WALK_STILLS = {'start': 'walk_loop_start.png', 'left': 'walk_left2.png'}
+WALK_SPEED = 11.7 * 24 / 1280   # the loop's planted paws slide back 11.7 px a frame (xz24): frame widths per second
+TRIM = {'walk_depart': 24}      # frames cut from the start of a clip
+RAMP = 12                       # frames over which arrive / depart ease into and out of the loop's pace
+HD_SIZE = '1920:1080'           # the break's big cat: clips upscaled 2x by Topaz (spike step 28), keyed at this size
 GROUND = 652 / 720          # every still was staged with the feet / prop bottom on this line
 FF = imageio_ffmpeg.get_ffmpeg_exe()
 
@@ -38,14 +43,27 @@ def geometry(still: Path) -> dict:
             'left': round(float(xs.min()) / w, 3), 'right': round(float(xs.max()) / w, 3)}
 
 
+def eased_glide(track: list, at_start: bool) -> list:
+    """A glide track (cumulative, per frame) whose speed eases to the loop's over RAMP frames at the end that joins the loop."""
+    g = np.array(track, float)
+    v = np.diff(np.concatenate([[0.0], g]))
+    loop_v = WALK_SPEED / 24 * np.sign(g[-1])
+    n = min(RAMP, len(v))
+    t = np.linspace(0, 1, n)
+    if at_start: v[:n] = loop_v * (1 - t) + v[:n] * t
+    else: v[-n:] = v[-n:] * (1 - t) + loop_v * t
+    return [round(float(x), 4) for x in np.cumsum(v)]
+
+
 def walk_section(src: Path, lie: dict) -> dict:
     g = {k: geometry(src / f) for k, f in WALK_STILLS.items()}
-    return {'loop': 'walk_loop', 'from': g['start']['centerX'], 'to': g['end']['centerX'],
+    glide = json.loads((src / 'clips' / 'glide.json').read_text())     # xz26, measured from the planted paws
+    return {'loop': 'walk_loop', 'centerX': g['start']['centerX'], 'speed': round(WALK_SPEED, 4),
             'arrive': 'walk_arrive', 'depart': 'walk_depart', 'departX': g['left']['centerX'],
             'width': round(g['start']['right'] - g['start']['left'], 3), 'head': g['start']['head'],
-            # arrive and depart play at the resting spot: they reach from the walking stills to the lying cat
+            # arrive and depart end / start at the resting spot: they reach from the walking stills to the lying cat
             'left': min(g['start']['left'], g['left']['left'], lie['left']), 'right': max(g['start']['right'], g['left']['right'], lie['right']),
-            'rate': WALK_RATE}
+            'rate': 1, 'arriveGlide': eased_glide(glide['arrive'], True), 'departGlide': eased_glide(glide['depart'], False)}
 
 
 def bg_colour(src: Path) -> str:
@@ -56,13 +74,19 @@ def bg_colour(src: Path) -> str:
     return '0x%02X%02X%02X' % tuple(int(round(c)) for c in bg)
 
 
-def key_filter(src: Path) -> str:
-    return f'format=rgba,chromakey={bg_colour(src)}:0.14:0.06,despill=type=green:mix=0.6:expand=0.1'
+def key_filter(src: Path, choke: int = 1) -> str:
+    """Key out the green stage. The soft edge keeps a little green, which despill turns olive-brown; choking the alpha by
+    `choke` px (1 at the pet's size, 2 for the break's big copies) drops that rim."""
+    keyed = f'format=rgba,chromakey={bg_colour(src)}:0.14:0.06,despill=type=green:mix=0.6:expand=0.1'
+    if not choke:
+        return keyed
+    return f'{keyed},split[c][a];[a]alphaextract{",erosion" * choke}[m];[c][m]alphamerge'
 
 
-def key_clip(src: Path, dst: Path) -> None:
-    vf = f'scale=960:540,{key_filter(src)}'
-    subprocess.run([FF, '-y', '-loglevel', 'error', '-i', str(src), '-vf', vf, '-r', '24', '-c:v', 'libvpx-vp9',
+def key_clip(src: Path, dst: Path, trim: int = 0, size: str = '960:540', choke: int = 1) -> None:
+    vf = f'scale={size},{key_filter(src, choke)}'
+    cut = ['-ss', f'{trim / 24:.4f}'] if trim else []
+    subprocess.run([FF, '-y', '-loglevel', 'error', *cut, '-i', str(src), '-vf', vf, '-r', '24', '-c:v', 'libvpx-vp9',
                     '-pix_fmt', 'yuva420p', '-b:v', '0', '-crf', '32', '-auto-alt-ref', '0', '-an', str(dst)], check=True)
 
 
@@ -146,12 +170,26 @@ def main() -> int:
         mp4, webm = src / 'clips' / f'{c}.mp4', out / 'clips' / f'{c}.webm'
         if webm.exists() and webm.stat().st_mtime >= mp4.stat().st_mtime:
             continue                     # already keyed from this version of the clip
-        key_clip(mp4, webm)
+        key_clip(mp4, webm, TRIM.get(c, 0))
         print('keyed', c)
     geo = {pose: geometry(src / f) for pose, f in STILLS.items()}
     portrait(src / 'lie.png', out / 'portrait.png')
+    hd = {}
+    for mp4 in sorted((src / 'clips' / 'hd').glob('*.mp4')):
+        c = mp4.stem
+        webm = out / 'hd' / f'{c}.webm'
+        if c not in CLIPS:
+            continue
+        if not (webm.exists() and webm.stat().st_mtime >= mp4.stat().st_mtime):
+            webm.parent.mkdir(exist_ok=True)
+            key_clip(mp4, webm, TRIM.get(c, 0), HD_SIZE, choke=2)
+            print('keyed hd', c)
+        hd[c] = f'hd/{c}.webm'
     walk = walk_section(src, geo['lie'])
-    (out / 'pack.json').write_text(json.dumps(build_pack(geo, walk), ensure_ascii=False, indent=1), encoding='utf-8')
+    pack = build_pack(geo, walk)
+    if hd:
+        pack['hd'] = hd
+    (out / 'pack.json').write_text(json.dumps(pack, ensure_ascii=False, indent=1), encoding='utf-8')
     print('geometry', json.dumps(geo, ensure_ascii=False))
     print('walk', json.dumps(walk, ensure_ascii=False))
     return 0
