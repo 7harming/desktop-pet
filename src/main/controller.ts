@@ -17,7 +17,9 @@ import type { AppPaths } from './paths';
 import { SettingsStore } from './settings-store';
 import { TrayController } from './tray';
 
-const PET_CHANNELS = ['pet:ready', 'pet:set-interactive', 'pet:move', 'pet:drag-end', 'pet:menu', 'pet:status', 'pet:reminder-result', 'pet:log'];
+const PET_CHANNELS = ['pet:ready', 'pet:set-interactive', 'pet:move', 'pet:drag-end', 'pet:menu', 'pet:status', 'pet:reminder-result', 'pet:log', 'pet:exited'];
+/** Walking off can mean first getting out of the box, then getting up and crossing the screen; never wait longer than this. */
+const EXIT_TIMEOUT_MS = 45_000;
 const MAX_CRASH_RESTARTS = 3;
 const REMINDER_TICK_MS = 15_000;
 const PAUSE_MS = 3_600_000;
@@ -33,6 +35,9 @@ export class AppController {
   readonly status = new Map<string, string>();
   protected readonly store: SettingsStore;
   private readonly crashes = new Map<string, number>();
+  /** Cats walking off the screen, and how to finish each one (close its window) early. */
+  private readonly leaving = new Map<string, { done: Promise<void>; finish: () => void }>();
+  private quitting = false;
   protected readonly panel: PanelWindow;
   private tray: TrayController | null = null;
   scheduler!: ReminderScheduler;
@@ -81,9 +86,12 @@ export class AppController {
     if (process.env.DESKTOP_PET_METRICS === '1') setInterval(() => this.logMetrics(), 60_000);
   }
 
-  showPet(id: string): void {
+  /** `enter`: walk in from the left edge (app start, showing it again) rather than appear in place. */
+  showPet(id: string, enter = true): void {
     const pack = this.packOf(id);
-    if (!pack || this.pets.has(id)) return;
+    if (!pack) return;
+    this.leaving.get(id)?.finish();           // shown again while walking off: that one goes at once
+    if (this.pets.has(id)) return;
     const ps = this.settings.pets[id];
     const wa = this.workArea();
     const others = [...this.pets.values()].map(w => ({
@@ -99,15 +107,14 @@ export class AppController {
     ps.x = (center - wa.x) / wa.width;
     ps.visible = true;
     const pet = new PetWindow(pack, this.restBounds(id), wa,
-      { auto: ps.auto, actions: ps.actions, restY: restY(pack, ps.scale, wa), debug: this.debug }, this.petEvents(), this.paths.uiDir);
+      { auto: ps.auto, actions: ps.actions, restY: restY(pack, ps.scale, wa), debug: this.debug, enter: enter && !!pack.walk }, this.petEvents(), this.paths.uiDir);
     this.pets.set(id, pet);
     this.saveSoon();
     this.changed();
   }
 
   hidePet(id: string): void {
-    this.pets.get(id)?.close();
-    this.pets.delete(id);
+    void this.walkOff(id);
     if (this.settings.pets[id]) this.settings.pets[id].visible = false;
     this.status.delete(id);
     this.saveSoon();
@@ -135,7 +142,7 @@ export class AppController {
           personality: p.pack?.personality ?? '',
           portraitUrl: p.pack ? `${APP_ORIGIN}/packs/${p.id}/${p.pack.portrait}` : null,
           errors: p.errors,
-          visible: this.pets.has(p.id),
+          visible: this.onScreen(p.id),
           scale: ps?.scale ?? 1,
           auto: ps?.auto ?? true,
           actions: ps?.actions ?? null,
@@ -170,16 +177,48 @@ export class AppController {
 
   hideAll(): void { for (const id of [...this.pets.keys()]) this.hidePet(id); }
 
+  /** On the desktop and not on its way out. */
+  onScreen(id: string): boolean { return this.pets.has(id) && !this.leaving.has(id); }
+
+  /** Let a cat walk off the left edge, then close its window. */
+  walkOff(id: string): Promise<void> {
+    const pet = this.pets.get(id);
+    if (!pet) return Promise.resolve();
+    const going = this.leaving.get(id);
+    if (going) return going.done;
+    let finish = () => {};
+    const done = new Promise<void>(resolve => {
+      const timer = setTimeout(() => finish(), EXIT_TIMEOUT_MS);
+      finish = () => {
+        clearTimeout(timer);
+        pet.close();
+        if (this.pets.get(id) === pet) this.pets.delete(id);
+        this.leaving.delete(id);
+        this.changed();
+        resolve();
+      };
+    });
+    this.leaving.set(id, { done, finish: () => finish() });
+    pet.send('pet:exit');
+    return done;
+  }
+
   resetAllPositions(): void {
     for (const ps of Object.values(this.settings.pets)) ps.x = null;
     const visible = [...this.pets.keys()];
     for (const id of visible) this.pets.get(id)?.close();
     this.pets.clear();
-    for (const id of this.settings.petOrder) if (visible.includes(id)) this.showPet(id);
+    for (const id of this.settings.petOrder) if (visible.includes(id)) this.showPet(id, false);
   }
 
   setAutoStart(on: boolean): void { this.settings.autoStart = on; this.applyAutoStart(); this.saveSoon(); this.changed(); }
-  quit(): void { app.quit(); }
+  /** The cats walk off first (the tray's 結束); the app quits once they are gone. */
+  async quit(): Promise<void> {
+    if (this.quitting) return;
+    this.quitting = true;
+    await Promise.all([...this.pets.keys()].map(id => this.walkOff(id)));
+    app.quit();
+  }
 
   /** Registering electron.exe during development would be wrong, so only the installed app registers itself. */
   protected applyAutoStart(): void {
@@ -263,16 +302,16 @@ export class AppController {
 
   private trayMenu() {
     return trayMenuTemplate(
-      this.validPacks().map(p => ({ id: p.id, name: p.pack.name, visible: this.pets.has(p.id) })),
+      this.validPacks().map(p => ({ id: p.id, name: p.pack.name, visible: this.onScreen(p.id) })),
       { now: Date.now(), pausedUntil: this.settings.reminders.pausedUntil, autoStart: this.settings.autoStart },
       {
         openPanel: () => this.openPanel(),
-        togglePet: id => (this.pets.has(id) ? this.hidePet(id) : this.showPet(id)),
+        togglePet: id => (this.onScreen(id) ? this.hidePet(id) : this.showPet(id)),
         hideAll: () => this.hideAll(),
         pauseReminders: () => this.pauseReminders(),
         resumeReminders: () => this.resumeReminders(),
         setAutoStart: on => this.setAutoStart(on),
-        quit: () => this.quit(),
+        quit: () => void this.quit(),
       });
   }
 
@@ -283,6 +322,7 @@ export class AppController {
       dragEnd: (id, frameX) => this.onDragEnd(id, frameX),
       reminderResult: (id, type, result) => this.onReminderResult(id, type, result),
       crashed: id => this.onCrashed(id),
+      exited: id => this.leaving.get(id)?.finish(),
       log: (id, level, message) => this.log[level](`[${id}] ${message}`),
     };
   }
@@ -388,7 +428,7 @@ export class AppController {
     this.log.error(`貓咪視窗 ${id} 當掉了（第 ${n} 次）`);
     this.pets.get(id)?.close();
     this.pets.delete(id);
-    if (n <= MAX_CRASH_RESTARTS) this.showPet(id);
+    if (n <= MAX_CRASH_RESTARTS) this.showPet(id, false);
     else { this.settings.pets[id].visible = false; this.saveSoon(); this.changed(); }
   }
 

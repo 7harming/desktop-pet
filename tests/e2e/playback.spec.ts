@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { controllerCall, launch, petPage } from './helpers';
 
-test('the first cat appears and plays an idle of its start pose', async () => {
+test('the first cat walks in, lies down and plays an idle of its start pose', async () => {
   const { app } = await launch();
   const page = await petPage(app, 'testcat');
-  await expect.poll(() => page.evaluate(() => (window as any).__pet.history[0])).toMatch(/^idle_rest/);
+  await expect.poll(() => page.evaluate(() => (window as any).__pet.history.slice(0, 2).join(','))).toMatch(/^walk_arrive,idle_rest/);
   expect(await controllerCall(app, c => [...c.pets.keys()])).toEqual(['testcat']);
   // the frame is 533x300 at scale 1 and sits in a strip as wide as the work area; display scaling may round up by one pixel
   const { strip, frame, wa } = await controllerCall(app, c => {

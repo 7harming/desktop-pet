@@ -11,8 +11,8 @@ export async function launch(extraEnv: Record<string, string> = {}, userDir = mk
   return { app, userDir };
 }
 
-/** The pet window of a given pack id, once it has initialised. */
-export async function petPage(app: ElectronApplication, id = 'testcat'): Promise<Page> {
+/** The pet window of a given pack id, once it has walked in and lives its normal life (`live: false`: as soon as it exists). */
+export async function petPage(app: ElectronApplication, id = 'testcat', live = true): Promise<Page> {
   let found: Page | undefined;
   await expect.poll(async () => {
     for (const w of app.windows()) {
@@ -22,6 +22,7 @@ export async function petPage(app: ElectronApplication, id = 'testcat'): Promise
     }
     return false;
   }, { timeout: 20_000 }).toBe(true);
+  if (live) await expect.poll(() => found!.evaluate(() => (window as any).__pet.mode), { timeout: 20_000 }).toBe('live');
   return found!;
 }
 

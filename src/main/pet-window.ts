@@ -11,6 +11,7 @@ export interface PetEvents {
   dragEnd(id: string, frameX: number): void;
   reminderResult(id: string, type: ReminderType, result: ReminderResult): void;
   crashed(id: string): void;
+  exited(id: string): void;
   log(id: string, level: LogLevel, message: string): void;
 }
 
@@ -61,6 +62,7 @@ export class PetWindow {
         break;
       case 'pet:drag-end': this.events.dragEnd(this.id, Number(args[0])); break;
       case 'pet:menu': this.events.menu(this.id); break;
+      case 'pet:exited': this.events.exited(this.id); break;
       case 'pet:status': this.events.status(this.id, String(args[0])); break;
       case 'pet:reminder-result': this.events.reminderResult(this.id, args[0] as ReminderType, args[1] as ReminderResult); break;
       case 'pet:log': this.events.log(this.id, args[0] as LogLevel, String(args[1])); break;
