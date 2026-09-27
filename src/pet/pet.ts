@@ -22,7 +22,7 @@ api.onInit((init: PetInit) => {
   player.onStepStart = step => {
     history.push(step.clip);
     api.reportStatus(pack.poses[step.to].label);
-    player.preload(engine.upcomingClips());
+    player.keep(engine.upcomingClips());
   };
   player.onEnded = advance;
   player.onError = clip => { api.log('warn', `片段 ${clip} 播放失敗，改走別的路`); engine.markBroken(clip); advance(); };

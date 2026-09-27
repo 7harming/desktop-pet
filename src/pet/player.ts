@@ -11,12 +11,13 @@ const firstFrame = (v: HTMLVideoElement) => Promise.race([
 const seeked = (v: HTMLVideoElement) => (v.readyState >= 2 && !v.seeking ? Promise.resolve()
   : Promise.race([new Promise<void>(r => v.addEventListener('seeked', () => r(), { once: true })), sleep(300)]));
 
-/** One <video> per clip; exactly one visible at a time. */
+/** One <video> per clip; exactly one visible at a time. Only the clips that may play next hold a decoder. */
 export class Player {
   onStepStart: (step: Step) => void = () => {};
   onEnded: () => void = () => {};
   onError: (clip: string) => void = () => {};
   private readonly videos = new Map<string, HTMLVideoElement>();
+  private readonly urls = new Map<string, string>();
   private current: { step: Step; video: HTMLVideoElement } | null = null;
   private token = 0;
   private z = 1;
@@ -24,10 +25,11 @@ export class Player {
   constructor(layer: HTMLElement, pack: Pack, packUrl: string) {
     for (const [id, def] of Object.entries(pack.clips)) {
       const v = document.createElement('video');
-      v.src = new URL(def.file, packUrl).href;
-      v.muted = true; v.playsInline = true; v.preload = 'none';
+      v.dataset.clip = id;
+      this.urls.set(id, new URL(def.file, packUrl).href);
+      v.muted = true; v.playsInline = true; v.preload = 'auto';
       v.addEventListener('ended', () => { if (this.current?.video === v) this.onEnded(); });
-      v.addEventListener('error', () => this.onError(id));
+      v.addEventListener('error', () => { if (v.hasAttribute('src')) this.onError(id); });
       layer.appendChild(v);
       this.videos.set(id, v);
     }
@@ -40,16 +42,21 @@ export class Player {
     return v && v.duration ? v.currentTime / v.duration : 0;
   }
 
-  preload(clips: string[]): void {
-    for (const c of clips) {
-      const v = this.videos.get(c);
-      if (v && v.preload !== 'auto') { v.preload = 'auto'; v.load(); }
+  /** Load the clips that may play next; release the other hidden ones (each loaded clip holds ~35 MB of decoder). */
+  keep(clips: string[]): void {
+    for (const [id, v] of this.videos) {
+      if (clips.includes(id)) this.load(id);
+      else if (v !== this.current?.video && v.style.opacity !== '1' && v.hasAttribute('src')) {
+        v.pause();
+        v.removeAttribute('src');
+        v.load();
+      }
     }
   }
 
   async play(step: Step): Promise<void> {
     const token = ++this.token;
-    const v = this.videos.get(step.clip)!;
+    const v = this.load(step.clip);
     const same = this.current?.video === v;
     this.current = { step, video: v };
     this.onStepStart(step);
@@ -82,4 +89,10 @@ export class Player {
 
   pause(): void { this.current?.video.pause(); }
   resume(): void { void this.current?.video.play(); }
+
+  private load(id: string): HTMLVideoElement {
+    const v = this.videos.get(id)!;
+    if (!v.hasAttribute('src')) v.src = this.urls.get(id)!;
+    return v;
+  }
 }

@@ -196,7 +196,9 @@ export class AppController {
     const m = app.getAppMetrics();
     const cpu = m.reduce((s, p) => s + p.cpu.percentCPUUsage, 0);
     const memMb = m.reduce((s, p) => s + p.memory.workingSetSize, 0) / 1024;
-    this.log.info(`效能：CPU ${cpu.toFixed(1)}%，記憶體 ${memMb.toFixed(0)} MB，貓 ${this.pets.size} 隻`);
+    // working sets count memory shared between processes more than once; private bytes are what the app really holds
+    const privMb = m.reduce((s, p) => s + (p.memory.privateBytes ?? 0), 0) / 1024;
+    this.log.info(`效能：CPU ${cpu.toFixed(1)}%，記憶體 ${privMb.toFixed(0)} MB（工作集 ${memMb.toFixed(0)} MB），貓 ${this.pets.size} 隻`);
   }
 
   setReminders(patch: { water?: number; stretch?: number; eyes?: number; notify?: boolean }): void {
