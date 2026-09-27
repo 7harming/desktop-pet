@@ -14,6 +14,7 @@ api.onInit((init: PetInit) => {
   const { pack } = init;
   const engine = new BehaviorEngine(pack, Math.random);
   engine.auto = init.auto;
+  engine.setAllowed(init.actions);
   const player = new Player(layer, pack, init.packUrl);
   const history: string[] = [];
   if (init.debug) (window as unknown as Record<string, unknown>).__pet = { id: pack.id, history, engine, player };
@@ -33,6 +34,7 @@ api.onInit((init: PetInit) => {
     if (line) bubbles.say(line);
   });
   api.onSetAuto(on => { engine.auto = on; });
+  api.onSetActions(actions => engine.setAllowed(actions));
   api.onPause(paused => { if (paused) player.pause(); else player.resume(); });
 
   const g0 = pack.poses[pack.start].ground;

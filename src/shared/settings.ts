@@ -1,4 +1,5 @@
-export interface PetSettings { visible: boolean; scale: number; auto: boolean; x: number | null }
+/** `actions`: the poses auto mode may use (ticked in the panel); null = all of them. */
+export interface PetSettings { visible: boolean; scale: number; auto: boolean; x: number | null; actions: string[] | null }
 export interface ReminderSettings { water: number; stretch: number; eyes: number; notify: boolean; pausedUntil: number | null }
 export interface Settings {
   version: 1;
@@ -55,6 +56,7 @@ function normalizePet(raw: unknown, visibleByDefault: boolean): PetSettings {
     scale: finite(r.scale) ? clamp(r.scale, MIN_SCALE, MAX_SCALE) : 1,
     auto: typeof r.auto === 'boolean' ? r.auto : true,
     x: finite(r.x) ? clamp(r.x, 0, 1) : null,
+    actions: Array.isArray(r.actions) ? r.actions.filter((a): a is string => typeof a === 'string') : null,
   };
 }
 

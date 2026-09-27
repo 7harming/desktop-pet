@@ -30,3 +30,18 @@ test('a panel command reaches the cat', async () => {
   await expect.poll(() => page.evaluate(() => (window as any).__pet.history.join(',')), { timeout: 15_000 }).toMatch(/rest_to_sit,idle_sit/);
   await app.close();
 });
+
+test('ticking actions limits what the cat does on its own', async () => {
+  const { app } = await launch();
+  const page = await petPage(app);
+  await controllerCall(app, c => c.openPanel());
+  const panel = await panelPage(app);
+  const card = panel.locator('[data-pet="testcat"]');
+  await card.locator('input.action[data-pose="rest"]').uncheck();
+  await card.locator('input.action[data-pose="perch"]').uncheck();
+  await expect.poll(() => controllerCall(app, c => c.settings.pets.testcat.actions)).toEqual(['sit']);
+  await expect(card.locator('input.action[data-pose="sit"]')).toBeDisabled();   // the last tick cannot be removed
+  // resting is no longer ticked, so after the current clip the cat goes to sit by itself
+  await expect.poll(() => page.evaluate(() => (window as any).__pet.history.join(',')), { timeout: 15_000 }).toMatch(/rest_to_sit,idle_sit/);
+  await app.close();
+});

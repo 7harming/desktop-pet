@@ -1,6 +1,6 @@
 import type { Pack, PoseId, ReminderType } from './types';
 
-export interface PetInit { pack: Pack; packUrl: string; auto: boolean; restY: number; debug: boolean }
+export interface PetInit { pack: Pack; packUrl: string; auto: boolean; actions: PoseId[] | null; restY: number; debug: boolean }
 export type ReminderResult = 'done' | 'snooze';
 export type LogLevel = 'info' | 'warn' | 'error';
 
@@ -8,6 +8,7 @@ export interface PetApi {
   onInit(cb: (init: PetInit) => void): void;
   onCommand(cb: (pose: PoseId) => void): void;
   onSetAuto(cb: (auto: boolean) => void): void;
+  onSetActions(cb: (actions: PoseId[] | null) => void): void;
   onReminder(cb: (type: ReminderType) => void): void;
   onPause(cb: (paused: boolean) => void): void;
   onRestY(cb: (y: number) => void): void;
@@ -23,7 +24,7 @@ export interface PetApi {
 
 export interface PanelPet {
   id: string; name: string; personality: string; portraitUrl: string | null; errors: string[];
-  visible: boolean; scale: number; auto: boolean; status: string; commands: { label: string; pose: PoseId }[];
+  visible: boolean; scale: number; auto: boolean; actions: PoseId[] | null; status: string; commands: { label: string; pose: PoseId }[];
 }
 export interface PanelState {
   pets: PanelPet[];
@@ -33,7 +34,7 @@ export interface PanelState {
   warning: string | null;
 }
 export type PanelAction =
-  | { kind: 'pet'; id: string; visible?: boolean; scale?: number; auto?: boolean }
+  | { kind: 'pet'; id: string; visible?: boolean; scale?: number; auto?: boolean; actions?: PoseId[] }
   | { kind: 'command'; id: string; pose: PoseId }
   | { kind: 'reminders'; water?: number; stretch?: number; eyes?: number; notify?: boolean }
   | { kind: 'testReminder' }

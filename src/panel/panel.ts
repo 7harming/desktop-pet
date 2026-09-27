@@ -44,6 +44,19 @@ function petCard(p: PanelPet): HTMLElement {
   scale.addEventListener('change', () => act({ kind: 'pet', id: p.id, scale: Number(scale.value) }));
   card.append(el('div', { className: 'row' },
     el('label', {}, visible, '出現在桌面'), el('label', {}, auto, '自動行動'), el('label', {}, '大小', scale)));
+  // the poses the cat may choose by itself; at least one stays ticked
+  const ticked = new Set(p.actions ?? p.commands.map(c => c.pose));
+  const actions = el('div', { className: 'row actions' }, el('span', { className: 'sub' }, '待機時會做：'));
+  for (const c of p.commands) {
+    const box = el('input', { type: 'checkbox', className: 'action', checked: ticked.has(c.pose), disabled: ticked.size === 1 && ticked.has(c.pose) });
+    box.dataset.pose = c.pose;
+    box.addEventListener('change', () => {
+      const next = p.commands.map(x => x.pose).filter(pose => (pose === c.pose ? box.checked : ticked.has(pose)));
+      act({ kind: 'pet', id: p.id, actions: next });
+    });
+    actions.append(el('label', {}, box, c.label));
+  }
+  card.append(actions);
   const cmds = el('div', { className: 'commands' });
   for (const c of p.commands) {
     const b = el('button', { className: 'cmd', textContent: c.label, disabled: !p.visible });

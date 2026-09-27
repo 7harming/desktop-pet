@@ -95,7 +95,7 @@ export class AppController {
     ps.x = (center - wa.x) / wa.width;
     ps.visible = true;
     const pet = new PetWindow(pack, windowBounds(pack, ps.scale, ps.x, wa),
-      { auto: ps.auto, restY: restY(pack, ps.scale, wa), debug: this.debug }, this.petEvents(), this.paths.uiDir);
+      { auto: ps.auto, actions: ps.actions, restY: restY(pack, ps.scale, wa), debug: this.debug }, this.petEvents(), this.paths.uiDir);
     this.pets.set(id, pet);
     this.saveSoon();
     this.changed();
@@ -134,6 +134,7 @@ export class AppController {
           visible: this.pets.has(p.id),
           scale: ps?.scale ?? 1,
           auto: ps?.auto ?? true,
+          actions: ps?.actions ?? null,
           status: this.status.get(p.id) ?? '',
           commands: p.pack?.commands ?? [],
         };
@@ -151,6 +152,7 @@ export class AppController {
         if (a.visible === true) this.showPet(a.id);
         if (a.visible === false) this.hidePet(a.id);
         if (a.auto !== undefined) this.setAuto(a.id, a.auto);
+        if (a.actions !== undefined) this.setActions(a.id, a.actions);
         if (a.scale !== undefined) this.setScale(a.id, a.scale);
         break;
       case 'command': this.command(a.id, a.pose); break;
@@ -303,6 +305,18 @@ export class AppController {
     const pet = this.pets.get(id);
     pet?.updateInit({ auto: on });
     pet?.send('pet:set-auto', on);
+    this.saveSoon();
+    this.changed();
+  }
+
+  /** The poses the cat may pick by itself (ticked in the panel). */
+  setActions(id: string, actions: string[]): void {
+    const ps = this.settings.pets[id];
+    if (!ps) return;
+    ps.actions = actions;
+    const pet = this.pets.get(id);
+    pet?.updateInit({ actions });
+    pet?.send('pet:set-actions', actions);
     this.saveSoon();
     this.changed();
   }
