@@ -37,6 +37,15 @@ export class Player {
 
   get step(): Step | null { return this.current?.step ?? null; }
   get video(): HTMLVideoElement | null { return this.current?.video ?? null; }
+
+  /** The clip actually on screen: the previous one stays visible until the next has its first frame. */
+  get shown(): HTMLVideoElement | null {
+    let top: HTMLVideoElement | null = null;
+    for (const v of this.videos.values()) {
+      if (v.style.opacity === '1' && v.readyState >= 2 && (!top || Number(v.style.zIndex) > Number(top.style.zIndex))) top = v;
+    }
+    return top;
+  }
   get progress(): number {
     const v = this.current?.video;
     return v && v.duration ? v.currentTime / v.duration : 0;

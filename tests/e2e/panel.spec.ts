@@ -10,10 +10,10 @@ test('the panel lists both cats and can show the second one next to the first', 
   await panel.locator('[data-pet="testcat2"] input.visible').check();
   await petPage(app, 'testcat2');
   const centers = await controllerCall(app, c => [...c.pets.values()].map((p: any) => {
-    const b = p.win.getBounds();
+    const b = p.frame;
     return b.x + p.pack.poses[p.pack.start].centerX * b.width;
   }));
-  const bodyWidth = await controllerCall(app, c => c.pets.get('testcat').win.getBounds().width * 0.35);
+  const bodyWidth = await controllerCall(app, c => c.pets.get('testcat').frame.width * 0.35);
   expect(Math.abs(centers[0] - centers[1])).toBeGreaterThanOrEqual(bodyWidth);
   await panel.locator('[data-pet="testcat2"] input.visible').uncheck();
   await expect.poll(() => controllerCall(app, c => [...c.pets.keys()])).toEqual(['testcat']);

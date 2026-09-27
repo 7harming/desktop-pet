@@ -36,3 +36,11 @@ export async function panelPage(app: ElectronApplication): Promise<Page> {
 export function controllerCall<T>(app: ElectronApplication, fn: (c: any) => T): Promise<T> {
   return app.evaluate((_electron, body) => new Function('c', `return (${body})(c)`)((globalThis as any).__controller), fn.toString());
 }
+
+/** Client coordinates of a point inside the cat's frame, given as shares of the frame (the frame sits somewhere in the strip). */
+export function catPoint(page: Page, fx: number, fy: number): Promise<{ x: number; y: number }> {
+  return page.evaluate(([u, v]) => {
+    const r = document.getElementById('layer')!.getBoundingClientRect();
+    return { x: r.left + u * r.width, y: r.top + v * r.height };
+  }, [fx, fy]);
+}

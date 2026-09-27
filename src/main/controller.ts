@@ -87,7 +87,7 @@ export class AppController {
     const ps = this.settings.pets[id];
     const wa = this.workArea();
     const others = [...this.pets.values()].map(w => ({
-      center: wa.x + xRatioFromBounds(w.win.getBounds(), w.pack, wa) * wa.width,
+      center: wa.x + xRatioFromBounds(w.frame, w.pack, wa) * wa.width,
       width: bodyWidth(w.pack, this.settings.pets[w.id].scale),
     }));
     const want = wa.x + (ps.x ?? DEFAULT_X) * wa.width;
@@ -98,7 +98,7 @@ export class AppController {
     const center = findFreeCenter(others, want, bodyWidth(pack, ps.scale), wa.x + (cx - left) * w, wa.x + wa.width - (right - cx) * w);
     ps.x = (center - wa.x) / wa.width;
     ps.visible = true;
-    const pet = new PetWindow(pack, this.restBounds(id),
+    const pet = new PetWindow(pack, this.restBounds(id), wa,
       { auto: ps.auto, actions: ps.actions, restY: restY(pack, ps.scale, wa), debug: this.debug }, this.petEvents(), this.paths.uiDir);
     this.pets.set(id, pet);
     this.saveSoon();
@@ -191,7 +191,7 @@ export class AppController {
     const wa = this.workArea();
     for (const [id, pet] of this.pets) {
       const ps = this.settings.pets[id];
-      pet.setBounds(this.restBounds(id));
+      pet.place(this.restBounds(id), wa);
       const y = restY(pet.pack, ps.scale, wa);
       pet.updateInit({ restY: y });
       pet.send('pet:rest-y', y);
@@ -280,7 +280,7 @@ export class AppController {
     return {
       status: (id, label) => { this.status.set(id, label); this.changed(); },
       menu: id => this.onPetMenu(id),
-      dragEnd: id => this.onDragEnd(id),
+      dragEnd: (id, frameX) => this.onDragEnd(id, frameX),
       reminderResult: (id, type, result) => this.onReminderResult(id, type, result),
       crashed: id => this.onCrashed(id),
       log: (id, level, message) => this.log[level](`[${id}] ${message}`),
@@ -305,7 +305,7 @@ export class AppController {
     if (!pet) return;
     // an unticked pose (say the box) may need more room than the cat's spot leaves: make room first
     const b = this.restBounds(id, pose);
-    if (b.x !== pet.win.getBounds().x) pet.setBounds(b);
+    if (b.x !== pet.frame.x) pet.place(b, this.workArea());
     pet.send('pet:command', pose);
   }
 
@@ -327,7 +327,7 @@ export class AppController {
     ps.actions = actions;
     const pet = this.pets.get(id);
     pet?.updateInit({ actions });
-    pet?.setBounds(this.restBounds(id));
+    pet?.place(this.restBounds(id), this.workArea());
     pet?.send('pet:set-actions', actions);
     this.saveSoon();
     this.changed();
@@ -340,7 +340,7 @@ export class AppController {
     const pet = this.pets.get(id);
     if (pet) {
       const wa = this.workArea();
-      pet.setBounds(this.restBounds(id));
+      pet.place(this.restBounds(id), wa);
       const y = restY(pet.pack, ps.scale, wa);
       pet.updateInit({ restY: y });
       pet.send('pet:rest-y', y);
@@ -354,7 +354,7 @@ export class AppController {
     const pet = this.pets.get(id);
     const ps = this.settings.pets[id];
     if (!pet || !ps) return;
-    pet.setBounds(this.restBounds(id));
+    pet.place(this.restBounds(id), this.workArea());
   }
 
   /**
@@ -369,14 +369,15 @@ export class AppController {
   }
 
 
-  private onDragEnd(id: string): void {
+  private onDragEnd(id: string, frameX: number): void {
     const pet = this.pets.get(id);
     const ps = this.settings.pets[id];
     if (!pet || !ps) return;
     const wa = this.workArea();
-    ps.x = xRatioFromBounds(pet.win.getBounds(), pet.pack, wa);
+    pet.frameMovedTo(frameX);
+    ps.x = xRatioFromBounds(pet.frame, pet.pack, wa);
     const b = this.restBounds(id);
-    pet.setBounds(b);
+    pet.place(b, wa);
     ps.x = xRatioFromBounds(b, pet.pack, wa);   // remember where it really rests
     this.saveSoon();
   }

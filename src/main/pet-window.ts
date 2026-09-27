@@ -1,32 +1,39 @@
 import { BrowserWindow } from 'electron';
 import { join } from 'node:path';
 import { APP_ORIGIN } from './app-protocol';
-import type { Bounds } from './pet-geometry';
+import type { Bounds, WorkArea } from './pet-geometry';
 import type { LogLevel, PetInit, ReminderResult } from '../shared/ipc';
 import type { Pack, ReminderType } from '../shared/types';
 
 export interface PetEvents {
   status(id: string, label: string): void;
   menu(id: string): void;
-  dragEnd(id: string): void;
+  dragEnd(id: string, frameX: number): void;
   reminderResult(id: string, type: ReminderType, result: ReminderResult): void;
   crashed(id: string): void;
   log(id: string, level: LogLevel, message: string): void;
 }
 
+/**
+ * A pet lives in a transparent strip as wide as the work area, so it can walk across the screen without the window moving.
+ * `frame` is where its video frame sits on screen (what used to be the window); the renderer draws the frame at `frame.x - strip x`.
+ */
 export class PetWindow {
   readonly win: BrowserWindow;
-  private size: { width: number; height: number };
+  private strip: Bounds;
+  frame: Bounds;
 
-  constructor(readonly pack: Pack, bounds: Bounds, private init: Omit<PetInit, 'pack' | 'packUrl'>,
+  constructor(readonly pack: Pack, frame: Bounds, wa: WorkArea, private init: Omit<PetInit, 'pack' | 'packUrl' | 'frameX'>,
               private readonly events: PetEvents, preloadDir: string) {
+    this.frame = frame;
+    this.strip = PetWindow.stripFor(frame, wa);
+    const bounds = this.strip;
     this.win = new BrowserWindow({
       ...bounds,
       transparent: true, frame: false, resizable: false, alwaysOnTop: true, skipTaskbar: true,
       hasShadow: false, show: false, backgroundColor: '#00000000',
       webPreferences: { preload: join(preloadDir, 'preload-pet.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
     });
-    this.size = { width: bounds.width, height: bounds.height };
     // At fractional display scaling Windows creates the window a few pixels too big; setting the bounds again fixes it.
     this.win.setBounds(bounds);
     this.win.setIgnoreMouseEvents(true, { forward: true });
@@ -40,15 +47,19 @@ export class PetWindow {
   handle(channel: string, args: unknown[]): void {
     switch (channel) {
       case 'pet:ready': {
-        const init: PetInit = { ...this.init, pack: this.pack, packUrl: `${APP_ORIGIN}/packs/${this.pack.id}/` };
+        const init: PetInit = { ...this.init, pack: this.pack, packUrl: `${APP_ORIGIN}/packs/${this.pack.id}/`, frameX: this.frame.x - this.strip.x };
         this.send('pet:init', init);
         this.win.showInactive();
         break;
       }
       case 'pet:set-interactive': this.win.setIgnoreMouseEvents(!args[0], { forward: true }); break;
-      // setBounds with a fixed size: at fractional display scaling each setPosition grows the window by a pixel
-      case 'pet:move': this.win.setBounds({ x: Math.round(Number(args[0])), y: Math.round(Number(args[1])), ...this.size }); break;
-      case 'pet:drag-end': this.events.dragEnd(this.id); break;
+      // lifting the cat moves the strip up and down; setBounds with a fixed size, since at fractional display scaling
+      // each setPosition grows the window by a pixel
+      case 'pet:move':
+        this.strip = { ...this.strip, y: Math.round(Number(args[0])) };
+        if (!this.win.isDestroyed()) this.win.setBounds(this.strip);
+        break;
+      case 'pet:drag-end': this.events.dragEnd(this.id, Number(args[0])); break;
       case 'pet:menu': this.events.menu(this.id); break;
       case 'pet:status': this.events.status(this.id, String(args[0])); break;
       case 'pet:reminder-result': this.events.reminderResult(this.id, args[0] as ReminderType, args[1] as ReminderResult); break;
@@ -60,10 +71,26 @@ export class PetWindow {
     if (!this.win.isDestroyed()) this.win.webContents.send(channel, ...args);
   }
 
-  updateInit(patch: Partial<Omit<PetInit, 'pack' | 'packUrl'>>): void { this.init = { ...this.init, ...patch }; }
-  setBounds(b: Bounds): void {
-    this.size = { width: b.width, height: b.height };
-    if (!this.win.isDestroyed()) this.win.setBounds(b);
+  updateInit(patch: Partial<Omit<PetInit, 'pack' | 'packUrl' | 'frameX'>>): void { this.init = { ...this.init, ...patch }; }
+
+  /** Put the cat's frame at `frame` (screen coordinates): resize the strip if needed and tell the renderer where to draw. */
+  place(frame: Bounds, wa: WorkArea): void {
+    this.frame = frame;
+    const strip = PetWindow.stripFor(frame, wa);
+    if (strip.x !== this.strip.x || strip.y !== this.strip.y || strip.width !== this.strip.width || strip.height !== this.strip.height) {
+      this.strip = strip;
+      if (!this.win.isDestroyed()) this.win.setBounds(strip);
+    }
+    this.send('pet:frame-x', frame.x - strip.x);
+  }
+
+  /** The cat's frame after the renderer moved it within the strip (a drag). */
+  frameMovedTo(frameX: number): void { this.frame = { ...this.frame, x: this.strip.x + frameX }; }
+
+  get stripBounds(): Bounds { return this.strip; }
+
+  static stripFor(frame: Bounds, wa: WorkArea): Bounds {
+    return { x: wa.x, y: frame.y, width: wa.width, height: frame.height };
   }
   close(): void { if (!this.win.isDestroyed()) this.win.destroy(); }
 }

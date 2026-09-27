@@ -1,6 +1,7 @@
 import type { Pack, PoseId, ReminderType } from './types';
 
-export interface PetInit { pack: Pack; packUrl: string; auto: boolean; actions: PoseId[] | null; restY: number; debug: boolean }
+/** `frameX`: where the cat's frame starts inside the strip window, in px. */
+export interface PetInit { pack: Pack; packUrl: string; frameX: number; auto: boolean; actions: PoseId[] | null; restY: number; debug: boolean }
 export type ReminderResult = 'done' | 'snooze';
 export type LogLevel = 'info' | 'warn' | 'error';
 
@@ -12,10 +13,12 @@ export interface PetApi {
   onReminder(cb: (type: ReminderType) => void): void;
   onPause(cb: (paused: boolean) => void): void;
   onRestY(cb: (y: number) => void): void;
+  onFrameX(cb: (x: number) => void): void;
   ready(): void;
   setInteractive(interactive: boolean): void;
-  moveWindow(x: number, y: number): void;
-  dragEnded(): void;
+  /** Lift or lower the strip window (a drag moves the cat sideways inside it). */
+  moveWindow(y: number): void;
+  dragEnded(frameX: number): void;
   openMenu(): void;
   reportStatus(poseLabel: string): void;
   reminderResult(type: ReminderType, result: ReminderResult): void;

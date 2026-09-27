@@ -9,6 +9,8 @@ export interface InteractionDeps {
   onNoDrag(): void;
   wrap: HTMLElement;          // the element that swings while dragged
   restY: number;              // window top when standing on the taskbar
+  getFrameX(): number;        // where the cat's frame sits inside the strip window
+  setFrameX(x: number): void;
 }
 
 const DRAG_THRESHOLD = 6;
@@ -16,9 +18,8 @@ const GRAVITY = 2400;
 
 export class Interactions {
   private interactive = false;
-  private press: { x: number; y: number; winX: number; winY: number } | null = null;
+  private press: { x: number; y: number; frameX: number; winY: number } | null = null;
   private dragging = false;
-  private winX = window.screenX;
   private winY = window.screenY;
   private swing = 0;
   private swingV = 0;
@@ -54,9 +55,10 @@ export class Interactions {
       this.animateSwing();
     }
     if (this.dragging && this.press) {
-      this.winX = this.press.winX + (e.screenX - this.press.x);
+      // sideways the cat moves inside the strip; up and down the strip itself moves
+      this.d.setFrameX(this.press.frameX + (e.screenX - this.press.x));
       this.winY = this.press.winY + (e.screenY - this.press.y);
-      this.d.api.moveWindow(this.winX, this.winY);
+      this.d.api.moveWindow(this.winY);
       return;
     }
     if (!this.press) this.setInteractive(this.d.hitTest(e.clientX, e.clientY));
@@ -64,8 +66,8 @@ export class Interactions {
 
   private onDown(e: MouseEvent): void {
     if (e.button !== 0 || !this.d.hitTest(e.clientX, e.clientY)) return;
-    this.winX = window.screenX; this.winY = window.screenY;
-    this.press = { x: e.screenX, y: e.screenY, winX: this.winX, winY: this.winY };
+    this.winY = window.screenY;
+    this.press = { x: e.screenX, y: e.screenY, frameX: this.d.getFrameX(), winY: this.winY };
   }
 
   private onUp(): void {
@@ -99,10 +101,10 @@ export class Interactions {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
       vy += GRAVITY * dt;
       this.winY = Math.min(this.restY, this.winY + vy * dt);
-      this.d.api.moveWindow(this.winX, this.winY);
+      this.d.api.moveWindow(this.winY);
       if (this.winY < this.restY) { requestAnimationFrame(tick); return; }
       this.d.wrap.animate([{ transform: 'scale(1.05, .95)' }, { transform: 'none' }], { duration: 350 });
-      this.d.api.dragEnded();
+      this.d.api.dragEnded(this.d.getFrameX());
     };
     requestAnimationFrame(tick);
   }
