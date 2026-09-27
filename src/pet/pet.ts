@@ -129,16 +129,24 @@ api.onInit((init: PetInit) => {
     ], 15_000, () => api.reminderResult(type, 'done'));
   });
 
+  // styles are written only when they change: rewriting them every frame kept the page repainting at 60 fps
+  let drawn = '';
   const frame = () => {
     const H = window.innerHeight;
     const W = frameW();
-    cat.style.width = `${W}px`;
     const step = player.step;
     const k = player.progress;
     // the window is placed for the start pose; shift the video if this pose's ground line differs
-    layer.style.transform = `translateY(${(g0 - poseValueAt(geo, step, k, 'ground')) * H}px)`;
-    const cx = poseValueAt(geo, step, k, 'centerX') * W;
-    Object.assign(shadow.style, { width: `${H * 0.5}px`, left: `${cx - H * 0.25}px`, top: `${g0 * H - 7}px`, opacity: showsShadow(geo, step) ? '1' : '0' });
+    const dy = Math.round((g0 - poseValueAt(geo, step, k, 'ground')) * H);
+    const cx = Math.round(poseValueAt(geo, step, k, 'centerX') * W);
+    const shade = showsShadow(geo, step) ? '1' : '0';
+    const key = `${W}|${H}|${dy}|${cx}|${shade}`;
+    if (key !== drawn) {
+      drawn = key;
+      cat.style.width = `${W}px`;
+      layer.style.transform = `translateY(${dy}px)`;
+      Object.assign(shadow.style, { width: `${H * 0.5}px`, left: `${cx - H * 0.25}px`, top: `${g0 * H - 7}px`, opacity: shade });
+    }
     bubbles.place();
     requestAnimationFrame(frame);
   };
