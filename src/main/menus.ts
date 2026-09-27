@@ -26,3 +26,36 @@ export function petMenuTemplate(s: PetMenuState, h: PetMenuHandlers): MenuItemCo
     { label: '先收起來', click: () => h.hide() },
   ];
 }
+
+export interface TrayHandlers {
+  openPanel(): void;
+  togglePet(id: string): void;
+  hideAll(): void;
+  pauseReminders(): void;
+  resumeReminders(): void;
+  setAutoStart(on: boolean): void;
+  quit(): void;
+}
+
+const hhmm = (t: number) => {
+  const d = new Date(t);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
+export function trayMenuTemplate(pets: { id: string; name: string; visible: boolean }[],
+  s: { now: number; pausedUntil: number | null; autoStart: boolean }, h: TrayHandlers): MenuItemConstructorOptions[] {
+  const paused = s.pausedUntil !== null && s.pausedUntil > s.now;
+  return [
+    { label: '打開控制面板', click: () => h.openPanel() },
+    { type: 'separator' },
+    ...pets.map(p => ({ label: p.name, type: 'checkbox' as const, checked: p.visible, click: () => h.togglePet(p.id) })),
+    { label: '全部收起來', click: () => h.hideAll() },
+    { type: 'separator' },
+    paused
+      ? { label: `恢復提醒（目前暫停到 ${hhmm(s.pausedUntil!)}）`, click: () => h.resumeReminders() }
+      : { label: '提醒暫停 1 小時', click: () => h.pauseReminders() },
+    { label: '開機自動啟動', type: 'checkbox', checked: s.autoStart, click: () => h.setAutoStart(!s.autoStart) },
+    { type: 'separator' },
+    { label: '結束', click: () => h.quit() },
+  ];
+}

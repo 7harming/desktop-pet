@@ -1,14 +1,19 @@
-import { ipcMain, Menu, screen, type WebContents } from 'electron';
+import { app, ipcMain, Menu, screen, type WebContents } from 'electron';
+import { join } from 'node:path';
+import type { PanelAction, PanelState } from '../shared/ipc';
 import { findFreeCenter } from '../shared/placement';
 import { DEFAULT_X, MAX_SCALE, MIN_SCALE, type Settings } from '../shared/settings';
 import type { Pack } from '../shared/types';
+import { APP_ORIGIN } from './app-protocol';
 import type { Logger } from './logger';
-import { petMenuTemplate } from './menus';
+import { petMenuTemplate, trayMenuTemplate } from './menus';
 import { loadPacks, type LoadedPack } from './pack-loader';
+import { PanelWindow } from './panel-window';
 import { bodyWidth, restY, windowBounds, xRatioFromBounds, type WorkArea } from './pet-geometry';
 import { PetWindow, type PetEvents } from './pet-window';
 import type { AppPaths } from './paths';
 import { SettingsStore } from './settings-store';
+import { TrayController } from './tray';
 
 const PET_CHANNELS = ['pet:ready', 'pet:set-interactive', 'pet:move', 'pet:drag-end', 'pet:menu', 'pet:status', 'pet:reminder-result', 'pet:log'];
 const MAX_CRASH_RESTARTS = 3;
@@ -23,6 +28,8 @@ export class AppController {
   readonly status = new Map<string, string>();
   protected readonly store: SettingsStore;
   private readonly crashes = new Map<string, number>();
+  protected readonly panel: PanelWindow;
+  private tray: TrayController | null = null;
 
   constructor(protected readonly paths: AppPaths, readonly log: Logger, readonly debug: boolean) {
     this.packs = loadPacks(paths.packsDir);
@@ -35,6 +42,9 @@ export class AppController {
     this.settings = loaded.settings;
     this.warning = loaded.warning;
     for (const ch of PET_CHANNELS) ipcMain.on(ch, (e, ...args) => this.petFor(e.sender)?.handle(ch, args));
+    this.panel = new PanelWindow(paths.uiDir);
+    ipcMain.handle('panel:get-state', () => this.panelState());
+    ipcMain.handle('panel:act', (_e, a: PanelAction) => this.act(a));
   }
 
   validPacks(): ValidPack[] { return this.packs.filter((p): p is ValidPack => p.pack !== null); }
@@ -42,6 +52,8 @@ export class AppController {
   workArea(): WorkArea { return screen.getPrimaryDisplay().workArea; }
 
   start(): void {
+    const first = this.validPacks()[0];
+    this.tray = new TrayController(first ? join(first.dir, first.pack.portrait) : null, () => this.trayMenu(), () => this.openPanel());
     for (const id of this.settings.petOrder) if (this.settings.pets[id]?.visible) this.showPet(id);
     this.saveSoon();
   }
@@ -78,8 +90,89 @@ export class AppController {
   saveSoon(): void { this.store.saveSoon(this.settings); }
   flush(): void { this.store.flush(this.settings); }
 
-  /** Hook for later tasks (panel and tray refresh). */
-  protected changed(): void {}
+  protected changed(): void {
+    this.tray?.refresh();
+    this.panel.push(this.panelState());
+  }
+
+  openPanel(): void { this.panel.open(); }
+
+  panelState(): PanelState {
+    const r = this.settings.reminders;
+    return {
+      pets: this.packs.map(p => {
+        const ps = this.settings.pets[p.id];
+        return {
+          id: p.id,
+          name: p.pack?.name ?? p.id,
+          personality: p.pack?.personality ?? '',
+          portraitUrl: p.pack ? `${APP_ORIGIN}/packs/${p.id}/${p.pack.portrait}` : null,
+          errors: p.errors,
+          visible: this.pets.has(p.id),
+          scale: ps?.scale ?? 1,
+          auto: ps?.auto ?? true,
+          status: this.status.get(p.id) ?? '',
+          commands: p.pack?.commands ?? [],
+        };
+      }),
+      reminders: { water: r.water, stretch: r.stretch, eyes: r.eyes, notify: r.notify, pausedUntil: r.pausedUntil },
+      autoStart: this.settings.autoStart,
+      version: app.getVersion(),
+      warning: this.warning,
+    };
+  }
+
+  act(a: PanelAction): PanelState {
+    switch (a.kind) {
+      case 'pet':
+        if (a.visible === true) this.showPet(a.id);
+        if (a.visible === false) this.hidePet(a.id);
+        if (a.auto !== undefined) this.setAuto(a.id, a.auto);
+        if (a.scale !== undefined) this.setScale(a.id, a.scale);
+        break;
+      case 'command': this.command(a.id, a.pose); break;
+      case 'reminders': this.setReminders(a); break;
+      case 'testReminder': this.testReminder(); break;
+      case 'autoStart': this.setAutoStart(a.on); break;
+      case 'resetPositions': this.resetAllPositions(); break;
+    }
+    return this.panelState();
+  }
+
+  hideAll(): void { for (const id of [...this.pets.keys()]) this.hidePet(id); }
+
+  resetAllPositions(): void {
+    for (const ps of Object.values(this.settings.pets)) ps.x = null;
+    const visible = [...this.pets.keys()];
+    for (const id of visible) this.pets.get(id)?.close();
+    this.pets.clear();
+    for (const id of this.settings.petOrder) if (visible.includes(id)) this.showPet(id);
+  }
+
+  setAutoStart(on: boolean): void { this.settings.autoStart = on; this.applyAutoStart(); this.saveSoon(); this.changed(); }
+  quit(): void { app.quit(); }
+
+  // Filled in by Task 13 / Task 14.
+  protected applyAutoStart(): void {}
+  setReminders(_patch: { water?: number; stretch?: number; eyes?: number; notify?: boolean }): void {}
+  testReminder(): void {}
+  pauseReminders(): void {}
+  resumeReminders(): void {}
+
+  private trayMenu() {
+    return trayMenuTemplate(
+      this.validPacks().map(p => ({ id: p.id, name: p.pack.name, visible: this.pets.has(p.id) })),
+      { now: Date.now(), pausedUntil: this.settings.reminders.pausedUntil, autoStart: this.settings.autoStart },
+      {
+        openPanel: () => this.openPanel(),
+        togglePet: id => (this.pets.has(id) ? this.hidePet(id) : this.showPet(id)),
+        hideAll: () => this.hideAll(),
+        pauseReminders: () => this.pauseReminders(),
+        resumeReminders: () => this.resumeReminders(),
+        setAutoStart: on => this.setAutoStart(on),
+        quit: () => this.quit(),
+      });
+  }
 
   protected petEvents(): PetEvents {
     return {

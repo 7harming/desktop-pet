@@ -3004,6 +3004,9 @@ import { controllerCall, launch, petPage } from './helpers';
 test('clicking the cat shows a line and a heart', async () => {
   const { app } = await launch();
   const page = await petPage(app);
+  // stay awake in the start pose: on the perch (asleep) a click says "zzz" and shows no heart
+  await page.evaluate(() => { (window as any).__pet.engine.auto = false; });
+  await expect.poll(() => page.evaluate(() => (window as any).__pet.engine.endPose)).toBe('rest');
   await expect.poll(() => page.evaluate(() => (window as any).__pet.player.video?.readyState ?? 0)).toBeGreaterThanOrEqual(2);
   await expect(page.locator('.bubble')).toHaveText('嗨。');   // wait for the greeting so it cannot replace the click line
   const box = await page.evaluate(() => ({ w: innerWidth, h: innerHeight }));
@@ -3427,8 +3430,8 @@ for (const b of document.querySelectorAll<HTMLButtonElement>('.tab')) {
   });
 }
 
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...kids: (Node | string)[]) {
-  const e = Object.assign(document.createElement(tag), props);
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...kids: (Node | string)[]): HTMLElementTagNameMap[K] {
+  const e: HTMLElementTagNameMap[K] = Object.assign(document.createElement(tag), props);
   e.append(...kids);
   return e;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { petMenuTemplate } from '../../src/main/menus';
+import { petMenuTemplate, trayMenuTemplate } from '../../src/main/menus';
 
 const handlers = () => ({ command: vi.fn(), setAuto: vi.fn(), setScale: vi.fn(), resetPosition: vi.fn(), hide: vi.fn() });
 
@@ -17,5 +17,23 @@ describe('petMenuTemplate', () => {
     expect(h.setScale).toHaveBeenCalledWith(1.3);
     expect(h.resetPosition).toHaveBeenCalled();
     expect(h.hide).toHaveBeenCalled();
+  });
+});
+
+describe('trayMenuTemplate', () => {
+  const h = () => ({ openPanel: vi.fn(), togglePet: vi.fn(), hideAll: vi.fn(), pauseReminders: vi.fn(), resumeReminders: vi.fn(), setAutoStart: vi.fn(), quit: vi.fn() });
+  it('lists the panel, each cat, hide all, reminders, autostart and quit', () => {
+    const t = trayMenuTemplate([{ id: 'a', name: '小昭', visible: true }], { now: 0, pausedUntil: null, autoStart: true }, h());
+    expect(t.map(i => i.label ?? i.type)).toEqual(['打開控制面板', 'separator', '小昭', '全部收起來', 'separator', '提醒暫停 1 小時', '開機自動啟動', 'separator', '結束']);
+    expect(t[2]).toMatchObject({ type: 'checkbox', checked: true });
+  });
+  it('offers to resume while paused', () => {
+    const handlers = h();
+    const until = new Date(2026, 8, 27, 15, 30).getTime();
+    const t = trayMenuTemplate([], { now: until - 1000, pausedUntil: until, autoStart: false }, handlers);
+    const item = t.find(i => i.label?.startsWith('恢復提醒'))!;
+    expect(item.label).toBe('恢復提醒（目前暫停到 15:30）');
+    (item as any).click();
+    expect(handlers.resumeReminders).toHaveBeenCalled();
   });
 });
