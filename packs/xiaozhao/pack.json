@@ -1,0 +1,288 @@
+{
+ "schemaVersion": 1,
+ "id": "xiaozhao",
+ "name": "小昭",
+ "personality": "淡定、愛翻肚、最愛紙箱",
+ "portrait": "portrait.png",
+ "frame": {
+  "aspect": 1.7778,
+  "displayHeight": 440
+ },
+ "start": "lie",
+ "poses": {
+  "lie": {
+   "label": "趴著",
+   "idle": [
+    "idle_lie",
+    "idle_lie_groom"
+   ],
+   "ground": 0.906,
+   "centerX": 0.3,
+   "head": 0.406,
+   "shadow": true,
+   "draggable": true,
+   "stay": 0.7,
+   "autoWeight": 1
+  },
+  "sit": {
+   "label": "坐著",
+   "idle": [
+    "idle_sit"
+   ],
+   "ground": 0.906,
+   "centerX": 0.361,
+   "head": 0.692,
+   "shadow": true,
+   "draggable": false,
+   "stay": 0.6,
+   "autoWeight": 0.6
+  },
+  "sleep": {
+   "label": "睡覺",
+   "idle": [
+    "idle_sleep"
+   ],
+   "ground": 0.906,
+   "centerX": 0.386,
+   "head": 0.283,
+   "shadow": true,
+   "draggable": false,
+   "asleep": true,
+   "stay": 0.85,
+   "autoWeight": 0.8
+  },
+  "lieBox": {
+   "label": "（紙箱出現）",
+   "transient": true,
+   "ground": 0.906,
+   "centerX": 0.3,
+   "head": 0.406,
+   "shadow": true
+  },
+  "boxBelly": {
+   "label": "紙箱翻肚",
+   "idle": [
+    "box_idle"
+   ],
+   "ground": 0.906,
+   "centerX": 0.754,
+   "head": 0.415,
+   "shadow": false,
+   "draggable": false,
+   "asleep": true,
+   "stay": 0.85,
+   "autoWeight": 1.4
+  },
+  "liePillow": {
+   "label": "（抱枕出現）",
+   "transient": true,
+   "ground": 0.906,
+   "centerX": 0.3,
+   "head": 0.406,
+   "shadow": true
+  },
+  "pillow": {
+   "label": "藍色抱枕",
+   "idle": [
+    "pillow_idle"
+   ],
+   "ground": 0.906,
+   "centerX": 0.754,
+   "head": 0.551,
+   "shadow": false,
+   "draggable": false,
+   "stay": 0.7,
+   "autoWeight": 1
+  }
+ },
+ "clips": {
+  "idle_lie": {
+   "file": "clips/idle_lie.webm"
+  },
+  "idle_lie_groom": {
+   "file": "clips/idle_lie_groom.webm"
+  },
+  "idle_sit": {
+   "file": "clips/idle_sit.webm"
+  },
+  "lie_to_sit": {
+   "file": "clips/lie_to_sit.webm"
+  },
+  "sit_to_lie": {
+   "file": "clips/sit_to_lie.webm"
+  },
+  "idle_sleep": {
+   "file": "clips/idle_sleep.webm"
+  },
+  "lie_to_sleep": {
+   "file": "clips/lie_to_sleep.webm"
+  },
+  "sleep_to_lie": {
+   "file": "clips/sleep_to_lie.webm"
+  },
+  "box_enter": {
+   "file": "clips/box_enter.webm"
+  },
+  "box_idle": {
+   "file": "clips/box_idle.webm"
+  },
+  "box_exit": {
+   "file": "clips/box_exit.webm",
+   "rate": 0.8
+  },
+  "pillow_enter": {
+   "file": "clips/pillow_enter.webm",
+   "rate": 0.8
+  },
+  "pillow_idle": {
+   "file": "clips/pillow_idle.webm"
+  },
+  "pillow_exit": {
+   "file": "clips/pillow_exit.webm"
+  }
+ },
+ "edges": [
+  {
+   "from": "lie",
+   "to": "sit",
+   "clip": "lie_to_sit"
+  },
+  {
+   "from": "sit",
+   "to": "lie",
+   "clip": "sit_to_lie"
+  },
+  {
+   "from": "lie",
+   "to": "sleep",
+   "clip": "lie_to_sleep"
+  },
+  {
+   "from": "sleep",
+   "to": "lie",
+   "clip": "sleep_to_lie"
+  },
+  {
+   "from": "lie",
+   "to": "lieBox",
+   "fade": 0.5
+  },
+  {
+   "from": "lieBox",
+   "to": "boxBelly",
+   "clip": "box_enter"
+  },
+  {
+   "from": "boxBelly",
+   "to": "lieBox",
+   "clip": "box_exit"
+  },
+  {
+   "from": "lieBox",
+   "to": "lie",
+   "fade": 0.5
+  },
+  {
+   "from": "lie",
+   "to": "liePillow",
+   "fade": 0.5
+  },
+  {
+   "from": "liePillow",
+   "to": "pillow",
+   "clip": "pillow_enter"
+  },
+  {
+   "from": "pillow",
+   "to": "liePillow",
+   "clip": "pillow_exit"
+  },
+  {
+   "from": "liePillow",
+   "to": "lie",
+   "fade": 0.5
+  }
+ ],
+ "lines": {
+  "greet": [
+   "……喵。"
+  ],
+  "click": {
+   "default": [
+    "……",
+    "嗯。",
+    "喵。",
+    "（慢慢眨眼）"
+   ],
+   "sit": [
+    "……",
+    "嗯？",
+    "（歪頭）"
+   ],
+   "sleep": [
+    "……zzz",
+    "（耳朵動了一下）",
+    "……（不為所動）"
+   ],
+   "boxBelly": [
+    "……zzz",
+    "（耳朵動了一下）",
+    "……（不為所動）"
+   ]
+  },
+  "drag": [
+   "……隨便你",
+   "（液態貓）"
+  ],
+  "noDrag": [
+   "……（不想動）"
+  ],
+  "command": {
+   "lie": "……嗯。",
+   "sit": "……好啦。",
+   "sleep": "呼啊——",
+   "boxBelly": "（盯——紙箱）",
+   "pillow": "（看了抱枕一眼）"
+  },
+  "reminders": {
+   "water": {
+    "default": "……該喝水了。",
+    "sleep": "……（睡夢中）去喝水。",
+    "boxBelly": "……（睡夢中）去喝水。"
+   },
+   "stretch": {
+    "default": "……起來動一動。",
+    "sleep": "……（睡夢中）起來動一動。",
+    "boxBelly": "……（睡夢中）起來動一動。"
+   },
+   "eyes": {
+    "default": "……眼睛休息一下。",
+    "sleep": "……（睡夢中）眼睛休息一下。",
+    "boxBelly": "……（睡夢中）眼睛休息一下。"
+   }
+  }
+ },
+ "clickHeart": true,
+ "commands": [
+  {
+   "label": "趴著",
+   "pose": "lie"
+  },
+  {
+   "label": "坐下",
+   "pose": "sit"
+  },
+  {
+   "label": "睡覺",
+   "pose": "sleep"
+  },
+  {
+   "label": "紙箱翻肚",
+   "pose": "boxBelly"
+  },
+  {
+   "label": "藍色抱枕",
+   "pose": "pillow"
+  }
+ ]
+}

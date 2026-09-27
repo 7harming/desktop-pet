@@ -3924,6 +3924,7 @@ Run with the spike's Python (it has numpy, Pillow and imageio-ffmpeg):
   C:/Users/USER/pet-ai-spike/.venv/Scripts/python.exe tools/convert_xiaozhao.py
 """
 import argparse
+import io
 import json
 import subprocess
 import sys
@@ -3961,23 +3962,30 @@ def bg_colour(src: Path) -> str:
     return '0x%02X%02X%02X' % tuple(int(round(c)) for c in bg)
 
 
+def key_filter(src: Path) -> str:
+    return f'format=rgba,chromakey={bg_colour(src)}:0.14:0.06,despill=type=green:mix=0.6:expand=0.1'
+
+
 def key_clip(src: Path, dst: Path) -> None:
-    vf = f'scale=960:540,format=rgba,chromakey={bg_colour(src)}:0.14:0.06,despill=type=green:mix=0.6:expand=0.1'
+    vf = f'scale=960:540,{key_filter(src)}'
     subprocess.run([FF, '-y', '-loglevel', 'error', '-i', str(src), '-vf', vf, '-r', '24', '-c:v', 'libvpx-vp9',
                     '-pix_fmt', 'yuva420p', '-b:v', '0', '-crf', '32', '-auto-alt-ref', '0', '-an', str(dst)], check=True)
 
 
 def portrait(lie: Path, dst: Path) -> None:
-    img = Image.open(lie).convert('RGB')
-    al = keyed_alpha(img)
+    # key the still with the same filter as the clips, so the portrait's edge matches the cat on the desktop
+    png = subprocess.run([FF, '-v', 'error', '-i', str(lie), '-vf', key_filter(lie), '-f', 'image2pipe', '-vcodec', 'png', '-'],
+                         capture_output=True, check=True).stdout
+    img = Image.open(io.BytesIO(png)).convert('RGBA')
+    al = np.asarray(img)[..., 3] / 255
     ys, xs = np.nonzero(al > 0.5)
     top = ys.min()
     band = al[top:top + 60] > 0.5
     cx = np.nonzero(band.any(0))[0].mean()
     size = 220
     box = (int(cx - size / 2), int(top - 10), int(cx + size / 2), int(top - 10 + size))
-    rgba = np.dstack([np.asarray(img), (al * 255).astype(np.uint8)])
-    Image.fromarray(rgba, 'RGBA').crop(box).resize((256, 256), Image.LANCZOS).save(dst)
+    # resize premultiplied, so the transparent stage colour does not bleed into the edge
+    img.convert('RGBa').crop(box).resize((256, 256), Image.LANCZOS).convert('RGBA').save(dst)
 
 
 def build_pack(geo: dict) -> dict:
