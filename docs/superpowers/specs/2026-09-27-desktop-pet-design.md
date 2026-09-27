@@ -132,7 +132,7 @@ packs/xiaozhao/
                   "shadow": true, "draggable": true, "stay": 0.7, "autoWeight": 1 },
     "lieBox":   { "label": "（紙箱出現）", "transient": true, "ground": 0.906, "centerX": 0.30, "head": 0.41, "shadow": true },
     "boxBelly": { "label": "紙箱翻肚", "idle": ["box_idle"], "ground": 0.906, "centerX": 0.75, "head": 0.42,
-                  "shadow": false, "draggable": false, "stay": 0.85, "autoWeight": 1.4 }
+                  "shadow": false, "draggable": false, "asleep": true, "stay": 0.85, "autoWeight": 1.4 }
   },
   "clips": {
     "idle_lie":  { "file": "clips/idle_lie.webm" },
@@ -172,6 +172,7 @@ packs/xiaozhao/
   - `stay`：待機片段播完後，繼續待著的機率。
   - `autoWeight`：自己決定換姿勢時，選到這個姿勢的權重。
   - `transient`：過渡姿勢，沒有待機片段，程式會繼續往下走，不會停在這裡。
+  - `asleep`：睡著的姿勢。點擊時不冒愛心（例如睡覺、紙箱翻肚）。
 - 轉換（`edges`）：每一條是影片片段（`clip`）或淡入淡出（`fade`，秒數）其中之一。
 - 片段的 `rate`：播放速度，預設 1。
 - 台詞：每一類都可以用 `default` 加上依姿勢覆寫；陣列代表隨機挑一句。
@@ -209,7 +210,7 @@ packs/xiaozhao/
 
 ## 7. 點擊、泡泡、選單
 
-- **點擊**（按下後沒有拖動）：依目前姿勢從 `lines.click` 挑一句。醒著、且 `clickHeart` 為 true 時，冒一顆小愛心。沒有跳躍之類的動作。
+- **點擊**（按下後沒有拖動）：依目前姿勢從 `lines.click` 挑一句。姿勢不是 `asleep`、且 `clickHeart` 為 true 時，冒一顆小愛心。沒有跳躍之類的動作。
 - **泡泡**：出現在 `centerX` 和 `head` 算出的頭頂位置，2.2 秒後消失，會跟著貓咪移動。
 - **右鍵選單**（系統原生選單）：
   - 這隻貓的指令（`commands`）
