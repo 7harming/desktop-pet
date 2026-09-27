@@ -4111,7 +4111,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
     "directories": { "output": "release" },
     "files": ["dist/**", "package.json"],
     "extraResources": [{ "from": "packs", "to": "packs", "filter": ["**/*"] }],
-    "win": { "target": "nsis" },
+    "win": { "target": "nsis", "icon": "packs/xiaozhao/portrait.png" },
     "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true }
   }
 ```
