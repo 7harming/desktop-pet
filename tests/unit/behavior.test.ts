@@ -53,6 +53,37 @@ describe('BehaviorEngine', () => {
     expect(e.next().to).toBe('rest');
   });
 
+  it('moves only between the allowed poses', () => {
+    // rng 0.99 leaves rest; with only perch allowed besides rest, perch is the one target
+    const e = new BehaviorEngine(makePack(), constRng(0.99)); e.start();
+    e.setAllowed(['rest', 'perch']);
+    expect(e.next().clip).toBe('go_perch');
+  });
+
+  it('does not linger in a pose that is not allowed', () => {
+    // rng 0 would stay, but rest is not ticked
+    const e = new BehaviorEngine(makePack(), constRng(0)); e.start();
+    e.setAllowed(['sit']);
+    expect(e.next().clip).toBe('rest_to_sit');
+    expect(e.next()).toMatchObject({ clip: 'idle_sit', to: 'sit' });
+    expect(e.next()).toMatchObject({ clip: 'idle_sit', to: 'sit' });
+  });
+
+  it('lets a commanded pose stay even when it is not ticked', () => {
+    const e = new BehaviorEngine(makePack(), constRng(0)); e.start();
+    e.setAllowed(['rest']);
+    e.command('sit');
+    expect(e.next().clip).toBe('rest_to_sit');
+    expect(e.next().clip).toBe('idle_sit');
+    expect(e.next().clip).toBe('idle_sit');
+  });
+
+  it('treats an empty or unknown selection as every pose', () => {
+    const e = new BehaviorEngine(makePack(), constRng(0.99)); e.start();
+    e.setAllowed(['nope']);
+    expect(e.next().clip).toBe('rest_to_sit');
+  });
+
   it('lists clips worth preloading', () => {
     const e = new BehaviorEngine(makePack(), constRng(0)); e.start();
     expect(e.upcomingClips().sort()).toEqual(['go_perch', 'idle_rest', 'idle_rest2', 'rest_to_sit']);

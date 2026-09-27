@@ -11,6 +11,8 @@ export class BehaviorEngine {
   private queue: Step[] = [];
   private current: Step | null = null;
   private readonly broken = new Set<ClipId>();
+  private allowed: Set<PoseId> | null = null;   // the poses ticked in the panel; null = all
+  private commanded: PoseId | null = null;      // a commanded pose may stay even when it is not ticked
 
   constructor(private readonly pack: Pack, private readonly rng: Rng) {}
 
@@ -31,7 +33,8 @@ export class BehaviorEngine {
       if (this.plan(this.pack.start)) return this.take(this.queue.shift()!);
       return this.take(this.current!);   // stuck on a transient pose: replay the last clip rather than crash
     }
-    if (!this.auto || this.rng() < (def.stay ?? DEFAULT_STAY)) return this.take(this.idleOf(pose, 0));
+    const mayStay = !this.allowed || this.allowed.has(pose) || pose === this.commanded;
+    if (!this.auto || (mayStay && this.rng() < (def.stay ?? DEFAULT_STAY))) return this.take(this.idleOf(pose, 0));
     const target = this.pickTarget(pose);
     if (target && this.plan(target)) return this.take(this.queue.shift()!);
     return this.take(this.idleOf(pose, 0));
@@ -40,7 +43,14 @@ export class BehaviorEngine {
   /** Replace whatever was queued with the shortest way to `target`, starting after the current clip. */
   command(target: PoseId): boolean {
     this.queue = [];
+    this.commanded = target;
     return this.plan(target);
+  }
+
+  /** Auto mode only moves between these poses. Unknown or transient ids are ignored; nothing left means every pose. */
+  setAllowed(poses: PoseId[] | null): void {
+    const ok = (poses ?? []).filter(p => this.pack.poses[p] && !this.pack.poses[p].transient);
+    this.allowed = ok.length ? new Set(ok) : null;
   }
 
   markBroken(clip: ClipId): void {
@@ -63,7 +73,11 @@ export class BehaviorEngine {
     return [...out];
   }
 
-  private take(step: Step): Step { this.current = step; return step; }
+  private take(step: Step): Step {
+    if (step.from !== step.to && step.from === this.commanded) this.commanded = null;   // it left the commanded pose
+    this.current = step;
+    return step;
+  }
 
   private plan(target: PoseId): boolean {
     const path = findPath(this.pack.edges, this.endPose, target, this.broken);
@@ -83,7 +97,7 @@ export class BehaviorEngine {
 
   private pickTarget(pose: PoseId): PoseId | null {
     const candidates = Object.entries(this.pack.poses)
-      .filter(([id, p]) => id !== pose && !p.transient && (p.autoWeight ?? 1) > 0)
+      .filter(([id, p]) => id !== pose && !p.transient && (p.autoWeight ?? 1) > 0 && (!this.allowed || this.allowed.has(id)))
       .filter(([id]) => findPath(this.pack.edges, pose, id, this.broken) !== null);
     if (!candidates.length) return null;
     const total = candidates.reduce((s, [, p]) => s + (p.autoWeight ?? 1), 0);
