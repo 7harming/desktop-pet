@@ -16,7 +16,8 @@ test('the panel lists both cats and can show the second one next to the first', 
   const bodyWidth = await controllerCall(app, c => c.pets.get('testcat').frame.width * 0.35);
   expect(Math.abs(centers[0] - centers[1])).toBeGreaterThanOrEqual(bodyWidth);
   await panel.locator('[data-pet="testcat2"] input.visible').uncheck();
-  await expect.poll(() => controllerCall(app, c => [...c.pets.keys()])).toEqual(['testcat']);
+  // it may first have to go back to its start pose, then it walks off
+  await expect.poll(() => controllerCall(app, c => [...c.pets.keys()]), { timeout: 15_000 }).toEqual(['testcat']);
   await app.close();
 });
 

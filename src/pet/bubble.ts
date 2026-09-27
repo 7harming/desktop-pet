@@ -5,6 +5,7 @@ export class Bubbles {
   constructor(private readonly stage: HTMLElement, private readonly anchor: () => { x: number; y: number }) {}
 
   say(text: string, ms = 2200): void {
+    if (this.el?.classList.contains('reminder')) return;   // a reminder waits for its answer; a passing line must not replace it
     this.clear();
     this.show(this.make('bubble', text), ms, () => {});
   }

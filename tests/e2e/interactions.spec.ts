@@ -1,11 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { catPoint, controllerCall, launch, petPage } from './helpers';
+import { calmPetPage, catPoint, controllerCall, launch, petPage } from './helpers';
 
 test('clicking the cat shows a line and a heart', async () => {
   const { app } = await launch();
-  const page = await petPage(app);
   // stay awake in the start pose: on the perch (asleep) a click says "zzz" and shows no heart
-  await page.evaluate(() => { (window as any).__pet.engine.auto = false; });
+  const page = await calmPetPage(app);
   await expect.poll(() => page.evaluate(() => (window as any).__pet.engine.endPose)).toBe('rest');
   await expect.poll(() => page.evaluate(() => (window as any).__pet.player.video?.readyState ?? 0)).toBeGreaterThanOrEqual(2);
   await expect(page.locator('.bubble')).toHaveText('嗨。');   // wait for the greeting so it cannot replace the click line

@@ -38,6 +38,14 @@ export function controllerCall<T>(app: ElectronApplication, fn: (c: any) => T): 
   return app.evaluate((_electron, body) => new Function('c', `return (${body})(c)`)((globalThis as any).__controller), fn.toString());
 }
 
+/** The pet window with auto mode off from before it arrives, so it stays in its start pose once home. */
+export async function calmPetPage(app: ElectronApplication, id = 'testcat'): Promise<Page> {
+  const page = await petPage(app, id, false);
+  await page.evaluate(() => { (window as any).__pet.engine.auto = false; });
+  await expect.poll(() => page.evaluate(() => (window as any).__pet.mode), { timeout: 20_000 }).toBe('live');
+  return page;
+}
+
 /** Client coordinates of a point inside the cat's frame, given as shares of the frame (the frame sits somewhere in the strip). */
 export function catPoint(page: Page, fx: number, fy: number): Promise<{ x: number; y: number }> {
   return page.evaluate(([u, v]) => {
