@@ -27,13 +27,16 @@ export interface EdgeDef { from: PoseId; to: PoseId; clip?: ClipId; fade?: numbe
  * frame widths per second at playback rate 1 - so the paws stay planted on the screen. `arrive` starts as the loop's first frame and
  * ends in the start pose; `depart` starts in the start pose and ends as the loop's first frame mirrored, centred at `departX`; walking
  * left plays the loop mirrored. Positions are shares of the frame width; `width` is the walking cat's width, `left`/`right` bound
- * everything arrive and depart draw.
+ * everything arrive and depart draw. Arrive and depart may walk nearly on the spot too: `arriveGlide` / `departGlide` give, for each
+ * of their frames (24 fps), how far their frame has moved by then (shares of the frame width, + = right) so the paws stay planted.
  */
 export interface WalkDef {
   loop: ClipId; centerX: number; speed: number;
   arrive: ClipId; depart: ClipId; departX: number;
   width: number; head: number; left: number; right: number;
   rate?: number;
+  arriveGlide?: number[];
+  departGlide?: number[];
 }
 
 export type LineSet = string[];

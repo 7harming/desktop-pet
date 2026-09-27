@@ -1,7 +1,7 @@
 import { BehaviorEngine } from '../shared/behavior';
 import type { Step } from '../shared/graph';
 import type { BreakInit } from '../shared/ipc';
-import { planWalkIn, planWalkOut, type WalkPlan } from '../shared/walk-plan';
+import { arriveGlidePx, departGlidePx, planWalkIn, planWalkOut, type WalkPlan } from '../shared/walk-plan';
 import { Player } from '../pet/player';
 import { Walker } from '../pet/walker';
 
@@ -37,25 +37,25 @@ api.onInit((init: BreakInit) => {
     walker!.run({ plan, frameW, frameH, ground: start.ground, mirror, onFirstFrame });
   if (init.debug) (window as unknown as Record<string, unknown>).__break = { engine, player, walker };
 
-  // arriving: walking in or lying down; resting; leaving: getting up; gone
-  let phase: 'arriving' | 'resting' | 'leaving' | 'gone' = 'arriving';
+  const clipUrl = (clip: string) => new URL(pack.clips[clip].file, init.packUrl).href;
+
+  // arriving: walking in and lying down; resting; leaving: getting up and walking off
+  let phase: 'arriving' | 'resting' | 'leaving' = 'arriving';
   let timeUp = false;
-  const depart = () => {
+  const finish = () => api.done();
+  const depart = async () => {
     phase = 'leaving';
-    if (walk) void player.play(clipStep(walk.depart, pack.start, pack.start));
-    else finish();
+    if (!walk) { finish(); return; }
+    // depart takes over from the lying cat's own clip, then the mirrored loop walks it off
+    await walker!.playClip({ url: clipUrl(walk.depart), base: restX, glide: walk.departGlide, frameW, frameH, ground: start.ground,
+      onFirstFrame: () => { cat.style.visibility = 'hidden'; } });
+    await loops(planWalkOut(walk, frameW, restX + departGlidePx(walk, frameW), await walker!.duration()), true);
+    finish();
   };
-  const finish = () => { phase = 'gone'; api.done(); };
-  player.onStepStart = () => player.keep([...engine.upcomingClips(), ...(walk ? [walk.depart] : [])]);
+  player.onStepStart = () => player.keep(engine.upcomingClips());
   player.onEnded = () => {
-    if (phase === 'leaving') {
-      void walker!.duration()
-        .then(secs => loops(planWalkOut(walk!, frameW, restX, secs), true, () => { cat.style.visibility = 'hidden'; }))
-        .then(finish);
-      return;
-    }
-    if (phase === 'arriving') phase = 'resting';
-    if (timeUp) { depart(); return; }
+    if (phase !== 'resting') return;
+    if (timeUp) { void depart(); return; }
     void player.play(engine.next());
   };
   player.onError = () => finish();
@@ -65,7 +65,7 @@ api.onInit((init: BreakInit) => {
     if (timeUp) return;
     timeUp = true;
     $('skip').style.visibility = 'hidden';
-    if (phase === 'resting') depart();
+    if (phase === 'resting') void depart();
   };
   $('skip').addEventListener('click', end);
 
@@ -82,14 +82,18 @@ api.onInit((init: BreakInit) => {
 
   const arrive = async () => {
     if (!walk) { phase = 'resting'; void player.play(engine.start()); return; }
-    player.keep([walk.arrive]);
     cat.style.visibility = 'hidden';
-    await loops(planWalkIn(walk, frameW, restX, await walker!.duration()), false);
+    walker!.preload(clipUrl(walk.arrive));
+    walker!.preload(clipUrl(walk.depart));
+    const from = restX - arriveGlidePx(walk, frameW);     // arrive glides from here to the middle of the screen
+    await loops(planWalkIn(walk, frameW, from, await walker!.duration()), false);
+    await walker!.playClip({ url: clipUrl(walk.arrive), base: from, glide: walk.arriveGlide, frameW, frameH, ground: start.ground });
     cat.style.visibility = '';
-    const step = clipStep(walk.arrive, pack.start, pack.start);
-    engine.follow(step);
-    await player.play(step);
+    engine.follow(clipStep(walk.arrive, pack.start, pack.start));
+    phase = 'resting';
+    await player.play(engine.next());   // its first idle covers the walker's last frame
     walker!.clear();
+    if (timeUp) void depart();
   };
   void arrive();
 });

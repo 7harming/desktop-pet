@@ -4,7 +4,7 @@ import type { PetInit } from '../shared/ipc';
 import { clickLine, commandLine, pickLine, reminderLine } from '../shared/lines';
 import { isAsleep, poseValueAt, showsShadow } from '../shared/pose-geometry';
 import type { Pack, PoseDef } from '../shared/types';
-import { planWalkIn, planWalkOut, type WalkPlan } from '../shared/walk-plan';
+import { arriveGlidePx, departGlidePx, planWalkIn, planWalkOut, type WalkPlan } from '../shared/walk-plan';
 import { Bubbles } from './bubble';
 import { Interactions } from './interactions';
 import { Player } from './player';
@@ -36,19 +36,13 @@ api.onInit((init: PetInit) => {
   engine.setAllowed(init.actions);
   const player = new Player(layer, pack, init.packUrl);
   const history: string[] = [];
-  // entering: walking in; live: its normal life; leaving: heading back to the start pose; departing: getting up to go; gone
-  let mode: 'entering' | 'live' | 'leaving' | 'departing' | 'gone' = 'live';
+  // entering: walking in; live: its normal life; leaving: heading back to the start pose; gone: getting up and walking off
+  let mode: 'entering' | 'live' | 'leaving' | 'gone' = 'live';
   let exitWanted = false;   // told to leave while still walking in
   const debug = init.debug ? { id: pack.id, history, engine, player, get mode() { return mode; } } : null;
   if (debug) (window as unknown as Record<string, unknown>).__pet = debug;
 
   const advance = () => {
-    if (mode === 'departing') { void walkAway(); return; }                    // depart has ended
-    if (mode === 'entering') {                                                // arrive has ended: it is home
-      mode = 'live'; busy = false;
-      if (exitWanted) { leave(); return; }
-      greet(300);
-    }
     if (mode === 'leaving' && engine.endPose === pack.start) { depart(); return; }
     void player.play(engine.next());
   };
@@ -160,16 +154,23 @@ api.onInit((init: PetInit) => {
     walker!.run({ plan, frameW: frameW(), frameH: window.innerHeight, ground: g0, mirror, onFirstFrame });
   const greet = (ms: number) => setTimeout(() => { if (mode === 'live') bubbles.say(pickLine(pack.lines.greet, Math.random)); }, ms);
 
+  const clipUrl = (clip: string) => new URL(pack.clips[clip].file, init.packUrl).href;
+
   const walkIn = async () => {
     mode = 'entering'; busy = true;
     cat.style.visibility = 'hidden';
-    const arrive = clipStep(walk!.arrive, WALK_IN, pack.start);
-    player.keep([arrive.clip]);
-    await walkLoops(planWalkIn(walk!, frameW(), frameX, await walker!.duration()), false);
+    const W = frameW();
+    walker!.preload(clipUrl(walk!.arrive));
+    const arriveFrom = frameX - arriveGlidePx(walk!, W);   // arrive glides from here to the resting spot
+    await walkLoops(planWalkIn(walk!, W, arriveFrom, await walker!.duration()), false);
+    await walker!.playClip({ url: clipUrl(walk!.arrive), base: arriveFrom, glide: walk!.arriveGlide, frameW: W, frameH: window.innerHeight, ground: g0 });
+    // home: the engine carries on from the start pose, and its first idle covers the walker's last frame
     cat.style.visibility = '';
-    engine.follow(arrive);
-    await player.play(arrive);          // once arrive shows, it covers the walker's last frame
-    walker!.clear();                    // it stays 'entering' until arrive ends (see advance)
+    engine.follow(clipStep(walk!.arrive, WALK_IN, pack.start));
+    mode = 'live'; busy = false;
+    await player.play(engine.next());
+    walker!.clear();
+    if (exitWanted) leave(); else greet(300);
   };
 
   /** Head back to the start pose (or go at once if resting there), get up and walk off the left edge. */
@@ -179,18 +180,19 @@ api.onInit((init: PetInit) => {
     if (mode !== 'live') return;
     busy = true;
     bubbles.clear();
+    walker!.preload(clipUrl(walk.depart));
     const s = engine.currentStep;
     if (s && s.from === pack.start && s.to === pack.start) { depart(); return; }
     mode = 'leaving';
     if (!engine.command(pack.start)) depart();
   };
-  const depart = () => {
-    mode = 'departing';
-    void player.play(clipStep(walk!.depart, pack.start, WALK_OUT));
-  };
+  const depart = () => { mode = 'gone'; void walkAway(); };
   const walkAway = async () => {
-    mode = 'gone';
-    await walkLoops(planWalkOut(walk!, frameW(), frameX, await walker!.duration()), true, () => { cat.style.visibility = 'hidden'; });
+    const W = frameW();
+    // depart takes over from the cat's own clip (both show it lying there), then the mirrored loop walks it off
+    await walker!.playClip({ url: clipUrl(walk!.depart), base: frameX, glide: walk!.departGlide, frameW: W, frameH: window.innerHeight,
+      ground: g0, onFirstFrame: () => { cat.style.visibility = 'hidden'; } });
+    await walkLoops(planWalkOut(walk!, W, frameX + departGlidePx(walk!, W), await walker!.duration()), true);
     walker!.clear();
     api.exited();
   };

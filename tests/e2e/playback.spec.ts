@@ -5,7 +5,7 @@ test('the first cat walks in, lies down and plays an idle of its start pose', as
   const { app } = await launch();
   const page = await petPage(app, 'testcat', false);
   await page.evaluate(() => { (window as any).__pet.engine.auto = false; });   // or it may head for another pose right away
-  await expect.poll(() => page.evaluate(() => (window as any).__pet.history.slice(0, 2).join(',')), { timeout: 20_000 }).toMatch(/^walk_arrive,idle_rest/);
+  await expect.poll(() => page.evaluate(() => (window as any).__pet.history.slice(0, 2).join(',')), { timeout: 20_000 }).toMatch(/^idle_rest/);   // arrive is drawn by the walker, then the engine's first idle
   expect(await controllerCall(app, c => [...c.pets.keys()])).toEqual(['testcat']);
   // the frame is 533x300 at scale 1 and sits in a strip as wide as the work area; display scaling may round up by one pixel
   const { strip, frame, wa } = await controllerCall(app, c => {

@@ -9,7 +9,11 @@ export interface WalkPlan { start: number; end: number; loops: number; pxPerSec:
 
 const pxPerSec = (walk: WalkDef, frameW: number) => walk.speed * (walk.rate ?? 1) * frameW;
 
-/** Walking right, from off the left edge to `restX` (the frame x where `arrive` plays and the cat lies down). */
+/** How far arrive and depart move their frame in all (px): arrive ends that far right of where it starts, depart that far left. */
+export const arriveGlidePx = (walk: WalkDef, frameW: number) => (walk.arriveGlide?.at(-1) ?? 0) * frameW;
+export const departGlidePx = (walk: WalkDef, frameW: number) => (walk.departGlide?.at(-1) ?? 0) * frameW;
+
+/** Walking right, from off the left edge to `restX` (the frame x where the loop hands over to `arrive`). */
 export function planWalkIn(walk: WalkDef, frameW: number, restX: number, loopSecs: number): WalkPlan {
   const perLoop = walk.speed * loopSecs * frameW;
   const reach = restX + (walk.centerX + walk.width / 2) * frameW;          // the cat's right edge at the resting spot
@@ -17,7 +21,7 @@ export function planWalkIn(walk: WalkDef, frameW: number, restX: number, loopSec
   return { start: restX - loops * perLoop, end: restX, loops, pxPerSec: pxPerSec(walk, frameW) };
 }
 
-/** Walking left, mirrored, from where `depart` (played at frame x `restX`) leaves the cat until it is off the left edge. */
+/** Walking left, mirrored, from where `depart` leaves the cat (its frame ending at x `restX`) until it is off the left edge. */
 export function planWalkOut(walk: WalkDef, frameW: number, restX: number, loopSecs: number): WalkPlan {
   const perLoop = walk.speed * loopSecs * frameW;
   // mirrored, the loop's cat is centred at 1 - centerX; line that up with where depart ends

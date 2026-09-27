@@ -84,6 +84,10 @@ export function parsePack(raw: unknown): ParseResult {
         if (!isNum(walk[k]) || (walk[k] as number) < 0 || (walk[k] as number) > 1) err(`walk 的 ${k} 要在 0 到 1 之間`);
       }
       if (!isNum(walk.speed) || walk.speed <= 0) err('walk 的 speed 要是正數');
+      for (const k of ['arriveGlide', 'departGlide'] as const) {
+        const g = walk[k];
+        if (g !== undefined && (!Array.isArray(g) || !g.length || !g.every(isNum))) err(`walk 的 ${k} 要是數字的陣列`);
+      }
       if (walk.rate !== undefined && (!isNum(walk.rate) || walk.rate <= 0)) err('walk 的 rate 要是正數');
     }
   }

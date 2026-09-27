@@ -41,10 +41,11 @@ describe('parsePack', () => {
   });
 
   it('checks the walk section', () => {
-    const p: any = makePack(); delete p.walk.loop; p.walk.speed = 0; p.walk.departX = 2; p.walk.rate = 0;
+    const p: any = makePack(); delete p.walk.loop; p.walk.speed = 0; p.walk.departX = 2; p.walk.rate = 0; p.walk.arriveGlide = ['x'];
     const e = parsePack(p).errors;
     expect(e).toContain('walk 缺少 loop');
     expect(e).toContain('walk 的 speed 要是正數');
+    expect(e).toContain('walk 的 arriveGlide 要是數字的陣列');
     expect(e).toContain('walk 的 departX 要在 0 到 1 之間');
     expect(e).toContain('walk 的 rate 要是正數');
   });
