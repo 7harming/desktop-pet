@@ -7,6 +7,8 @@ import { resolvePaths } from './paths';
 registerSchemePrivileges();
 const paths = resolvePaths();
 const debug = process.env.DESKTOP_PET_DEBUG === '1';
+// Must match build.appId, so notifications carry the installed app's name and icon.
+app.setAppUserModelId('local.desktoppet');
 
 void app.whenReady().then(() => {
   const log = new Logger(paths.logsDir);

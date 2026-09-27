@@ -2305,6 +2305,8 @@ import { resolvePaths } from './paths';
 registerSchemePrivileges();
 const paths = resolvePaths();
 const debug = process.env.DESKTOP_PET_DEBUG === '1';
+// Must match build.appId, so notifications carry the installed app's name and icon.
+app.setAppUserModelId('local.desktoppet');
 
 void app.whenReady().then(() => {
   const log = new Logger(paths.logsDir);
@@ -2724,7 +2726,8 @@ export class Bubbles {
     const { x, y } = this.anchor();
     const w = this.stage.clientWidth;
     this.el.style.left = `${Math.min(Math.max(x, 80), w - 80)}px`;
-    this.el.style.top = `${Math.max(y, 44)}px`;
+    // the bubble hangs above its anchor: keep its whole height (taller with reminder buttons) inside the window
+    this.el.style.top = `${Math.max(y, this.el.offsetHeight + 4)}px`;
   }
 
   clear(): void {
@@ -3606,6 +3609,20 @@ test('pausing from the tray holds reminders for an hour', async () => {
   expect(paused[1]).toBeGreaterThan(Date.now() + 59 * 60_000);
   await controllerCall(app, c => c.resumeReminders());
   expect(await controllerCall(app, c => c.scheduler.isPaused(Date.now()))).toBe(false);
+  await app.close();
+});
+
+test('a reminder bubble stays inside the window when the head is near the top', async () => {
+  const { app } = await launch();
+  const page = await petPage(app);
+  // a sitting cat at the smallest size puts the anchor about 40 px from the top; the reminder bubble is taller
+  const top = await page.evaluate(() => {
+    const Bubbles = (window as any).__pet.bubbles.constructor;
+    const b = new Bubbles(document.getElementById('stage'), () => ({ x: 200, y: 40 }));
+    b.ask('喝水。', [{ label: '喝好了', onClick: () => {} }, { label: '10 分鐘後', onClick: () => {} }], 5_000, () => {});
+    return document.querySelectorAll('.bubble.reminder')[0].getBoundingClientRect().top;
+  });
+  expect(top).toBeGreaterThanOrEqual(0);
   await app.close();
 });
 ```

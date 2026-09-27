@@ -1,9 +1,11 @@
-import { app, ipcMain, Menu, screen, type WebContents } from 'electron';
+import { app, ipcMain, Menu, Notification, powerMonitor, screen, type WebContents } from 'electron';
 import { join } from 'node:path';
 import type { PanelAction, PanelState } from '../shared/ipc';
+import { reminderLine } from '../shared/lines';
 import { findFreeCenter } from '../shared/placement';
+import { ReminderScheduler } from '../shared/reminders';
 import { DEFAULT_X, MAX_SCALE, MIN_SCALE, type Settings } from '../shared/settings';
-import type { Pack } from '../shared/types';
+import type { Pack, ReminderType } from '../shared/types';
 import { APP_ORIGIN } from './app-protocol';
 import type { Logger } from './logger';
 import { petMenuTemplate, trayMenuTemplate } from './menus';
@@ -17,6 +19,9 @@ import { TrayController } from './tray';
 
 const PET_CHANNELS = ['pet:ready', 'pet:set-interactive', 'pet:move', 'pet:drag-end', 'pet:menu', 'pet:status', 'pet:reminder-result', 'pet:log'];
 const MAX_CRASH_RESTARTS = 3;
+const REMINDER_TICK_MS = 15_000;
+const PAUSE_MS = 3_600_000;
+const FALLBACK_LINES: Record<ReminderType, string> = { water: '該喝水了。', stretch: '起來動一動。', eyes: '讓眼睛休息一下。' };
 
 type ValidPack = LoadedPack & { pack: Pack };
 
@@ -30,6 +35,7 @@ export class AppController {
   private readonly crashes = new Map<string, number>();
   protected readonly panel: PanelWindow;
   private tray: TrayController | null = null;
+  scheduler!: ReminderScheduler;
 
   constructor(protected readonly paths: AppPaths, readonly log: Logger, readonly debug: boolean) {
     this.packs = loadPacks(paths.packsDir);
@@ -56,6 +62,15 @@ export class AppController {
     this.tray = new TrayController(first ? join(first.dir, first.pack.portrait) : null, () => this.trayMenu(), () => this.openPanel());
     for (const id of this.settings.petOrder) if (this.settings.pets[id]?.visible) this.showPet(id);
     this.saveSoon();
+    const r = this.settings.reminders;
+    this.scheduler = new ReminderScheduler({ water: r.water, stretch: r.stretch, eyes: r.eyes }, Date.now());
+    if (r.pausedUntil && r.pausedUntil > Date.now()) this.scheduler.pause(r.pausedUntil);
+    setInterval(() => this.tickReminders(), REMINDER_TICK_MS);
+    const pauseAll = (paused: boolean) => { for (const p of this.pets.values()) p.send('pet:pause', paused); };
+    powerMonitor.on('suspend', () => pauseAll(true));
+    powerMonitor.on('lock-screen', () => pauseAll(true));
+    powerMonitor.on('resume', () => { pauseAll(false); this.scheduler.resetAll(Date.now()); });
+    powerMonitor.on('unlock-screen', () => { pauseAll(false); this.scheduler.resetAll(Date.now()); });
   }
 
   showPet(id: string): void {
@@ -152,12 +167,62 @@ export class AppController {
   setAutoStart(on: boolean): void { this.settings.autoStart = on; this.applyAutoStart(); this.saveSoon(); this.changed(); }
   quit(): void { app.quit(); }
 
-  // Filled in by Task 13 / Task 14.
+  // Filled in by Task 14.
   protected applyAutoStart(): void {}
-  setReminders(_patch: { water?: number; stretch?: number; eyes?: number; notify?: boolean }): void {}
-  testReminder(): void {}
-  pauseReminders(): void {}
-  resumeReminders(): void {}
+
+  setReminders(patch: { water?: number; stretch?: number; eyes?: number; notify?: boolean }): void {
+    const r = this.settings.reminders;
+    Object.assign(r, patch);
+    this.scheduler.setIntervals({ water: r.water, stretch: r.stretch, eyes: r.eyes }, Date.now());
+    this.saveSoon();
+    this.changed();
+  }
+
+  testReminder(): void { this.deliver('water'); }
+
+  pauseReminders(): void {
+    const until = Date.now() + PAUSE_MS;
+    this.settings.reminders.pausedUntil = until;
+    this.scheduler.pause(until);
+    this.saveSoon();
+    this.changed();
+  }
+
+  resumeReminders(): void {
+    this.settings.reminders.pausedUntil = null;
+    this.scheduler.resume(Date.now());
+    this.saveSoon();
+    this.changed();
+  }
+
+  protected onReminderResult(_id: string, type: string, result: string): void {
+    const t = type as ReminderType;
+    if (result === 'snooze') this.scheduler.snooze(t, Date.now());
+    else this.scheduler.done(t, Date.now());
+  }
+
+  private tickReminders(): void {
+    const now = Date.now();
+    if (this.settings.reminders.pausedUntil && now >= this.settings.reminders.pausedUntil) {
+      this.settings.reminders.pausedUntil = null;
+      this.saveSoon();
+      this.changed();
+    }
+    for (const t of this.scheduler.due(now)) this.deliver(t);
+  }
+
+  /** The first visible cat (in panel order) says it; without a cat only the notification shows. */
+  private deliver(type: ReminderType): void {
+    const id = this.settings.petOrder.find(i => this.pets.has(i));
+    const pet = id ? this.pets.get(id) : undefined;
+    if (pet) pet.send('pet:reminder', type);
+    else this.scheduler.done(type, Date.now());
+    if (this.settings.reminders.notify && Notification.isSupported()) {
+      const body = pet ? reminderLine(pet.pack, type, pet.pack.start) : FALLBACK_LINES[type];
+      new Notification({ title: '毛孩桌寵', body }).show();
+    }
+    this.log.info(`提醒：${type}${pet ? `（${pet.id}）` : '（沒有貓在桌面上）'}`);
+  }
 
   private trayMenu() {
     return trayMenuTemplate(
@@ -235,7 +300,6 @@ export class AppController {
     pet.setBounds(windowBounds(pet.pack, ps.scale, ps.x ?? DEFAULT_X, this.workArea()));
   }
 
-  protected onReminderResult(_id: string, _type: string, _result: string): void {}
 
   private onDragEnd(id: string): void {
     const pet = this.pets.get(id);

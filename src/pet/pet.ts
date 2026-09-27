@@ -1,6 +1,6 @@
 import { BehaviorEngine } from '../shared/behavior';
 import type { PetInit } from '../shared/ipc';
-import { clickLine, commandLine, pickLine } from '../shared/lines';
+import { clickLine, commandLine, pickLine, reminderLine } from '../shared/lines';
 import { isAsleep, poseValueAt, showsShadow } from '../shared/pose-geometry';
 import { Bubbles } from './bubble';
 import { Interactions } from './interactions';
@@ -69,6 +69,13 @@ api.onInit((init: PetInit) => {
     onNoDrag: () => bubbles.say(pickLine(pack.lines.noDrag, Math.random)),
   });
   api.onRestY(y => interactions.setRestY(y));
+  const DONE_LABEL = { water: '喝好了', stretch: '動好了', eyes: '休息好了' } as const;
+  api.onReminder(type => {
+    bubbles.ask(reminderLine(pack, type, engine.endPose), [
+      { label: DONE_LABEL[type], onClick: () => api.reminderResult(type, 'done') },
+      { label: '10 分鐘後', onClick: () => api.reminderResult(type, 'snooze') },
+    ], 15_000, () => api.reminderResult(type, 'done'));
+  });
 
   const frame = () => {
     const H = window.innerHeight;

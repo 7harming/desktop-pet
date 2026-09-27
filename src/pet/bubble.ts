@@ -42,7 +42,8 @@ export class Bubbles {
     const { x, y } = this.anchor();
     const w = this.stage.clientWidth;
     this.el.style.left = `${Math.min(Math.max(x, 80), w - 80)}px`;
-    this.el.style.top = `${Math.max(y, 44)}px`;
+    // the bubble hangs above its anchor: keep its whole height (taller with reminder buttons) inside the window
+    this.el.style.top = `${Math.max(y, this.el.offsetHeight + 4)}px`;
   }
 
   clear(): void {
