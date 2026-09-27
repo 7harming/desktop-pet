@@ -11,7 +11,7 @@ import type { Logger } from './logger';
 import { petMenuTemplate, trayMenuTemplate } from './menus';
 import { loadPacks, type LoadedPack } from './pack-loader';
 import { PanelWindow } from './panel-window';
-import { bodyWidth, restY, windowBounds, xRatioFromBounds, type WorkArea } from './pet-geometry';
+import { bodyWidth, extentOf, restY, windowBounds, windowSize, xRatioFromBounds, type Bounds, type WorkArea } from './pet-geometry';
 import { PetWindow, type PetEvents } from './pet-window';
 import type { AppPaths } from './paths';
 import { SettingsStore } from './settings-store';
@@ -91,10 +91,14 @@ export class AppController {
       width: bodyWidth(w.pack, this.settings.pets[w.id].scale),
     }));
     const want = wa.x + (ps.x ?? DEFAULT_X) * wa.width;
-    const center = findFreeCenter(others, want, bodyWidth(pack, ps.scale), wa.x, wa.x + wa.width);
+    // search only where the cat can really rest: what it draws must stay on screen
+    const [left, right] = extentOf(pack, ps.actions);
+    const w = windowSize(pack, ps.scale).width;
+    const cx = pack.poses[pack.start].centerX;
+    const center = findFreeCenter(others, want, bodyWidth(pack, ps.scale), wa.x + (cx - left) * w, wa.x + wa.width - (right - cx) * w);
     ps.x = (center - wa.x) / wa.width;
     ps.visible = true;
-    const pet = new PetWindow(pack, windowBounds(pack, ps.scale, ps.x, wa),
+    const pet = new PetWindow(pack, this.restBounds(id),
       { auto: ps.auto, actions: ps.actions, restY: restY(pack, ps.scale, wa), debug: this.debug }, this.petEvents(), this.paths.uiDir);
     this.pets.set(id, pet);
     this.saveSoon();
@@ -187,7 +191,7 @@ export class AppController {
     const wa = this.workArea();
     for (const [id, pet] of this.pets) {
       const ps = this.settings.pets[id];
-      pet.setBounds(windowBounds(pet.pack, ps.scale, ps.x ?? DEFAULT_X, wa));
+      pet.setBounds(this.restBounds(id));
       const y = restY(pet.pack, ps.scale, wa);
       pet.updateInit({ restY: y });
       pet.send('pet:rest-y', y);
@@ -296,7 +300,14 @@ export class AppController {
     })).popup({ window: pet.win });
   }
 
-  command(id: string, pose: string): void { this.pets.get(id)?.send('pet:command', pose); }
+  command(id: string, pose: string): void {
+    const pet = this.pets.get(id);
+    if (!pet) return;
+    // an unticked pose (say the box) may need more room than the cat's spot leaves: make room first
+    const b = this.restBounds(id, pose);
+    if (b.x !== pet.win.getBounds().x) pet.setBounds(b);
+    pet.send('pet:command', pose);
+  }
 
   setAuto(id: string, on: boolean): void {
     const ps = this.settings.pets[id];
@@ -316,6 +327,7 @@ export class AppController {
     ps.actions = actions;
     const pet = this.pets.get(id);
     pet?.updateInit({ actions });
+    pet?.setBounds(this.restBounds(id));
     pet?.send('pet:set-actions', actions);
     this.saveSoon();
     this.changed();
@@ -328,7 +340,7 @@ export class AppController {
     const pet = this.pets.get(id);
     if (pet) {
       const wa = this.workArea();
-      pet.setBounds(windowBounds(pet.pack, ps.scale, ps.x ?? DEFAULT_X, wa));
+      pet.setBounds(this.restBounds(id));
       const y = restY(pet.pack, ps.scale, wa);
       pet.updateInit({ restY: y });
       pet.send('pet:rest-y', y);
@@ -342,7 +354,18 @@ export class AppController {
     const pet = this.pets.get(id);
     const ps = this.settings.pets[id];
     if (!pet || !ps) return;
-    pet.setBounds(windowBounds(pet.pack, ps.scale, ps.x ?? DEFAULT_X, this.workArea()));
+    pet.setBounds(this.restBounds(id));
+  }
+
+  /**
+   * The resting window for a cat: its saved spot, pulled in just enough that everything it may draw there stays on screen
+   * (the ticked poses, plus `extra`, a pose it was just told to go to).
+   */
+  restBounds(id: string, extra?: string): Bounds {
+    const pack = this.packOf(id)!;
+    const ps = this.settings.pets[id];
+    const poses = extra ? [...(ps.actions ?? Object.keys(pack.poses)), extra] : ps.actions;
+    return windowBounds(pack, ps.scale, ps.x ?? DEFAULT_X, this.workArea(), extentOf(pack, poses));
   }
 
 
@@ -352,7 +375,9 @@ export class AppController {
     if (!pet || !ps) return;
     const wa = this.workArea();
     ps.x = xRatioFromBounds(pet.win.getBounds(), pet.pack, wa);
-    pet.setBounds(windowBounds(pet.pack, ps.scale, ps.x, wa));
+    const b = this.restBounds(id);
+    pet.setBounds(b);
+    ps.x = xRatioFromBounds(b, pet.pack, wa);   // remember where it really rests
     this.saveSoon();
   }
 

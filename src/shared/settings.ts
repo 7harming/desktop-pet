@@ -12,7 +12,8 @@ export interface Settings {
 
 export const REMINDER_CHOICES = [0, 30, 45, 60, 90];
 export const SIZE_PRESETS = { s: 0.75, m: 1, l: 1.3 } as const;
-export const DEFAULT_X = 0.62;
+/** A new cat rests near the bottom-right corner (pulled in as far as its props need). */
+export const DEFAULT_X = 0.85;
 export const MIN_SCALE = 0.6;
 export const MAX_SCALE = 1.5;
 

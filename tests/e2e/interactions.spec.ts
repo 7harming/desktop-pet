@@ -49,3 +49,15 @@ test('dragging keeps the window size and the drop lands back on the taskbar', as
   expect((await bounds()).x).toBe(start.x - 120);
   await app.close();
 });
+
+test('a cat dropped at the right edge rests there, the empty part of its window past the edge', async () => {
+  const { app } = await launch();
+  const page = await petPage(app);
+  const wa = await controllerCall(app, c => c.workArea());
+  const start = await controllerCall(app, c => c.pets.get('testcat').win.getBounds());
+  await page.evaluate(([x, y]) => { window.petApi.moveWindow(x, y); window.petApi.dragEnded(); }, [wa.x + wa.width - 50, start.y]);
+  // everything the test cat draws is in the left half of its window, so the right half may hang off the screen
+  await expect.poll(async () => (await controllerCall(app, c => c.pets.get('testcat').win.getBounds())).x)
+    .toBe(Math.floor(wa.x + wa.width - 0.5 * 533));
+  await app.close();
+});
