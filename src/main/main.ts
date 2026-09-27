@@ -14,7 +14,7 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   let controller: AppController | null = null;
-  app.on('second-instance', () => controller?.openPanel());
+  app.on('second-instance', () => controller?.summon());
   void app.whenReady().then(() => {
     const log = new Logger(paths.logsDir);
     log.info(`啟動 ${app.getVersion()}`);

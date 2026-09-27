@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { controllerCall, launch, panelPage, petPage } from './helpers';
@@ -29,4 +29,29 @@ test('a dragged position survives a restart', async () => {
   await petPage(second.app);
   expect(await controllerCall(second.app, c => c.settings.pets.testcat.x)).toBeCloseTo(0.25, 2);
   await second.app.close();
+});
+
+test('opening the app by hand brings a hidden cat back; starting at login does not', async () => {
+  const userDir = mkdtempSync(join(tmpdir(), 'dpet-hidden-'));
+  writeFileSync(join(userDir, 'settings.json'), JSON.stringify({ firstRunDone: true, pets: { testcat: { visible: false }, testcat2: { visible: false } } }));
+  const atLogin = await launch({}, userDir, ['--autostart']);
+  await new Promise(r => setTimeout(r, 2500));
+  expect(await controllerCall(atLogin.app, c => [...c.pets.keys()])).toEqual([]);
+  await atLogin.app.close();
+
+  const byHand = await launch({}, userDir);
+  await petPage(byHand.app, 'testcat');
+  expect(await controllerCall(byHand.app, c => c.settings.pets.testcat.visible)).toBe(true);
+  await byHand.app.close();
+});
+
+test('asking for the app again while it runs opens the panel and brings a cat back', async () => {
+  const { app } = await launch();
+  await petPage(app);
+  await controllerCall(app, c => c.hidePet('testcat'));
+  await expect.poll(() => controllerCall(app, c => c.pets.has('testcat')), { timeout: 15_000 }).toBe(false);
+  await controllerCall(app, c => c.summon());
+  await panelPage(app);
+  await petPage(app, 'testcat');
+  await app.close();
 });

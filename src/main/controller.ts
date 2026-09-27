@@ -21,6 +21,8 @@ import { TrayController } from './tray';
 const PET_CHANNELS = ['pet:ready', 'pet:set-interactive', 'pet:move', 'pet:drag-end', 'pet:menu', 'pet:status', 'pet:reminder-result', 'pet:log', 'pet:exited'];
 /** Walking off can mean first getting out of the box, then getting up and crossing the screen; never wait longer than this. */
 const EXIT_TIMEOUT_MS = 45_000;
+/** Passed by the login item, so a start at login can tell itself from being opened by hand. */
+export const AUTOSTART_ARG = '--autostart';
 /** The eye break: this long, unless DESKTOP_PET_BREAK_SECONDS says otherwise (tests). */
 const BREAK_SECONDS = Number(process.env.DESKTOP_PET_BREAK_SECONDS) || 30;
 const MAX_CRASH_RESTARTS = 3;
@@ -73,6 +75,11 @@ export class AppController {
   start(): void {
     const first = this.validPacks()[0];
     this.tray = new TrayController(first ? join(first.dir, first.pack.portrait) : null, () => this.trayMenu(), () => this.openPanel());
+    // opened by hand (not at login) with every cat put away: bring the first one back, or it looks as if nothing started
+    if (!process.argv.includes(AUTOSTART_ARG) && !this.settings.petOrder.some(id => this.settings.pets[id]?.visible)) {
+      const firstId = this.settings.petOrder[0];
+      if (firstId) this.settings.pets[firstId].visible = true;
+    }
     for (const id of this.settings.petOrder) if (this.settings.pets[id]?.visible) this.showPet(id);
     this.saveSoon();
     const r = this.settings.reminders;
@@ -123,6 +130,10 @@ export class AppController {
 
   hidePet(id: string): void {
     void this.walkOff(id);
+    if (!this.settings.petOrder.some(i => this.onScreen(i))) {
+      const name = this.packOf(id)?.name ?? '貓咪';
+      this.tray?.balloon(`${name}先去休息了`, '要牠回來：再點一次桌面或開始選單的「毛孩桌寵」，或點右下角 ^ 裡的貓咪圖示。');
+    }
     if (this.settings.pets[id]) this.settings.pets[id].visible = false;
     this.status.delete(id);
     this.saveSoon();
@@ -138,6 +149,15 @@ export class AppController {
   }
 
   openPanel(): void { this.panel.open(); }
+
+  /** The app was opened again while it runs: show the panel, and bring a cat out if none is. */
+  summon(): void {
+    if (!this.settings.petOrder.some(id => this.onScreen(id))) {
+      const firstId = this.settings.petOrder[0];
+      if (firstId) this.showPet(firstId);
+    }
+    this.openPanel();
+  }
 
   panelState(): PanelState {
     const r = this.settings.reminders;
@@ -232,7 +252,7 @@ export class AppController {
 
   /** Registering electron.exe during development would be wrong, so only the installed app registers itself. */
   protected applyAutoStart(): void {
-    if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: this.settings.autoStart });
+    if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: this.settings.autoStart, args: [AUTOSTART_ARG] });
   }
 
   /** After a resolution or monitor change, pull every cat back onto the work area's bottom edge. */

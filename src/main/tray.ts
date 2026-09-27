@@ -12,5 +12,10 @@ export class TrayController {
   }
 
   refresh(): void { this.tray.setContextMenu(Menu.buildFromTemplate(this.build())); }
+
+  /** A notice from the tray icon (Windows shows it as a toast). */
+  balloon(title: string, content: string): void {
+    if (process.platform === 'win32') this.tray.displayBalloon({ title, content, iconType: 'none' });
+  }
   destroy(): void { this.tray.destroy(); }
 }

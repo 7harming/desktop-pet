@@ -31,6 +31,9 @@
     "files": ["dist/**", "package.json"],
     "extraResources": [{ "from": "packs", "to": "packs", "filter": ["**/*"] }],
     "win": { "target": "nsis", "icon": "packs/xiaozhao/portrait.png" },
-    "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true }
+    "nsis": {
+      "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always", "createStartMenuShortcut": true, "shortcutName": "毛孩桌寵"
+    }
   }
 }
