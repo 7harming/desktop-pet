@@ -8,6 +8,9 @@ export interface PoseDef {
   ground: number;
   centerX: number;
   head: number;
+  /** Left and right edge of everything drawn in this pose (cat and prop), as a share of the frame width. */
+  left?: number;
+  right?: number;
   shadow?: boolean;
   draggable?: boolean;
   asleep?: boolean;
@@ -17,6 +20,15 @@ export interface PoseDef {
 
 export interface ClipDef { file: string; rate?: number }
 export interface EdgeDef { from: PoseId; to: PoseId; clip?: ClipId; fade?: number }
+
+/** Walking, for entrances, exits and breaks. It sits beside the pose graph: `arrive` ends in the start pose and `depart` starts there.
+ * The loop walks right on the spot; walking left plays it mirrored around `centerX`. `speed` is how fast the planted paws move,
+ * in frame widths per second at playback rate 1, so the window moves at speed x rate x its width. */
+export interface WalkDef {
+  loop: ClipId; arrive: ClipId; depart: ClipId;
+  centerX: number; head: number; left: number; right: number;
+  speed: number; rate?: number;
+}
 
 export type LineSet = string[];
 export interface PoseLines { default: LineSet; [pose: string]: LineSet }
@@ -48,4 +60,5 @@ export interface Pack {
   lines: PackLines;
   clickHeart: boolean;
   commands: Command[];
+  walk?: WalkDef;
 }

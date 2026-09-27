@@ -39,6 +39,10 @@ export function parsePack(raw: unknown): ParseResult {
       if (p[k] !== undefined && (!isNum(p[k]) || (p[k] as number) < 0)) err(`姿勢 ${id} 的 ${k} 要是非負數`);
     }
     if (isNum(p.stay) && p.stay > 1) err(`姿勢 ${id} 的 stay 不能大於 1`);
+    for (const k of ['left', 'right'] as const) {
+      if (p[k] !== undefined && (!isNum(p[k]) || (p[k] as number) < 0 || (p[k] as number) > 1)) err(`姿勢 ${id} 的 ${k} 要在 0 到 1 之間`);
+    }
+    if (isNum(p.left) && isNum(p.right) && p.left >= p.right) err(`姿勢 ${id} 的 left 要小於 right`);
   }
 
   const clips = raw.clips;
@@ -68,6 +72,19 @@ export function parsePack(raw: unknown): ParseResult {
     else for (const t of REMINDER_TYPES) {
       const r = lines.reminders[t];
       if (!isObj(r) || !isStr(r.default)) err(`lines.reminders.${t}.default 要是一句台詞`);
+    }
+  }
+
+  const walk = raw.walk;
+  if (walk !== undefined) {
+    if (!isObj(walk)) err('walk 要是一個物件');
+    else {
+      for (const k of ['loop', 'arrive', 'depart'] as const) if (!isStr(walk[k])) err(`walk 缺少 ${k}`);
+      for (const k of ['centerX', 'head', 'left', 'right'] as const) {
+        if (!isNum(walk[k]) || (walk[k] as number) < 0 || (walk[k] as number) > 1) err(`walk 的 ${k} 要在 0 到 1 之間`);
+      }
+      if (!isNum(walk.speed) || walk.speed <= 0) err('walk 的 speed 要是正數');
+      if (walk.rate !== undefined && (!isNum(walk.rate) || walk.rate <= 0)) err('walk 的 rate 要是正數');
     }
   }
 

@@ -4,48 +4,196 @@
   "name": "測試貓",
   "personality": "測試用",
   "portrait": "portrait.png",
-  "frame": { "aspect": 1.7777777777777777, "displayHeight": 300 },
+  "frame": {
+    "aspect": 1.7777777777777777,
+    "displayHeight": 300
+  },
   "start": "rest",
   "poses": {
-    "rest": { "label": "休息", "idle": ["idle_rest", "idle_rest2"], "ground": 0.9, "centerX": 0.34, "head": 0.4, "shadow": true, "draggable": true, "stay": 0.7, "autoWeight": 1 },
-    "restProp": { "label": "（道具出現）", "transient": true, "ground": 0.9, "centerX": 0.34, "head": 0.4, "shadow": true },
-    "perch": { "label": "在台子上", "idle": ["idle_perch"], "ground": 0.9, "centerX": 0.75, "head": 0.5, "shadow": false, "draggable": false, "asleep": true, "stay": 0.8, "autoWeight": 2 },
-    "sit": { "label": "坐著", "idle": ["idle_sit"], "ground": 0.9, "centerX": 0.34, "head": 0.6, "shadow": true, "stay": 0.5, "autoWeight": 1 }
+    "rest": {
+      "label": "休息",
+      "idle": [
+        "idle_rest",
+        "idle_rest2"
+      ],
+      "ground": 0.9,
+      "centerX": 0.34,
+      "head": 0.4,
+      "shadow": true,
+      "draggable": true,
+      "stay": 0.7,
+      "autoWeight": 1,
+      "left": 0.1875,
+      "right": 0.5
+    },
+    "restProp": {
+      "label": "（道具出現）",
+      "transient": true,
+      "ground": 0.9,
+      "centerX": 0.34,
+      "head": 0.4,
+      "shadow": true,
+      "left": 0.1875,
+      "right": 0.5
+    },
+    "perch": {
+      "label": "在台子上",
+      "idle": [
+        "idle_perch"
+      ],
+      "ground": 0.9,
+      "centerX": 0.75,
+      "head": 0.5,
+      "shadow": false,
+      "draggable": false,
+      "asleep": true,
+      "stay": 0.8,
+      "autoWeight": 2,
+      "left": 0.1875,
+      "right": 0.5
+    },
+    "sit": {
+      "label": "坐著",
+      "idle": [
+        "idle_sit"
+      ],
+      "ground": 0.9,
+      "centerX": 0.34,
+      "head": 0.6,
+      "shadow": true,
+      "stay": 0.5,
+      "autoWeight": 1,
+      "left": 0.1875,
+      "right": 0.5
+    }
   },
   "clips": {
-    "idle_rest": { "file": "clips/idle_rest.webm" },
-    "idle_rest2": { "file": "clips/idle_rest2.webm" },
-    "idle_perch": { "file": "clips/idle_perch.webm" },
-    "idle_sit": { "file": "clips/idle_sit.webm" },
-    "go_perch": { "file": "clips/go_perch.webm", "rate": 0.8 },
-    "leave_perch": { "file": "clips/leave_perch.webm" },
-    "rest_to_sit": { "file": "clips/rest_to_sit.webm" },
-    "sit_to_rest": { "file": "clips/sit_to_rest.webm" }
+    "idle_rest": {
+      "file": "clips/idle_rest.webm"
+    },
+    "idle_rest2": {
+      "file": "clips/idle_rest2.webm"
+    },
+    "idle_perch": {
+      "file": "clips/idle_perch.webm"
+    },
+    "idle_sit": {
+      "file": "clips/idle_sit.webm"
+    },
+    "go_perch": {
+      "file": "clips/go_perch.webm",
+      "rate": 0.8
+    },
+    "leave_perch": {
+      "file": "clips/leave_perch.webm"
+    },
+    "rest_to_sit": {
+      "file": "clips/rest_to_sit.webm"
+    },
+    "sit_to_rest": {
+      "file": "clips/sit_to_rest.webm"
+    },
+    "walk_loop": {
+      "file": "clips/walk_loop.webm"
+    },
+    "walk_arrive": {
+      "file": "clips/walk_arrive.webm"
+    },
+    "walk_depart": {
+      "file": "clips/walk_depart.webm"
+    }
   },
   "edges": [
-    { "from": "rest", "to": "restProp", "fade": 0.5 },
-    { "from": "restProp", "to": "perch", "clip": "go_perch" },
-    { "from": "perch", "to": "restProp", "clip": "leave_perch" },
-    { "from": "restProp", "to": "rest", "fade": 0.5 },
-    { "from": "rest", "to": "sit", "clip": "rest_to_sit" },
-    { "from": "sit", "to": "rest", "clip": "sit_to_rest" }
+    {
+      "from": "rest",
+      "to": "restProp",
+      "fade": 0.5
+    },
+    {
+      "from": "restProp",
+      "to": "perch",
+      "clip": "go_perch"
+    },
+    {
+      "from": "perch",
+      "to": "restProp",
+      "clip": "leave_perch"
+    },
+    {
+      "from": "restProp",
+      "to": "rest",
+      "fade": 0.5
+    },
+    {
+      "from": "rest",
+      "to": "sit",
+      "clip": "rest_to_sit"
+    },
+    {
+      "from": "sit",
+      "to": "rest",
+      "clip": "sit_to_rest"
+    }
   ],
   "lines": {
-    "greet": ["嗨。"],
-    "click": { "default": ["……"], "perch": ["zzz"] },
-    "drag": ["隨便你"],
-    "noDrag": ["不想動"],
-    "command": { "rest": "嗯。", "perch": "（盯）" },
+    "greet": [
+      "嗨。"
+    ],
+    "click": {
+      "default": [
+        "……"
+      ],
+      "perch": [
+        "zzz"
+      ]
+    },
+    "drag": [
+      "隨便你"
+    ],
+    "noDrag": [
+      "不想動"
+    ],
+    "command": {
+      "rest": "嗯。",
+      "perch": "（盯）"
+    },
     "reminders": {
-      "water": { "default": "喝水。", "perch": "（夢中）喝水。" },
-      "stretch": { "default": "動一動。" },
-      "eyes": { "default": "休息眼睛。" }
+      "water": {
+        "default": "喝水。",
+        "perch": "（夢中）喝水。"
+      },
+      "stretch": {
+        "default": "動一動。"
+      },
+      "eyes": {
+        "default": "休息眼睛。"
+      }
     }
   },
   "clickHeart": true,
   "commands": [
-    { "label": "休息", "pose": "rest" },
-    { "label": "上台子", "pose": "perch" },
-    { "label": "坐下", "pose": "sit" }
-  ]
+    {
+      "label": "休息",
+      "pose": "rest"
+    },
+    {
+      "label": "上台子",
+      "pose": "perch"
+    },
+    {
+      "label": "坐下",
+      "pose": "sit"
+    }
+  ],
+  "walk": {
+    "loop": "walk_loop",
+    "arrive": "walk_arrive",
+    "depart": "walk_depart",
+    "centerX": 0.34,
+    "head": 0.4,
+    "left": 0.1875,
+    "right": 0.5,
+    "speed": 1,
+    "rate": 1
+  }
 }

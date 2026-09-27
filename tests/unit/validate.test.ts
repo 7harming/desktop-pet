@@ -43,4 +43,9 @@ describe('validatePack', () => {
     expect(e).toContain('指令「道具」不能指到過渡姿勢：restProp');
     expect(e).toContain('指令「月球」指到不存在的姿勢：moon');
   });
+
+  it('checks the walking clips', () => {
+    const p = makePack(); p.walk!.arrive = 'nope';
+    expect(validatePack(p, allFiles)).toContain('walk 用到未定義的片段：nope');
+  });
 });

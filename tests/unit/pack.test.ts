@@ -33,6 +33,26 @@ describe('parsePack', () => {
     expect(parsePack(p).errors).toContain('姿勢 perch 的 asleep 要是 true 或 false');
   });
 
+  it('checks the optional pose extent', () => {
+    const p: any = makePack(); p.poses.rest.left = 0.6; p.poses.sit.right = 1.2;
+    const e = parsePack(p).errors;
+    expect(e).toContain('姿勢 rest 的 left 要小於 right');
+    expect(e).toContain('姿勢 sit 的 right 要在 0 到 1 之間');
+  });
+
+  it('checks the walk section', () => {
+    const p: any = makePack(); delete p.walk.loop; p.walk.speed = 0; p.walk.centerX = 2;
+    const e = parsePack(p).errors;
+    expect(e).toContain('walk 缺少 loop');
+    expect(e).toContain('walk 的 speed 要是正數');
+    expect(e).toContain('walk 的 centerX 要在 0 到 1 之間');
+  });
+
+  it('allows a pack without walking', () => {
+    const p: any = makePack(); delete p.walk;
+    expect(parsePack(p).errors).toEqual([]);
+  });
+
   it('needs a default click line and every reminder line', () => {
     const p: any = makePack(); delete p.lines.click.default; delete p.lines.reminders.eyes;
     const e = parsePack(p).errors;
