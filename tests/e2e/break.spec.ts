@@ -36,3 +36,16 @@ test('the eyes reminder starts a break instead of a bubble', async () => {
   await breakPage(app);
   await app.close();
 });
+
+test('the break draws the big cat from the high-resolution clips', async () => {
+  const { app } = await launch({ DESKTOP_PET_BREAK_SECONDS: '30' });
+  await petPage(app);
+  await controllerCall(app, c => { void c.startBreak(); });
+  const brk = await breakPage(app);
+  // the walker's loop comes from the copy; the lying cat's own clip does too once it is loaded
+  const sources = await brk.evaluate(() => [...document.querySelectorAll('video')].map(v => v.getAttribute('src') ?? ''));
+  expect(sources.some(s => s.endsWith('hd/walk_loop.webm'))).toBe(true);
+  await expect.poll(() => brk.evaluate(() => (document.querySelector('video[data-clip="idle_rest"]') as HTMLVideoElement).src),
+    { timeout: 20_000 }).toContain('hd/idle_rest.webm');
+  await app.close();
+});

@@ -1,6 +1,6 @@
 import ffmpeg from 'ffmpeg-static';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const base = JSON.parse(readFileSync('tests/fixtures/test-pack.json', 'utf8'));
@@ -31,6 +31,11 @@ for (const [id, name] of [['testcat', '測試貓'], ['testcat2', '測試貓二�
         `color=c=black@0.0:s=320x180:d=1:r=24,format=rgba,drawbox=x=60:y=90:w=100:h=72:color=${color}@1:t=fill:replace=1`, ...enc]);
     }
   });
+  // the high-resolution copies are just the same clips (the break only needs them to exist)
+  for (const [clip, file] of Object.entries(base.hd ?? {})) {
+    mkdirSync(join(dir, 'hd'), { recursive: true });
+    copyFileSync(join(dir, base.clips[clip].file), join(dir, file));
+  }
   run(['-f', 'lavfi', '-i', 'color=c=gray:s=128x128', '-frames:v', '1', join(dir, 'portrait.png')]);
 }
 console.log('test packs written to tests/fixtures/packs');

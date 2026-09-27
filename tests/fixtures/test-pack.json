@@ -249,5 +249,9 @@
       -0.0958,
       -0.1
     ]
+  },
+  "hd": {
+    "idle_rest": "hd/idle_rest.webm",
+    "walk_loop": "hd/walk_loop.webm"
   }
 }
