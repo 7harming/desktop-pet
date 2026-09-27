@@ -84,6 +84,13 @@ describe('BehaviorEngine', () => {
     expect(e.next().clip).toBe('rest_to_sit');
   });
 
+  it('takes over after a clip it did not choose (walking in)', () => {
+    const e = new BehaviorEngine(makePack(), constRng(0));
+    e.follow({ clip: 'walk_arrive', from: '__walk', to: 'rest', rate: 1, fadeIn: 0 });
+    expect(e.endPose).toBe('rest');
+    expect(e.next()).toMatchObject({ from: 'rest', to: 'rest' });
+  });
+
   it('lists clips worth preloading', () => {
     const e = new BehaviorEngine(makePack(), constRng(0)); e.start();
     expect(e.upcomingClips().sort()).toEqual(['go_perch', 'idle_rest', 'idle_rest2', 'rest_to_sit']);

@@ -40,6 +40,13 @@ export class BehaviorEngine {
     return this.take(this.idleOf(pose, 0));
   }
 
+  /** A clip the engine did not choose is playing (walking in); carry on from where it ends. */
+  follow(step: Step): void {
+    this.queue = [];
+    this.commanded = null;
+    this.current = step;
+  }
+
   /** Replace whatever was queued with the shortest way to `target`, starting after the current clip. */
   command(target: PoseId): boolean {
     this.queue = [];
