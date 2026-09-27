@@ -7,6 +7,7 @@ import { ReminderScheduler } from '../shared/reminders';
 import { DEFAULT_X, MAX_SCALE, MIN_SCALE, type Settings } from '../shared/settings';
 import type { Pack, ReminderType } from '../shared/types';
 import { APP_ORIGIN } from './app-protocol';
+import { BreakWindow } from './break-window';
 import type { Logger } from './logger';
 import { petMenuTemplate, trayMenuTemplate } from './menus';
 import { loadPacks, type LoadedPack } from './pack-loader';
@@ -20,6 +21,8 @@ import { TrayController } from './tray';
 const PET_CHANNELS = ['pet:ready', 'pet:set-interactive', 'pet:move', 'pet:drag-end', 'pet:menu', 'pet:status', 'pet:reminder-result', 'pet:log', 'pet:exited'];
 /** Walking off can mean first getting out of the box, then getting up and crossing the screen; never wait longer than this. */
 const EXIT_TIMEOUT_MS = 45_000;
+/** The eye break: this long, unless DESKTOP_PET_BREAK_SECONDS says otherwise (tests). */
+const BREAK_SECONDS = Number(process.env.DESKTOP_PET_BREAK_SECONDS) || 30;
 const MAX_CRASH_RESTARTS = 3;
 const REMINDER_TICK_MS = 15_000;
 const PAUSE_MS = 3_600_000;
@@ -38,6 +41,9 @@ export class AppController {
   /** Cats walking off the screen, and how to finish each one (close its window) early. */
   private readonly leaving = new Map<string, { done: Promise<void>; finish: () => void }>();
   private quitting = false;
+  /** Ends the break now (closes its window), while one is on. */
+  private endBreak: (() => void) | null = null;
+  private breaking = false;
   protected readonly panel: PanelWindow;
   private tray: TrayController | null = null;
   scheduler!: ReminderScheduler;
@@ -56,6 +62,8 @@ export class AppController {
     this.panel = new PanelWindow(paths.uiDir);
     ipcMain.handle('panel:get-state', () => this.panelState());
     ipcMain.handle('panel:act', (_e, a: PanelAction) => this.act(a));
+    // however the app quits, open no new windows from then on (a break ending as it closes would bring the cats back)
+    app.on('before-quit', () => { this.quitting = true; });
   }
 
   validPacks(): ValidPack[] { return this.packs.filter((p): p is ValidPack => p.pack !== null); }
@@ -171,6 +179,7 @@ export class AppController {
       case 'testReminder': this.testReminder(); break;
       case 'autoStart': this.setAutoStart(a.on); break;
       case 'resetPositions': this.resetAllPositions(); break;
+      case 'testBreak': void this.startBreak(); break;
     }
     return this.panelState();
   }
@@ -216,6 +225,7 @@ export class AppController {
   async quit(): Promise<void> {
     if (this.quitting) return;
     this.quitting = true;
+    this.endBreak?.();
     await Promise.all([...this.pets.keys()].map(id => this.walkOff(id)));
     app.quit();
   }
@@ -288,7 +298,34 @@ export class AppController {
   }
 
   /** The first visible cat (in panel order) says it; without a cat only the notification shows. */
+  /**
+   * The eye break: the cats walk off, a big cat walks in over a dimmed screen and lies down while a countdown runs, then it walks
+   * off and the cats walk back in.
+   */
+  async startBreak(): Promise<void> {
+    if (this.breaking || this.quitting) return;
+    this.breaking = true;
+    const back = [...this.pets.keys()].filter(id => this.onScreen(id));
+    const packId = back[0] ?? this.settings.petOrder.find(id => this.packOf(id));
+    const pack = packId ? this.packOf(packId) : null;
+    this.log.info(`休息 ${BREAK_SECONDS} 秒`);
+    await Promise.all(back.map(id => this.walkOff(id)));
+    if (pack && !this.quitting) {
+      await new Promise<void>(resolve => {
+        let win: BreakWindow | null = null;
+        const timer = setTimeout(() => this.endBreak?.(), (BREAK_SECONDS + 90) * 1000);
+        this.endBreak = () => { clearTimeout(timer); this.endBreak = null; win?.close(); resolve(); };
+        win = new BreakWindow({ pack, packUrl: `${APP_ORIGIN}/packs/${pack.id}/`, seconds: BREAK_SECONDS,
+          line: reminderLine(pack, 'eyes', pack.start), debug: this.debug }, this.paths.uiDir, () => this.endBreak?.());
+      });
+    }
+    this.scheduler.done('eyes', Date.now());
+    this.breaking = false;
+    if (!this.quitting) for (const id of back) if (this.settings.pets[id]?.visible) this.showPet(id);
+  }
+
   private deliver(type: ReminderType): void {
+    if (type === 'eyes') { void this.startBreak(); return; }   // resting the eyes is a full-screen break, not a bubble
     const id = this.settings.petOrder.find(i => this.pets.has(i));
     const pet = id ? this.pets.get(id) : undefined;
     if (pet) pet.send('pet:reminder', type);

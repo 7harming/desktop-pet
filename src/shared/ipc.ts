@@ -47,7 +47,17 @@ export type PanelAction =
   | { kind: 'reminders'; water?: number; stretch?: number; eyes?: number; notify?: boolean }
   | { kind: 'testReminder' }
   | { kind: 'autoStart'; on: boolean }
-  | { kind: 'resetPositions' };
+  | { kind: 'resetPositions' }
+  | { kind: 'testBreak' };
+/** The full-screen break: `seconds` of rest, `line` shown under the countdown. */
+export interface BreakInit { pack: Pack; packUrl: string; seconds: number; line: string; debug: boolean }
+export interface BreakApi {
+  onInit(cb: (init: BreakInit) => void): void;
+  ready(): void;
+  /** The big cat has walked off: close the break. */
+  done(): void;
+}
+
 export interface PanelApi {
   getState(): Promise<PanelState>;
   act(action: PanelAction): Promise<PanelState>;

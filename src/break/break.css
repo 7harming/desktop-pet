@@ -1,0 +1,15 @@
+html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; user-select: none; font-family: "Microsoft JhengHei", "Segoe UI", sans-serif; }
+#dim { position: fixed; inset: 0; background: rgba(12, 14, 20, .72); opacity: 0; transition: opacity .8s; }
+body.on #dim { opacity: 1; }
+#walkarea { position: absolute; left: 0; right: 0; }
+#cat { position: absolute; top: 0; }
+#layer { position: absolute; inset: 0; }
+#layer video { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
+canvas.walk { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; visibility: hidden; }
+video.walk-source { position: absolute; left: 0; top: 0; width: 2px; height: 2px; opacity: 0; pointer-events: none; }
+#hud { position: fixed; top: 28px; right: 40px; text-align: right; color: #fff; opacity: 0; transition: opacity .8s; }
+body.on #hud { opacity: 1; }
+#countdown { font-size: 64px; font-weight: 300; letter-spacing: 2px; line-height: 1; }
+#line { font-size: 18px; margin-top: 10px; opacity: .85; }
+#skip { margin-top: 14px; font: inherit; font-size: 13px; padding: 4px 14px; color: rgba(255, 255, 255, .75); background: transparent; border: 1px solid rgba(255, 255, 255, .35); border-radius: 8px; cursor: pointer; }
+#skip:hover { color: #fff; border-color: rgba(255, 255, 255, .7); }

@@ -45,3 +45,13 @@ export function catPoint(page: Page, fx: number, fy: number): Promise<{ x: numbe
     return { x: r.left + u * r.width, y: r.top + v * r.height };
   }, [fx, fy]);
 }
+
+/** The full-screen break window, once it has started. */
+export async function breakPage(app: ElectronApplication): Promise<Page> {
+  let found: Page | undefined;
+  await expect.poll(() => { found = app.windows().find(w => w.url().endsWith('/ui/break.html')); return !!found; }, { timeout: 20_000 }).toBe(true);
+  await found!.waitForSelector('#countdown:not(:empty)');
+  return found!;
+}
+
+export const breakOpen = (app: ElectronApplication) => app.windows().some(w => w.url().endsWith('/ui/break.html'));

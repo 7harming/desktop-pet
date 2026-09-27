@@ -3,7 +3,7 @@ import type { PanelAction, PanelPet, PanelState } from '../shared/ipc';
 const api = window.panelApi;
 const $ = (id: string) => document.getElementById(id)!;
 type ReminderKey = 'water' | 'stretch' | 'eyes';
-const REMINDER_ROWS: [ReminderKey, string][] = [['water', '喝水'], ['stretch', '伸展'], ['eyes', '休息眼睛']];
+const REMINDER_ROWS: [ReminderKey, string][] = [['water', '喝水'], ['stretch', '伸展'], ['eyes', '休息眼睛（全螢幕休息 30 秒）']];
 const reminderPatch = (key: ReminderKey, minutes: number) => ({ kind: 'reminders', [key]: minutes }) as PanelAction;
 const CHOICES = [0, 30, 45, 60, 90];
 
@@ -80,7 +80,9 @@ function remindersTab(): HTMLElement[] {
   notify.addEventListener('change', () => act({ kind: 'reminders', notify: notify.checked }));
   const test = el('button', { className: 'plain test-reminder', textContent: '試一次提醒' });
   test.addEventListener('click', () => act({ kind: 'testReminder' }));
-  rows.push(el('div', { className: 'line' }, el('label', {}, notify, '同時跳出 Windows 通知'), test));
+  const testBreak = el('button', { className: 'plain test-break', textContent: '試一次休息' });
+  testBreak.addEventListener('click', () => act({ kind: 'testBreak' }));
+  rows.push(el('div', { className: 'line' }, el('label', {}, notify, '同時跳出 Windows 通知'), test, testBreak));
   return [el('div', { className: 'card' }, ...rows)];
 }
 
