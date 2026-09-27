@@ -71,6 +71,14 @@ export class AppController {
     powerMonitor.on('lock-screen', () => pauseAll(true));
     powerMonitor.on('resume', () => { pauseAll(false); this.scheduler.resetAll(Date.now()); });
     powerMonitor.on('unlock-screen', () => { pauseAll(false); this.scheduler.resetAll(Date.now()); });
+    if (!this.settings.firstRunDone) {
+      this.openPanel();
+      this.settings.firstRunDone = true;
+      this.saveSoon();
+    }
+    this.applyAutoStart();
+    screen.on('display-metrics-changed', () => this.relayoutAll());
+    if (process.env.DESKTOP_PET_METRICS === '1') setInterval(() => this.logMetrics(), 60_000);
   }
 
   showPet(id: string): void {
@@ -167,8 +175,29 @@ export class AppController {
   setAutoStart(on: boolean): void { this.settings.autoStart = on; this.applyAutoStart(); this.saveSoon(); this.changed(); }
   quit(): void { app.quit(); }
 
-  // Filled in by Task 14.
-  protected applyAutoStart(): void {}
+  /** Registering electron.exe during development would be wrong, so only the installed app registers itself. */
+  protected applyAutoStart(): void {
+    if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: this.settings.autoStart });
+  }
+
+  /** After a resolution or monitor change, pull every cat back onto the work area's bottom edge. */
+  relayoutAll(): void {
+    const wa = this.workArea();
+    for (const [id, pet] of this.pets) {
+      const ps = this.settings.pets[id];
+      pet.setBounds(windowBounds(pet.pack, ps.scale, ps.x ?? DEFAULT_X, wa));
+      const y = restY(pet.pack, ps.scale, wa);
+      pet.updateInit({ restY: y });
+      pet.send('pet:rest-y', y);
+    }
+  }
+
+  private logMetrics(): void {
+    const m = app.getAppMetrics();
+    const cpu = m.reduce((s, p) => s + p.cpu.percentCPUUsage, 0);
+    const memMb = m.reduce((s, p) => s + p.memory.workingSetSize, 0) / 1024;
+    this.log.info(`效能：CPU ${cpu.toFixed(1)}%，記憶體 ${memMb.toFixed(0)} MB，貓 ${this.pets.size} 隻`);
+  }
 
   setReminders(patch: { water?: number; stretch?: number; eyes?: number; notify?: boolean }): void {
     const r = this.settings.reminders;

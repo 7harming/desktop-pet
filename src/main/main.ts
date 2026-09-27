@@ -10,15 +10,21 @@ const debug = process.env.DESKTOP_PET_DEBUG === '1';
 // Must match build.appId, so notifications carry the installed app's name and icon.
 app.setAppUserModelId('local.desktoppet');
 
-void app.whenReady().then(() => {
-  const log = new Logger(paths.logsDir);
-  log.info(`啟動 ${app.getVersion()}`);
-  handleAppProtocol({ ui: paths.uiDir, packs: paths.packsDir });
-  const controller = new AppController(paths, log, debug);
-  if (debug) (globalThis as Record<string, unknown>).__controller = controller;
-  controller.start();
-  app.on('before-quit', () => controller.flush());
-});
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  let controller: AppController | null = null;
+  app.on('second-instance', () => controller?.openPanel());
+  void app.whenReady().then(() => {
+    const log = new Logger(paths.logsDir);
+    log.info(`啟動 ${app.getVersion()}`);
+    handleAppProtocol({ ui: paths.uiDir, packs: paths.packsDir });
+    controller = new AppController(paths, log, debug);
+    if (debug) (globalThis as Record<string, unknown>).__controller = controller;
+    controller.start();
+    app.on('before-quit', () => controller?.flush());
+  });
+}
 
 // Pets live in small windows; keep running when the panel is closed.
 app.on('window-all-closed', () => {});
