@@ -19,6 +19,8 @@
    "ground": 0.906,
    "centerX": 0.3,
    "head": 0.406,
+   "left": 0.126,
+   "right": 0.473,
    "shadow": true,
    "draggable": true,
    "stay": 0.7,
@@ -32,6 +34,8 @@
    "ground": 0.906,
    "centerX": 0.361,
    "head": 0.692,
+   "left": 0.219,
+   "right": 0.502,
    "shadow": true,
    "draggable": false,
    "stay": 0.6,
@@ -45,6 +49,8 @@
    "ground": 0.906,
    "centerX": 0.386,
    "head": 0.283,
+   "left": 0.058,
+   "right": 0.713,
    "shadow": true,
    "draggable": false,
    "asleep": true,
@@ -57,6 +63,8 @@
    "ground": 0.906,
    "centerX": 0.3,
    "head": 0.406,
+   "left": 0.126,
+   "right": 0.473,
    "shadow": true
   },
   "boxBelly": {
@@ -67,6 +75,8 @@
    "ground": 0.906,
    "centerX": 0.754,
    "head": 0.415,
+   "left": 0.532,
+   "right": 0.976,
    "shadow": false,
    "draggable": false,
    "asleep": true,
@@ -79,6 +89,8 @@
    "ground": 0.906,
    "centerX": 0.3,
    "head": 0.406,
+   "left": 0.126,
+   "right": 0.473,
    "shadow": true
   },
   "pillow": {
@@ -89,6 +101,8 @@
    "ground": 0.906,
    "centerX": 0.754,
    "head": 0.551,
+   "left": 0.531,
+   "right": 0.976,
    "shadow": false,
    "draggable": false,
    "stay": 0.7,
@@ -139,6 +153,15 @@
   },
   "pillow_exit": {
    "file": "clips/pillow_exit.webm"
+  },
+  "walk_loop": {
+   "file": "clips/walk_loop.webm"
+  },
+  "walk_arrive": {
+   "file": "clips/walk_arrive.webm"
+  },
+  "walk_depart": {
+   "file": "clips/walk_depart.webm"
   }
  },
  "edges": [
@@ -284,5 +307,18 @@
    "label": "藍色抱枕",
    "pose": "pillow"
   }
- ]
+ ],
+ "walk": {
+  "loop": "walk_loop",
+  "from": 0.313,
+  "to": 0.687,
+  "arrive": "walk_arrive",
+  "depart": "walk_depart",
+  "departX": 0.313,
+  "width": 0.586,
+  "head": 0.561,
+  "left": 0.02,
+  "right": 0.606,
+  "rate": 1.6
+ }
 }

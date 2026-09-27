@@ -15,8 +15,11 @@ import numpy as np
 from PIL import Image
 
 CLIPS = ['idle_lie', 'idle_lie_groom', 'idle_sit', 'lie_to_sit', 'sit_to_lie', 'idle_sleep', 'lie_to_sleep', 'sleep_to_lie',
-         'box_enter', 'box_idle', 'box_exit', 'pillow_enter', 'pillow_idle', 'pillow_exit']
+         'box_enter', 'box_idle', 'box_exit', 'pillow_enter', 'pillow_idle', 'pillow_exit', 'walk_loop', 'walk_arrive', 'walk_depart']
 STILLS = {'lie': 'lie.png', 'sit': 'sit.png', 'sleep': 'sleep.png', 'boxBelly': 'end_box.png', 'pillow': 'end_pillow.png'}
+# walking: the loop goes from walk_start to walk_end; depart ends as walk_left (spike step 21)
+WALK_STILLS = {'start': 'walk_start.png', 'end': 'walk_end.png', 'left': 'walk_left.png'}
+WALK_RATE = 1.6           # the generated stroll is slow; played this much faster it walks at a relaxed, ordinary pace
 GROUND = 652 / 720          # every still was staged with the feet / prop bottom on this line
 FF = imageio_ffmpeg.get_ffmpeg_exe()
 
@@ -31,7 +34,18 @@ def geometry(still: Path) -> dict:
     al = keyed_alpha(Image.open(still))
     ys, xs = np.nonzero(al > 0.5)
     h, w = al.shape
-    return {'ground': round(GROUND, 3), 'centerX': round(float(xs.min() + xs.max()) / 2 / w, 3), 'head': round(GROUND - ys.min() / h, 3)}
+    return {'ground': round(GROUND, 3), 'centerX': round(float(xs.min() + xs.max()) / 2 / w, 3), 'head': round(GROUND - ys.min() / h, 3),
+            'left': round(float(xs.min()) / w, 3), 'right': round(float(xs.max()) / w, 3)}
+
+
+def walk_section(src: Path, lie: dict) -> dict:
+    g = {k: geometry(src / f) for k, f in WALK_STILLS.items()}
+    return {'loop': 'walk_loop', 'from': g['start']['centerX'], 'to': g['end']['centerX'],
+            'arrive': 'walk_arrive', 'depart': 'walk_depart', 'departX': g['left']['centerX'],
+            'width': round(g['start']['right'] - g['start']['left'], 3), 'head': g['start']['head'],
+            # arrive and depart play at the resting spot: they reach from the walking stills to the lying cat
+            'left': min(g['start']['left'], g['left']['left'], lie['left']), 'right': max(g['start']['right'], g['left']['right'], lie['right']),
+            'rate': WALK_RATE}
 
 
 def bg_colour(src: Path) -> str:
@@ -68,7 +82,7 @@ def portrait(lie: Path, dst: Path) -> None:
     img.convert('RGBa').crop(box).resize((256, 256), Image.LANCZOS).convert('RGBA').save(dst)
 
 
-def build_pack(geo: dict) -> dict:
+def build_pack(geo: dict, walk: dict) -> dict:
     lie = geo['lie']
     return {
         'schemaVersion': 1, 'id': 'xiaozhao', 'name': '小昭', 'personality': '淡定、愛翻肚、最愛紙箱', 'portrait': 'portrait.png',
@@ -112,6 +126,7 @@ def build_pack(geo: dict) -> dict:
         'clickHeart': True,
         'commands': [{'label': '趴著', 'pose': 'lie'}, {'label': '坐下', 'pose': 'sit'}, {'label': '睡覺', 'pose': 'sleep'},
                      {'label': '紙箱翻肚', 'pose': 'boxBelly'}, {'label': '藍色抱枕', 'pose': 'pillow'}],
+        'walk': walk,
     }
 
 
@@ -122,18 +137,23 @@ def main() -> int:
     args = ap.parse_args()
     src, out = Path(args.src), Path(args.out)
     missing = [f'clips/{c}.mp4' for c in CLIPS if not (src / 'clips' / f'{c}.mp4').exists()] + \
-              [s for s in STILLS.values() if not (src / s).exists()]
+              [s for s in [*STILLS.values(), *WALK_STILLS.values()] if not (src / s).exists()]
     if missing:
         print('缺少這些素材，先把它們做好再轉換：', *missing, sep='\n  ')
         return 1
     (out / 'clips').mkdir(parents=True, exist_ok=True)
     for c in CLIPS:
-        key_clip(src / 'clips' / f'{c}.mp4', out / 'clips' / f'{c}.webm')
+        mp4, webm = src / 'clips' / f'{c}.mp4', out / 'clips' / f'{c}.webm'
+        if webm.exists() and webm.stat().st_mtime >= mp4.stat().st_mtime:
+            continue                     # already keyed from this version of the clip
+        key_clip(mp4, webm)
         print('keyed', c)
     geo = {pose: geometry(src / f) for pose, f in STILLS.items()}
     portrait(src / 'lie.png', out / 'portrait.png')
-    (out / 'pack.json').write_text(json.dumps(build_pack(geo), ensure_ascii=False, indent=1), encoding='utf-8')
+    walk = walk_section(src, geo['lie'])
+    (out / 'pack.json').write_text(json.dumps(build_pack(geo, walk), ensure_ascii=False, indent=1), encoding='utf-8')
     print('geometry', json.dumps(geo, ensure_ascii=False))
+    print('walk', json.dumps(walk, ensure_ascii=False))
     return 0
 
 
