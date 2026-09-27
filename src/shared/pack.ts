@@ -80,10 +80,10 @@ export function parsePack(raw: unknown): ParseResult {
     if (!isObj(walk)) err('walk 要是一個物件');
     else {
       for (const k of ['loop', 'arrive', 'depart'] as const) if (!isStr(walk[k])) err(`walk 缺少 ${k}`);
-      for (const k of ['centerX', 'head', 'left', 'right'] as const) {
+      for (const k of ['from', 'to', 'departX', 'width', 'head', 'left', 'right'] as const) {
         if (!isNum(walk[k]) || (walk[k] as number) < 0 || (walk[k] as number) > 1) err(`walk 的 ${k} 要在 0 到 1 之間`);
       }
-      if (!isNum(walk.speed) || walk.speed <= 0) err('walk 的 speed 要是正數');
+      if (isNum(walk.from) && isNum(walk.to) && walk.to <= walk.from) err('walk 的 to 要大於 from（循環往右走）');
       if (walk.rate !== undefined && (!isNum(walk.rate) || walk.rate <= 0)) err('walk 的 rate 要是正數');
     }
   }

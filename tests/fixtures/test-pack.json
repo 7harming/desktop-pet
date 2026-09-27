@@ -187,13 +187,15 @@
   ],
   "walk": {
     "loop": "walk_loop",
+    "from": 0.21875,
+    "to": 0.78125,
     "arrive": "walk_arrive",
     "depart": "walk_depart",
-    "centerX": 0.34,
+    "departX": 0.21875,
+    "width": 0.3125,
     "head": 0.4,
-    "left": 0.1875,
+    "left": 0.0625,
     "right": 0.5,
-    "speed": 1,
-    "rate": 1
+    "rate": 3
   }
 }
