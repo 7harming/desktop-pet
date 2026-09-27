@@ -58,10 +58,12 @@ export class Walker {
     v.currentTime = 0;
     const { start, end, loops, pxPerSec } = r.plan;
     const dir = Math.sign(end - start) || 1;
-    // where the loop is: the last presented frame's media time (all loops counted) and when it was presented
+    // the loop's clock: media seconds (all loops counted) = (display seconds + offset) x rate. Each presented frame gives a
+    // reading of the offset; the readings jitter, so the offset follows them slowly, and the frame never moves backwards
     let loop = 0;
     let lastMedia = -1;
-    let anchor: { media: number; at: number } | null = null;
+    let offset: number | null = null;
+    let lastX = start;
     let done = false;
     const x = (media: number) => {
       const p = start + dir * pxPerSec * (media / rate);
@@ -73,8 +75,9 @@ export class Walker {
         if (meta.mediaTime < lastMedia - 0.05) loop++;          // the video wrapped round: the next loop starts
         lastMedia = meta.mediaTime;
         const dur = v.duration || 1;
-        if (!anchor) r.onFirstFrame?.();
-        anchor = { media: loop * dur + meta.mediaTime, at: now };
+        const reading = (loop * dur + meta.mediaTime) / rate - now / 1000;
+        if (offset === null) { offset = reading; r.onFirstFrame?.(); }
+        else offset += (reading - offset) * 0.1;
         if (loop >= loops) {
           // the last loop is over and this frame is the loop's first one: the pose the next clip starts from, at `end`
           done = true;
@@ -87,9 +90,11 @@ export class Walker {
       };
       const onDisplay = (now: number) => {
         if (token !== this.token || done) return;
-        if (anchor) {
-          const media = anchor.media + Math.max(0, now - anchor.at) / 1000 * rate;
-          this.draw(x(Math.min(media, loops * (v.duration || 1))), r);
+        if (offset !== null) {
+          const media = (now / 1000 + offset) * rate;
+          const p = x(Math.min(media, loops * (v.duration || 1)));
+          lastX = dir > 0 ? Math.max(lastX, p) : Math.min(lastX, p);
+          this.draw(lastX, r);
         }
         requestAnimationFrame(onDisplay);
       };
