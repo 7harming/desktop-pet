@@ -16,6 +16,7 @@ export interface PetEvents {
 
 export class PetWindow {
   readonly win: BrowserWindow;
+  private size: { width: number; height: number };
 
   constructor(readonly pack: Pack, bounds: Bounds, private init: Omit<PetInit, 'pack' | 'packUrl'>,
               private readonly events: PetEvents, preloadDir: string) {
@@ -25,6 +26,7 @@ export class PetWindow {
       hasShadow: false, show: false, backgroundColor: '#00000000',
       webPreferences: { preload: join(preloadDir, 'preload-pet.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
     });
+    this.size = { width: bounds.width, height: bounds.height };
     // At fractional display scaling Windows creates the window a few pixels too big; setting the bounds again fixes it.
     this.win.setBounds(bounds);
     this.win.setIgnoreMouseEvents(true, { forward: true });
@@ -44,7 +46,8 @@ export class PetWindow {
         break;
       }
       case 'pet:set-interactive': this.win.setIgnoreMouseEvents(!args[0], { forward: true }); break;
-      case 'pet:move': this.win.setPosition(Math.round(Number(args[0])), Math.round(Number(args[1]))); break;
+      // setBounds with a fixed size: at fractional display scaling each setPosition grows the window by a pixel
+      case 'pet:move': this.win.setBounds({ x: Math.round(Number(args[0])), y: Math.round(Number(args[1])), ...this.size }); break;
       case 'pet:drag-end': this.events.dragEnd(this.id); break;
       case 'pet:menu': this.events.menu(this.id); break;
       case 'pet:status': this.events.status(this.id, String(args[0])); break;
@@ -58,6 +61,9 @@ export class PetWindow {
   }
 
   updateInit(patch: Partial<Omit<PetInit, 'pack' | 'packUrl'>>): void { this.init = { ...this.init, ...patch }; }
-  setBounds(b: Bounds): void { if (!this.win.isDestroyed()) this.win.setBounds(b); }
+  setBounds(b: Bounds): void {
+    this.size = { width: b.width, height: b.height };
+    if (!this.win.isDestroyed()) this.win.setBounds(b);
+  }
   close(): void { if (!this.win.isDestroyed()) this.win.destroy(); }
 }

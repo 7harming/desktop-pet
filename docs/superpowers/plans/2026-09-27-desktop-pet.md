@@ -2114,6 +2114,7 @@ export interface PetEvents {
 
 export class PetWindow {
   readonly win: BrowserWindow;
+  private size: { width: number; height: number };
 
   constructor(readonly pack: Pack, bounds: Bounds, private init: Omit<PetInit, 'pack' | 'packUrl'>,
               private readonly events: PetEvents, preloadDir: string) {
@@ -2123,6 +2124,7 @@ export class PetWindow {
       hasShadow: false, show: false, backgroundColor: '#00000000',
       webPreferences: { preload: join(preloadDir, 'preload-pet.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
     });
+    this.size = { width: bounds.width, height: bounds.height };
     // At fractional display scaling Windows creates the window a few pixels too big; setting the bounds again fixes it.
     this.win.setBounds(bounds);
     this.win.setIgnoreMouseEvents(true, { forward: true });
@@ -2142,7 +2144,8 @@ export class PetWindow {
         break;
       }
       case 'pet:set-interactive': this.win.setIgnoreMouseEvents(!args[0], { forward: true }); break;
-      case 'pet:move': this.win.setPosition(Math.round(Number(args[0])), Math.round(Number(args[1]))); break;
+      // setBounds with a fixed size: at fractional display scaling each setPosition grows the window by a pixel
+      case 'pet:move': this.win.setBounds({ x: Math.round(Number(args[0])), y: Math.round(Number(args[1])), ...this.size }); break;
       case 'pet:drag-end': this.events.dragEnd(this.id); break;
       case 'pet:menu': this.events.menu(this.id); break;
       case 'pet:status': this.events.status(this.id, String(args[0])); break;
@@ -2156,7 +2159,10 @@ export class PetWindow {
   }
 
   updateInit(patch: Partial<Omit<PetInit, 'pack' | 'packUrl'>>): void { this.init = { ...this.init, ...patch }; }
-  setBounds(b: Bounds): void { if (!this.win.isDestroyed()) this.win.setBounds(b); }
+  setBounds(b: Bounds): void {
+    this.size = { width: b.width, height: b.height };
+    if (!this.win.isDestroyed()) this.win.setBounds(b);
+  }
   close(): void { if (!this.win.isDestroyed()) this.win.destroy(); }
 }
 ```
@@ -2993,12 +2999,13 @@ import { MAX_SCALE, MIN_SCALE } from '../shared/settings';
 
 ```ts
 import { test, expect } from '@playwright/test';
-import { launch, petPage } from './helpers';
+import { controllerCall, launch, petPage } from './helpers';
 
 test('clicking the cat shows a line and a heart', async () => {
   const { app } = await launch();
   const page = await petPage(app);
   await expect.poll(() => page.evaluate(() => (window as any).__pet.player.video?.readyState ?? 0)).toBeGreaterThanOrEqual(2);
+  await expect(page.locator('.bubble')).toHaveText('嗨。');   // wait for the greeting so it cannot replace the click line
   const box = await page.evaluate(() => ({ w: innerWidth, h: innerHeight }));
   // the test clips draw an opaque box at x 60-160 / y 90-162 of 320x180
   const x = box.w * (110 / 320);
@@ -3018,6 +3025,25 @@ test('clicking a transparent spot does nothing', async () => {
   await page.waitForTimeout(500);
   await expect(page.locator('.heart')).toHaveCount(0);
   expect(await page.locator('.bubble').allTextContents()).not.toContain('……');   // the greeting may still be showing
+  await app.close();
+});
+
+test('dragging keeps the window size and the drop lands back on the taskbar', async () => {
+  const { app } = await launch();
+  const page = await petPage(app);
+  const bounds = () => controllerCall(app, c => c.pets.get('testcat').win.getBounds());
+  const start = await bounds();
+  // many small moves, like a real drag (at fractional display scaling setPosition grows the window each call)
+  await page.evaluate(async ([x, y]) => {
+    for (let i = 1; i <= 40; i++) { window.petApi.moveWindow(x - i * 3, y - i * 4); await new Promise(r => setTimeout(r, 5)); }
+  }, [start.x, start.y]);
+  await expect.poll(async () => (await bounds()).y).toBe(start.y - 160);
+  const moved = await bounds();
+  expect(Math.abs(moved.width - start.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(moved.height - start.height)).toBeLessThanOrEqual(1);
+  await page.evaluate(() => window.petApi.dragEnded());
+  await expect.poll(async () => (await bounds()).y).toBe(start.y);
+  expect((await bounds()).x).toBe(start.x - 120);
   await app.close();
 });
 ```

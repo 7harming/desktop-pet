@@ -1,8 +1,9 @@
-import { ipcMain, screen, type WebContents } from 'electron';
+import { ipcMain, Menu, screen, type WebContents } from 'electron';
 import { findFreeCenter } from '../shared/placement';
-import { DEFAULT_X, type Settings } from '../shared/settings';
+import { DEFAULT_X, MAX_SCALE, MIN_SCALE, type Settings } from '../shared/settings';
 import type { Pack } from '../shared/types';
 import type { Logger } from './logger';
+import { petMenuTemplate } from './menus';
 import { loadPacks, type LoadedPack } from './pack-loader';
 import { bodyWidth, restY, windowBounds, xRatioFromBounds, type WorkArea } from './pet-geometry';
 import { PetWindow, type PetEvents } from './pet-window';
@@ -91,7 +92,56 @@ export class AppController {
     };
   }
 
-  protected onPetMenu(_id: string): void {}
+  protected onPetMenu(id: string): void {
+    const pet = this.pets.get(id);
+    const ps = this.settings.pets[id];
+    if (!pet || !ps) return;
+    Menu.buildFromTemplate(petMenuTemplate({ commands: pet.pack.commands, auto: ps.auto, scale: ps.scale }, {
+      command: pose => this.command(id, pose),
+      setAuto: on => this.setAuto(id, on),
+      setScale: s => this.setScale(id, s),
+      resetPosition: () => this.resetPosition(id),
+      hide: () => this.hidePet(id),
+    })).popup({ window: pet.win });
+  }
+
+  command(id: string, pose: string): void { this.pets.get(id)?.send('pet:command', pose); }
+
+  setAuto(id: string, on: boolean): void {
+    const ps = this.settings.pets[id];
+    if (!ps) return;
+    ps.auto = on;
+    const pet = this.pets.get(id);
+    pet?.updateInit({ auto: on });
+    pet?.send('pet:set-auto', on);
+    this.saveSoon();
+    this.changed();
+  }
+
+  setScale(id: string, scale: number): void {
+    const ps = this.settings.pets[id];
+    if (!ps) return;
+    ps.scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
+    const pet = this.pets.get(id);
+    if (pet) {
+      const wa = this.workArea();
+      pet.setBounds(windowBounds(pet.pack, ps.scale, ps.x ?? DEFAULT_X, wa));
+      const y = restY(pet.pack, ps.scale, wa);
+      pet.updateInit({ restY: y });
+      pet.send('pet:rest-y', y);
+    }
+    this.saveSoon();
+    this.changed();
+  }
+
+  /** Put a cat back on the taskbar at its saved spot (rescues a cat dragged somewhere odd). */
+  resetPosition(id: string): void {
+    const pet = this.pets.get(id);
+    const ps = this.settings.pets[id];
+    if (!pet || !ps) return;
+    pet.setBounds(windowBounds(pet.pack, ps.scale, ps.x ?? DEFAULT_X, this.workArea()));
+  }
+
   protected onReminderResult(_id: string, _type: string, _result: string): void {}
 
   private onDragEnd(id: string): void {
