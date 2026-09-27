@@ -44,6 +44,11 @@ describe('validatePack', () => {
     expect(e).toContain('指令「月球」指到不存在的姿勢：moon');
   });
 
+  it('reports missing high-resolution clip files', () => {
+    const p = makePack(); p.hd = { idle_rest: 'hd/idle_rest.webm' };
+    expect(validatePack(p, f => f !== 'hd/idle_rest.webm')).toContain('找不到片段 idle_rest 的高解析度檔案：hd/idle_rest.webm');
+  });
+
   it('checks the walking clips', () => {
     const p = makePack(); p.walk!.arrive = 'nope';
     expect(validatePack(p, allFiles)).toContain('walk 用到未定義的片段：nope');

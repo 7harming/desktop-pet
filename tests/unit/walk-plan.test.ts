@@ -2,33 +2,34 @@ import { describe, it, expect } from 'vitest';
 import { planWalkIn, planWalkOut } from '../../src/shared/walk-plan';
 import { makePack } from './fixtures';
 
-// the test walk: the loop goes from centre 0.21875 to 0.78125 (0.5625 frame widths), the cat is 0.3125 wide
+// the test walk: the cat walks on the spot centred at 0.34375 of the frame, 0.3125 frame widths wide, and its frame moves
+// 1 frame width per second at rate 1; the loop lasts 1 s and plays at rate 3
 const walk = makePack().walk!;
 const W = 533;
-const travel = 0.5625 * W;
+const LOOP_SECS = 1;
+const perLoop = walk.speed * LOOP_SECS * W;      // how far the frame moves during one loop
 
 describe('planWalkIn', () => {
-  it('starts off the left edge and chains loops so the last one ends where arrive begins', () => {
-    const origins = planWalkIn(walk, W, 700);
-    expect(origins.length).toBe(4);
-    origins.forEach((o, i) => expect(o).toBeCloseTo(700 - (4 - i) * travel));
-    // at the start the cat's right edge is off screen
-    expect(origins[0] + (walk.from + walk.width / 2) * W).toBeLessThanOrEqual(0);
+  it('starts off the left edge and walks whole loops, so the last one ends where arrive begins', () => {
+    const p = planWalkIn(walk, W, 700, LOOP_SECS);
+    expect(p.end).toBe(700);
+    expect(p.loops).toBe(Math.ceil((700 + (walk.centerX + walk.width / 2) * W) / perLoop));
+    expect(p.start).toBeCloseTo(700 - p.loops * perLoop);
+    expect(p.start + (walk.centerX + walk.width / 2) * W).toBeLessThanOrEqual(0);    // the cat starts off screen
+    expect(p.pxPerSec).toBeCloseTo(walk.speed * walk.rate! * W);                      // on screen it moves at speed x rate
   });
   it('walks at least one loop even when the resting spot is near the left edge', () => {
-    expect(planWalkIn(walk, W, -300).length).toBe(1);
+    expect(planWalkIn(walk, W, -400, LOOP_SECS).loops).toBe(1);
   });
 });
 
 describe('planWalkOut', () => {
   it('picks up where depart ends and walks left until the cat is off screen', () => {
-    const origins = planWalkOut(walk, W, 700);
-    // the mirrored loop starts with the cat centred where depart left it
-    expect(origins[0] + (1 - walk.from) * W).toBeCloseTo(700 + walk.departX * W);
-    origins.forEach((o, i) => expect(o).toBeCloseTo(origins[0] - i * travel));
-    expect(origins.length).toBe(4);
-    const last = origins[origins.length - 1];
-    expect(last + (1 - walk.from + walk.width / 2) * W).toBeGreaterThan(0);          // still visible when it starts
-    expect(last - travel + (1 - walk.from + walk.width / 2) * W).toBeLessThanOrEqual(0); // the next one would be off screen
+    const p = planWalkOut(walk, W, 700, LOOP_SECS);
+    // mirrored, the loop's cat is centred at 1 - centerX; it starts where depart left it
+    expect(p.start + (1 - walk.centerX) * W).toBeCloseTo(700 + walk.departX * W);
+    expect(p.end).toBeCloseTo(p.start - p.loops * perLoop);
+    expect(p.end + (1 - walk.centerX + walk.width / 2) * W).toBeLessThanOrEqual(0);           // off screen at the end
+    expect(p.end + perLoop + (1 - walk.centerX + walk.width / 2) * W).toBeGreaterThan(0);     // not a loop more than needed
   });
 });

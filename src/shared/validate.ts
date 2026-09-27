@@ -8,6 +8,7 @@ export function validatePack(pack: Pack, fileExists: (relPath: string) => boolea
 
   if (!fileExists(pack.portrait)) errors.push(`找不到頭像檔：${pack.portrait}`);
   for (const [id, c] of Object.entries(pack.clips)) if (!fileExists(c.file)) errors.push(`找不到片段 ${id} 的檔案：${c.file}`);
+  for (const [id, file] of Object.entries(pack.hd ?? {})) if (!fileExists(file)) errors.push(`找不到片段 ${id} 的高解析度檔案：${file}`);
 
   const needClip = (clip: string, where: string) => { if (!pack.clips[clip]) errors.push(`${where} 用到未定義的片段：${clip}`); };
   let graphOk = true;

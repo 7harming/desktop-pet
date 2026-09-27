@@ -6,9 +6,9 @@ import { join } from 'node:path';
 const base = JSON.parse(readFileSync('tests/fixtures/test-pack.json', 'utf8'));
 const colors = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple', 'white'];
 const run = args => execFileSync(ffmpeg, ['-y', '-loglevel', 'error', ...args]);
-// the walking clips move their box (t runs 0..23/24 over the 24 frames), matching walk.from/to/departX in test-pack.json
+// a box that moves across the frame (t runs 0..23/24 over the 24 frames); the test pack's walk stays on the spot, so none do now
 const glide = (a, b) => `${a}+${b - a}*t*24/23`;
-const boxX = { walk_loop: glide(20, 200), walk_arrive: glide(20, 60), walk_depart: glide(60, 20) };
+const boxX = {};
 
 for (const [id, name] of [['testcat', '測試貓'], ['testcat2', '測試貓二號']]) {
   const dir = join('tests/fixtures/packs', id);

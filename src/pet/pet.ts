@@ -4,7 +4,7 @@ import type { PetInit } from '../shared/ipc';
 import { clickLine, commandLine, pickLine, reminderLine } from '../shared/lines';
 import { isAsleep, poseValueAt, showsShadow } from '../shared/pose-geometry';
 import type { Pack, PoseDef } from '../shared/types';
-import { planWalkIn, planWalkOut } from '../shared/walk-plan';
+import { planWalkIn, planWalkOut, type WalkPlan } from '../shared/walk-plan';
 import { Bubbles } from './bubble';
 import { Interactions } from './interactions';
 import { Player } from './player';
@@ -25,7 +25,7 @@ function withWalkPoses(pack: Pack): Pack {
   if (!w) return pack;
   const start = pack.poses[pack.start];
   const walking = (label: string, centerX: number): PoseDef => ({ label, ground: start.ground, centerX, head: w.head, shadow: true });
-  return { ...pack, poses: { ...pack.poses, [WALK_IN]: walking('走過來', w.from), [WALK_OUT]: walking('離開', w.departX) } };
+  return { ...pack, poses: { ...pack.poses, [WALK_IN]: walking('走過來', w.centerX), [WALK_OUT]: walking('離開', w.departX) } };
 }
 
 api.onInit((init: PetInit) => {
@@ -156,8 +156,8 @@ api.onInit((init: PetInit) => {
   const walker = walk ? new Walker(stage, new URL(pack.clips[walk.loop].file, init.packUrl).href, walk) : null;
   if (debug) Object.assign(debug, { walker });
   const clipStep = (clip: string, from: string, to: string): Step => ({ clip, from, to, rate: pack.clips[clip].rate ?? 1, fadeIn: 0 });
-  const walkLoops = (origins: number[], mirror: boolean, onFirstFrame?: () => void) =>
-    walker!.run({ origins, frameW: frameW(), frameH: window.innerHeight, ground: g0, mirror, onFirstFrame });
+  const walkLoops = (plan: WalkPlan, mirror: boolean, onFirstFrame?: () => void) =>
+    walker!.run({ plan, frameW: frameW(), frameH: window.innerHeight, ground: g0, mirror, onFirstFrame });
   const greet = (ms: number) => setTimeout(() => { if (mode === 'live') bubbles.say(pickLine(pack.lines.greet, Math.random)); }, ms);
 
   const walkIn = async () => {
@@ -165,7 +165,7 @@ api.onInit((init: PetInit) => {
     cat.style.visibility = 'hidden';
     const arrive = clipStep(walk!.arrive, WALK_IN, pack.start);
     player.keep([arrive.clip]);
-    await walkLoops(planWalkIn(walk!, frameW(), frameX), false);
+    await walkLoops(planWalkIn(walk!, frameW(), frameX, await walker!.duration()), false);
     cat.style.visibility = '';
     engine.follow(arrive);
     await player.play(arrive);          // once arrive shows, it covers the walker's last frame
@@ -190,7 +190,7 @@ api.onInit((init: PetInit) => {
   };
   const walkAway = async () => {
     mode = 'gone';
-    await walkLoops(planWalkOut(walk!, frameW(), frameX), true, () => { cat.style.visibility = 'hidden'; });
+    await walkLoops(planWalkOut(walk!, frameW(), frameX, await walker!.duration()), true, () => { cat.style.visibility = 'hidden'; });
     walker!.clear();
     api.exited();
   };

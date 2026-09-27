@@ -1,10 +1,11 @@
 import type { WalkDef } from '../shared/types';
+import type { WalkPlan } from '../shared/walk-plan';
 
 interface FrameMeta { mediaTime: number }
 type FrameVideo = HTMLVideoElement & { requestVideoFrameCallback(cb: (now: number, meta: FrameMeta) => void): number };
 
 export interface WalkRun {
-  origins: number[];     // frame x (px, in the canvas) of each loop, from planWalkIn / planWalkOut
+  plan: WalkPlan;
   frameW: number;
   frameH: number;
   ground: number;        // the ground line, as a share of the frame height (for the shadow)
@@ -13,8 +14,9 @@ export interface WalkRun {
 }
 
 /**
- * Draws the walking loop onto a canvas, loop after loop at the planned positions. Drawing each frame from the video's own frame
- * callback keeps the jump from one loop's end to the next loop's start on the same frame, so the joins do not show.
+ * Draws the walking loop (the cat stepping on the spot) onto a canvas while its frame glides along. The position follows the
+ * video's own clock - the frame callbacks say how far the loop has played - and is worked out afresh on every display frame, so
+ * the cat moves smoothly even though the clip has fewer frames per second than the screen, and its planted paws stay put.
  */
 export class Walker {
   private readonly canvas: HTMLCanvasElement;
@@ -34,37 +36,65 @@ export class Walker {
     parent.append(this.video);
   }
 
-  /** Walk the loops; resolves once the last one has ended (its final frame stays drawn until clear()). */
+  /** How long one loop lasts (at playback rate 1). */
+  duration(): Promise<number> {
+    const v = this.video;
+    if (v.readyState >= 1 && v.duration) return Promise.resolve(v.duration);
+    return new Promise(resolve => v.addEventListener('loadedmetadata', () => resolve(v.duration), { once: true }));
+  }
+
+  /** Walk the planned loops; resolves when the last one has ended (its final frame stays drawn until clear()). */
   run(r: WalkRun): Promise<void> {
     const token = ++this.token;
-    const w = this.walk;
+    const rate = this.walk.rate ?? 1;
     const dpr = window.devicePixelRatio || 1;
     this.canvas.width = Math.round(this.canvas.clientWidth * dpr);
     this.canvas.height = Math.round(this.canvas.clientHeight * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.ctx.imageSmoothingQuality = 'high';
     this.canvas.style.visibility = 'visible';
     const v = this.video;
-    v.playbackRate = w.rate ?? 1;
+    v.playbackRate = rate;
     v.currentTime = 0;
-    const travel = (w.to - w.from) * r.frameW * (r.mirror ? -1 : 1);
+    const { start, end, loops, pxPerSec } = r.plan;
+    const dir = Math.sign(end - start) || 1;
+    // where the loop is: the last presented frame's media time (all loops counted) and when it was presented
+    let loop = 0;
+    let lastMedia = -1;
+    let anchor: { media: number; at: number } | null = null;
+    let done = false;
+    const x = (media: number) => {
+      const p = start + dir * pxPerSec * (media / rate);
+      return dir > 0 ? Math.min(p, end) : Math.max(p, end);
+    };
     return new Promise(resolve => {
-      let loop = 0;
-      let last = -1;
-      let first = true;
-      const onFrame = (_now: number, meta: FrameMeta) => {
-        if (token !== this.token) return;
-        if (meta.mediaTime < last - 0.05) loop++;          // the video wrapped round: the next loop starts
-        last = meta.mediaTime;
-        const done = loop >= r.origins.length;
-        // after the last loop, its successor's first frame is the pose the next clip starts from: draw it there and stop
-        const origin = done ? r.origins[r.origins.length - 1] + travel : r.origins[loop];
-        this.draw(origin, meta.mediaTime, r);
-        if (first) { first = false; r.onFirstFrame?.(); }
-        if (done) { v.pause(); resolve(); return; }
+      const onFrame = (now: number, meta: FrameMeta) => {
+        if (token !== this.token || done) return;
+        if (meta.mediaTime < lastMedia - 0.05) loop++;          // the video wrapped round: the next loop starts
+        lastMedia = meta.mediaTime;
+        const dur = v.duration || 1;
+        if (!anchor) r.onFirstFrame?.();
+        anchor = { media: loop * dur + meta.mediaTime, at: now };
+        if (loop >= loops) {
+          // the last loop is over and this frame is the loop's first one: the pose the next clip starts from, at `end`
+          done = true;
+          v.pause();
+          this.draw(end, r);
+          resolve();
+          return;
+        }
         v.requestVideoFrameCallback(onFrame);
       };
-      if (!r.origins.length) { resolve(); return; }
+      const onDisplay = (now: number) => {
+        if (token !== this.token || done) return;
+        if (anchor) {
+          const media = anchor.media + Math.max(0, now - anchor.at) / 1000 * rate;
+          this.draw(x(Math.min(media, loops * (v.duration || 1))), r);
+        }
+        requestAnimationFrame(onDisplay);
+      };
       v.requestVideoFrameCallback(onFrame);
+      requestAnimationFrame(onDisplay);
       void v.play();
     });
   }
@@ -76,14 +106,12 @@ export class Walker {
     this.canvas.style.visibility = 'hidden';
   }
 
-  private draw(origin: number, t: number, r: WalkRun): void {
+  private draw(origin: number, r: WalkRun): void {
     const { ctx, walk: w } = this;
     const { frameW: W, frameH: H } = r;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    // a soft shadow under the cat, following it across the frame
-    const k = this.video.duration ? Math.min(1, t / this.video.duration) : 0;
-    const centre = w.from + (w.to - w.from) * k;
-    const cx = origin + (r.mirror ? 1 - centre : centre) * W;
+    // a soft shadow under the walking cat
+    const cx = origin + (r.mirror ? 1 - w.centerX : w.centerX) * W;
     ctx.fillStyle = 'rgba(0, 0, 0, .18)';
     ctx.beginPath();
     ctx.ellipse(cx, r.ground * H - 1, H * 0.25, 6, 0, 0, Math.PI * 2);

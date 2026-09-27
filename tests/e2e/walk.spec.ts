@@ -9,7 +9,7 @@ test('a cat walks in from the left edge, loop after loop, and lies down at its s
     const w = (window as any).__pet.walker;
     const draw = w.draw.bind(w);
     (window as any).__drawn = [];
-    w.draw = (origin: number, t: number, r: any) => { (window as any).__drawn.push(origin); draw(origin, t, r); };
+    w.draw = (origin: number, r: any) => { (window as any).__drawn.push(origin); draw(origin, r); };
   });
   await expect.poll(() => page.evaluate(() => (window as any).__pet.mode), { timeout: 20_000 }).toBe('live');
   const drawn: number[] = await page.evaluate(() => (window as any).__drawn);
@@ -18,8 +18,9 @@ test('a cat walks in from the left edge, loop after loop, and lies down at its s
     return { frameX: p.frame.x - p.stripBounds.x, frameW: p.frame.width };
   });
   expect(drawn.length).toBeGreaterThan(3);
-  // the first loop starts with the cat off the left edge; the last frame drawn is where arrive takes over
-  expect(drawn[0] + (0.21875 + 0.3125 / 2) * frameW).toBeLessThanOrEqual(0);
+  // it starts with the cat off the left edge, glides steadily right, and the last frame drawn is where arrive takes over
+  expect(drawn[0] + (0.34375 + 0.3125 / 2) * frameW).toBeLessThanOrEqual(frameW * 0.05);
+  for (let i = 1; i < drawn.length; i++) expect(drawn[i]).toBeGreaterThanOrEqual(drawn[i - 1]);
   expect(drawn[drawn.length - 1]).toBeCloseTo(frameX, 0);
   expect(await page.evaluate(() => (window as any).__pet.history[0])).toBe('walk_arrive');
   await app.close();

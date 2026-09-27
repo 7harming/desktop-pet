@@ -1,7 +1,7 @@
 import { BehaviorEngine } from '../shared/behavior';
 import type { Step } from '../shared/graph';
 import type { BreakInit } from '../shared/ipc';
-import { planWalkIn, planWalkOut } from '../shared/walk-plan';
+import { planWalkIn, planWalkOut, type WalkPlan } from '../shared/walk-plan';
 import { Player } from '../pet/player';
 import { Walker } from '../pet/walker';
 
@@ -12,7 +12,9 @@ const $ = (id: string) => document.getElementById(id)!;
 const CAT_HEIGHT = 0.6;
 
 api.onInit((init: BreakInit) => {
-  const { pack } = init;
+  // the cat is drawn big here: use the pack's high-resolution copies where it has them
+  const pack = { ...init.pack, clips: Object.fromEntries(Object.entries(init.pack.clips).map(([id, c]) =>
+    [id, init.pack.hd?.[id] ? { ...c, file: init.pack.hd[id] } : c])) };
   const start = pack.poses[pack.start];
   const walk = pack.walk;
   const sw = window.innerWidth;
@@ -31,8 +33,8 @@ api.onInit((init: BreakInit) => {
   const player = new Player($('layer'), pack, init.packUrl);
   const walker = walk ? new Walker(area, new URL(pack.clips[walk.loop].file, init.packUrl).href, walk) : null;
   const clipStep = (clip: string, from: string, to: string): Step => ({ clip, from, to, rate: pack.clips[clip].rate ?? 1, fadeIn: 0 });
-  const loops = (origins: number[], mirror: boolean, onFirstFrame?: () => void) =>
-    walker!.run({ origins, frameW, frameH, ground: start.ground, mirror, onFirstFrame });
+  const loops = (plan: WalkPlan, mirror: boolean, onFirstFrame?: () => void) =>
+    walker!.run({ plan, frameW, frameH, ground: start.ground, mirror, onFirstFrame });
   if (init.debug) (window as unknown as Record<string, unknown>).__break = { engine, player, walker };
 
   // arriving: walking in or lying down; resting; leaving: getting up; gone
@@ -47,7 +49,9 @@ api.onInit((init: BreakInit) => {
   player.onStepStart = () => player.keep([...engine.upcomingClips(), ...(walk ? [walk.depart] : [])]);
   player.onEnded = () => {
     if (phase === 'leaving') {
-      void loops(planWalkOut(walk!, frameW, restX), true, () => { cat.style.visibility = 'hidden'; }).then(finish);
+      void walker!.duration()
+        .then(secs => loops(planWalkOut(walk!, frameW, restX, secs), true, () => { cat.style.visibility = 'hidden'; }))
+        .then(finish);
       return;
     }
     if (phase === 'arriving') phase = 'resting';
@@ -80,7 +84,7 @@ api.onInit((init: BreakInit) => {
     if (!walk) { phase = 'resting'; void player.play(engine.start()); return; }
     player.keep([walk.arrive]);
     cat.style.visibility = 'hidden';
-    await loops(planWalkIn(walk, frameW, restX), false);
+    await loops(planWalkIn(walk, frameW, restX, await walker!.duration()), false);
     cat.style.visibility = '';
     const step = clipStep(walk.arrive, pack.start, pack.start);
     engine.follow(step);

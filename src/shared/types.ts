@@ -22,15 +22,15 @@ export interface ClipDef { file: string; rate?: number }
 export interface EdgeDef { from: PoseId; to: PoseId; clip?: ClipId; fade?: number }
 
 /**
- * Walking, for entrances, exits and breaks. It sits beside the pose graph. The camera never moves: in `loop` the cat really walks
- * right across the frame, its centre going from `from` to `to` (first and last frame are the same pose), so chaining loops shifted
- * by `to - from` frame widths walks it across the screen with its paws planted. `arrive` starts as the loop's first frame and ends in
- * the start pose; `depart` starts in the start pose and ends as the loop's first frame mirrored, centred at `departX`; walking left
- * plays the loop mirrored. All positions are shares of the frame width; `width` is the walking cat's width, `left`/`right` bound
+ * Walking, for entrances, exits and breaks. It sits beside the pose graph. `loop` is one clean stride cycle of the cat walking right
+ * on the spot (a tracking shot), centred at `centerX`; its frame is moved along at `speed` - how fast the planted paws slide back, in
+ * frame widths per second at playback rate 1 - so the paws stay planted on the screen. `arrive` starts as the loop's first frame and
+ * ends in the start pose; `depart` starts in the start pose and ends as the loop's first frame mirrored, centred at `departX`; walking
+ * left plays the loop mirrored. Positions are shares of the frame width; `width` is the walking cat's width, `left`/`right` bound
  * everything arrive and depart draw.
  */
 export interface WalkDef {
-  loop: ClipId; from: number; to: number;
+  loop: ClipId; centerX: number; speed: number;
   arrive: ClipId; depart: ClipId; departX: number;
   width: number; head: number; left: number; right: number;
   rate?: number;
@@ -67,4 +67,6 @@ export interface Pack {
   clickHeart: boolean;
   commands: Command[];
   walk?: WalkDef;
+  /** Larger copies of some clips (same timing, more pixels) for the full-screen break, where the cat is drawn big. */
+  hd?: Record<ClipId, string>;
 }

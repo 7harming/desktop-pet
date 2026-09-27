@@ -41,12 +41,19 @@ describe('parsePack', () => {
   });
 
   it('checks the walk section', () => {
-    const p: any = makePack(); delete p.walk.loop; p.walk.to = 0.1; p.walk.departX = 2; p.walk.rate = 0;
+    const p: any = makePack(); delete p.walk.loop; p.walk.speed = 0; p.walk.departX = 2; p.walk.rate = 0;
     const e = parsePack(p).errors;
     expect(e).toContain('walk 缺少 loop');
-    expect(e).toContain('walk 的 to 要大於 from（循環往右走）');
+    expect(e).toContain('walk 的 speed 要是正數');
     expect(e).toContain('walk 的 departX 要在 0 到 1 之間');
     expect(e).toContain('walk 的 rate 要是正數');
+  });
+
+  it('checks the optional high-resolution clips', () => {
+    const p: any = makePack(); p.hd = { idle_rest: 'hd/idle_rest.webm', nope: 'hd/x.webm', idle_sit: 3 };
+    const e = parsePack(p).errors;
+    expect(e).toContain('hd 裡的 nope 不是已定義的片段');
+    expect(e).toContain('hd.idle_sit 要是檔案路徑');
   });
 
   it('allows a pack without walking', () => {
