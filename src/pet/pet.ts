@@ -89,8 +89,18 @@ api.onInit((init: PetInit) => {
     for (let i = 3; i < data.length; i += 4) if (data[i] > 40) return true;
     return false;
   };
+  /** Double-clicked while resting: pounce towards the side of the cat that was clicked. */
+  const pounce = (x: number): boolean => {
+    const p = pack.pounce;
+    if (!p || mode !== 'live' || busy) return false;
+    const toLeft = x < frameX + pack.poses[p.pose].centerX * frameW();
+    const step = engine.interject(toLeft ? p.toLeft : p.toRight, p.pose);
+    if (!step) return false;
+    void player.play(step);
+    return true;
+  };
   const interactions = new Interactions({
-    api, hitTest, wrap: cat, restY: init.restY, getFrameX: () => frameX, setFrameX,
+    api, hitTest, wrap: cat, restY: init.restY, getFrameX: () => frameX, setFrameX, onDoubleClick: pounce,
     canDrag: () => !busy,   // any pose; only not while it walks in or out
     onClick: () => {
       bubbles.say(clickLine(pack, engine.endPose, Math.random));

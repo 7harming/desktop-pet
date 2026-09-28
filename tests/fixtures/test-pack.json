@@ -101,6 +101,12 @@
     },
     "walk_depart": {
       "file": "clips/walk_depart.webm"
+    },
+    "pounce_left": {
+      "file": "clips/pounce_left.webm"
+    },
+    "pounce_right": {
+      "file": "clips/pounce_right.webm"
     }
   },
   "edges": [
@@ -256,5 +262,12 @@
   },
   "reminderPoses": {
     "water": "sit"
+  },
+  "pounce": {
+    "pose": "rest",
+    "toLeft": "pounce_left",
+    "toRight": "pounce_right",
+    "left": 0.1875,
+    "right": 0.5
   }
 }

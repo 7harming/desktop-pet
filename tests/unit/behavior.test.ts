@@ -149,6 +149,25 @@ describe('BehaviorEngine', () => {
     expect(e.next()).toMatchObject({ from: 'rest', to: 'rest' });
   });
 
+  it('interjects a pounce while resting, then carries on', () => {
+    const e = new BehaviorEngine(makePack(), constRng(0)); e.start();
+    expect(e.interject('pounce_right', 'rest')).toEqual({ clip: 'pounce_right', from: 'rest', to: 'rest', rate: 1, fadeIn: 0 });
+    expect(e.next()).toMatchObject({ from: 'rest', to: 'rest' });
+    expect(e.interject('pounce_left', 'rest')).toMatchObject({ clip: 'pounce_left' });
+  });
+
+  it('does not interject unless resting in that pose with nothing planned', () => {
+    const e = new BehaviorEngine(makePack(), constRng(0)); e.start();
+    expect(e.interject('pounce_right', 'sit')).toBeNull();          // resting, but not in that pose
+    e.command('sit');
+    expect(e.interject('pounce_right', 'rest')).toBeNull();         // about to go somewhere
+    e.next();                                                       // rest_to_sit
+    expect(e.interject('pounce_right', 'rest')).toBeNull();
+    const f = new BehaviorEngine(makePack(), constRng(0)); f.start();
+    f.interject('pounce_right', 'rest');
+    expect(f.interject('pounce_left', 'rest')).toBeNull();          // already pouncing
+  });
+
   it('treats an empty or unknown selection as every pose', () => {
     const e = new BehaviorEngine(makePack(), constRng(0.99)); e.start();
     e.setAllowed(['nope']);

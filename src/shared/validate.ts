@@ -46,6 +46,12 @@ export function validatePack(pack: Pack, fileExists: (relPath: string) => boolea
     if (!p) errors.push(`指令「${c.label}」指到不存在的姿勢：${c.pose}`);
     else if (p.transient) errors.push(`指令「${c.label}」不能指到過渡姿勢：${c.pose}`);
   }
+  if (pack.pounce) {
+    const p = pack.poses[pack.pounce.pose];
+    if (!p) errors.push(`pounce 指到不存在的姿勢：${pack.pounce.pose}`);
+    else if (p.transient) errors.push(`pounce 不能從過渡姿勢開始：${pack.pounce.pose}`);
+    for (const c of [pack.pounce.toLeft, pack.pounce.toRight]) needClip(c, 'pounce');
+  }
   for (const [type, pose] of Object.entries(pack.reminderPoses ?? {})) {
     const p = pack.poses[pose!];
     if (!p) errors.push(`提醒 ${type} 指到不存在的姿勢：${pose}`);

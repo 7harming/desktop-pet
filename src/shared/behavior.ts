@@ -75,6 +75,14 @@ export class BehaviorEngine {
     return true;
   }
 
+  /** Play `clip` now instead of the idle it rests in (a pounce): only while resting in `pose` with nothing planned. */
+  interject(clip: ClipId, pose: PoseId): Step | null {
+    const s = this.current;
+    const resting = !!s && s.from === pose && s.to === pose && (this.pack.poses[pose].idle ?? []).includes(s.clip);
+    if (!resting || this.queue.length) return null;
+    return this.take(idleStep(this.pack, pose, clip));
+  }
+
   /** Auto mode only moves between these poses. Unknown or transient ids are ignored; nothing left means every pose. */
   setAllowed(poses: PoseId[] | null): void {
     const ok = (poses ?? []).filter(p => this.pack.poses[p] && !this.pack.poses[p].transient);

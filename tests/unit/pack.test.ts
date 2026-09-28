@@ -66,6 +66,15 @@ describe('parsePack', () => {
     expect(e).toHaveLength(2);
   });
 
+  it('checks the optional pounce', () => {
+    const p: any = makePack(); p.pounce = { pose: 'rest', toLeft: 3, left: 0.1, right: 1.5 };
+    const e = parsePack(p).errors;
+    expect(e).toContain('pounce 缺少 toLeft');
+    expect(e).toContain('pounce 缺少 toRight');
+    expect(e).toContain('pounce 的 right 要在 0 到 1 之間');
+    expect(e).toHaveLength(3);
+  });
+
   it('allows a pack without walking', () => {
     const p: any = makePack(); delete p.walk;
     expect(parsePack(p).errors).toEqual([]);

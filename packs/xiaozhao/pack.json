@@ -222,6 +222,12 @@
   },
   "stretch_exit": {
    "file": "clips/stretch_exit.webm"
+  },
+  "pounce_left": {
+   "file": "clips/pounce_left.webm"
+  },
+  "pounce_right": {
+   "file": "clips/pounce_right.webm"
   }
  },
  "edges": [
@@ -794,6 +800,13 @@
  "reminderPoses": {
   "water": "drink",
   "stretch": "stretch"
+ },
+ "pounce": {
+  "pose": "lie",
+  "toLeft": "pounce_left",
+  "toRight": "pounce_right",
+  "left": 0.0,
+  "right": 0.831
  },
  "hd": {
   "idle_lie": "hd/idle_lie.webm",

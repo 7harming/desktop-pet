@@ -16,9 +16,11 @@ from PIL import Image
 
 CLIPS = ['idle_lie', 'idle_lie_groom', 'idle_sit', 'lie_to_sit', 'sit_to_lie', 'idle_sleep', 'lie_to_sleep', 'sleep_to_lie',
          'box_enter', 'box_idle', 'box_exit', 'pillow_enter', 'pillow_idle', 'pillow_exit', 'walk_loop', 'walk_arrive', 'walk_depart',
-         'bowl_enter', 'bowl_idle', 'bowl_exit', 'stretch_enter', 'stretch_hold', 'stretch_exit']
+         'bowl_enter', 'bowl_idle', 'bowl_exit', 'stretch_enter', 'stretch_hold', 'stretch_exit', 'pounce_left', 'pounce_right']
 # drinking (spike steps 32-35): the bowl fades in beside the lying cat; it walks over, drinks (a seamless loop), walks back
 # stretching (spike steps 36-39): gets up, stretches side-on, holds it (a back-and-forth loop), lies down again
+# pouncing (spike steps 40-41): double-clicked while lying, she pounces to that side and lies down again in her spot
+POUNCES = ['pounce_left', 'pounce_right']
 STILLS = {'lie': 'lie.png', 'sit': 'sit.png', 'sleep': 'sleep.png', 'boxBelly': 'end_box.png', 'pillow': 'end_pillow.png',
           'drink': 'end_bowl.png', 'stretch': 'end_stretch.png'}
 # walking: the loop goes from walk_start to walk_end; depart ends as walk_left (spike step 21)
@@ -73,6 +75,19 @@ def walk_section(src: Path, lie: dict) -> dict:
             'rate': 1, 'arriveGlide': eased_glide(glide['arrive'], True), 'departGlide': eased_glide(glide['depart'], False)}
 
 
+def clip_extent(mp4s: list) -> tuple:
+    """Left and right edge of everything the clips draw over all their frames, as shares of the frame width."""
+    xs = []
+    for mp4 in mp4s:
+        raw = subprocess.run([FF, '-v', 'error', '-i', str(mp4), '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '320x180', '-'],
+                             capture_output=True, check=True).stdout
+        fr = np.frombuffer(raw, np.uint8).reshape(-1, 180, 320, 3).astype(np.float32)
+        bg = np.concatenate([fr[0, :4, :4].reshape(-1, 3), fr[0, :4, -4:].reshape(-1, 3)]).mean(0)
+        cols = np.nonzero((np.linalg.norm(fr - bg, axis=3) > 70).any(axis=(0, 1)))[0]
+        xs += [cols.min(), cols.max() + 1]
+    return round(float(min(xs)) / 320, 3), round(float(max(xs)) / 320, 3)
+
+
 def bg_colour(src: Path) -> str:
     raw = subprocess.run([FF, '-v', 'error', '-i', str(src), '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '64x36', '-'],
                          capture_output=True, check=True).stdout
@@ -118,7 +133,7 @@ def portrait(lie: Path, dst: Path) -> None:
     img.convert('RGBa').crop(box).resize((256, 256), Image.LANCZOS).convert('RGBA').save(dst)
 
 
-def build_pack(geo: dict, walk: dict) -> dict:
+def build_pack(geo: dict, walk: dict, pounce: tuple) -> dict:
     lie = geo['lie']
     return {
         'schemaVersion': 1, 'id': 'xiaozhao', 'name': '小昭', 'personality': '淡定、愛翻肚、最愛紙箱', 'portrait': 'portrait.png',
@@ -174,6 +189,7 @@ def build_pack(geo: dict, walk: dict) -> dict:
                      {'label': '紙箱翻肚', 'pose': 'boxBelly'}, {'label': '藍色抱枕', 'pose': 'pillow'}, {'label': '伸懶腰', 'pose': 'stretch'}],
         'walk': walk,
         'reminderPoses': {'water': 'drink', 'stretch': 'stretch'},
+        'pounce': {'pose': 'lie', 'toLeft': 'pounce_left', 'toRight': 'pounce_right', 'left': pounce[0], 'right': pounce[1]},
     }
 
 
@@ -209,12 +225,14 @@ def main() -> int:
             print('keyed hd', c)
         hd[c] = f'hd/{c}.webm'
     walk = walk_section(src, geo['lie'])
-    pack = build_pack(geo, walk)
+    pounce = clip_extent([src / 'clips' / f'{c}.mp4' for c in POUNCES])
+    pack = build_pack(geo, walk, pounce)
     if hd:
         pack['hd'] = hd
     (out / 'pack.json').write_text(json.dumps(pack, ensure_ascii=False, indent=1), encoding='utf-8')
     print('geometry', json.dumps(geo, ensure_ascii=False))
     print('walk', json.dumps(walk, ensure_ascii=False))
+    print('pounce reaches', pounce)
     return 0
 
 

@@ -108,6 +108,17 @@ export function parsePack(raw: unknown): ParseResult {
     }
   }
 
+  const pounce = raw.pounce;
+  if (pounce !== undefined) {
+    if (!isObj(pounce)) err('pounce 要是一個物件');
+    else {
+      for (const k of ['pose', 'toLeft', 'toRight'] as const) if (!isStr(pounce[k])) err(`pounce 缺少 ${k}`);
+      for (const k of ['left', 'right'] as const) {
+        if (!isNum(pounce[k]) || (pounce[k] as number) < 0 || (pounce[k] as number) > 1) err(`pounce 的 ${k} 要在 0 到 1 之間`);
+      }
+    }
+  }
+
   if (typeof raw.clickHeart !== 'boolean') err('clickHeart 要是 true 或 false');
   if (!Array.isArray(raw.commands)) err('缺少 commands');
   else raw.commands.forEach((c, i) => { if (!isObj(c) || !isStr(c.label) || !isStr(c.pose)) err(`第 ${i + 1} 個指令缺少 label／pose`); });

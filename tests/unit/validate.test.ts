@@ -51,6 +51,15 @@ describe('validatePack', () => {
     expect(e).toContain('提醒 stretch 指到不存在的姿勢：moon');
   });
 
+  it('checks the pounce', () => {
+    const p = makePack(); p.pounce = { ...p.pounce!, pose: 'restProp', toRight: 'nope' };
+    const e = validatePack(p, allFiles);
+    expect(e).toContain('pounce 不能從過渡姿勢開始：restProp');
+    expect(e).toContain('pounce 用到未定義的片段：nope');
+    p.pounce.pose = 'moon';
+    expect(validatePack(p, allFiles)).toContain('pounce 指到不存在的姿勢：moon');
+  });
+
   it('reports missing high-resolution clip files', () => {
     const p = makePack(); p.hd = { idle_rest: 'hd/idle_rest.webm' };
     expect(validatePack(p, f => f !== 'hd/idle_rest.webm')).toContain('找不到片段 idle_rest 的高解析度檔案：hd/idle_rest.webm');

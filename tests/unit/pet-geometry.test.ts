@@ -38,6 +38,10 @@ describe('pet geometry', () => {
     delete p.poses.rest.left;
     expect(extentOf(p, ['rest'])[0]).toBe(0);           // a pose without an extent may use the whole frame
   });
+  it('always covers the pounces (a double-click can start one any time)', () => {
+    const p = makePack(); p.pounce!.left = 0.05; p.pounce!.right = 0.8;
+    expect(extentOf(p, ['sit'])).toEqual([0.05, 0.8]);
+  });
   it('estimates the body width for placement', () => {
     expect(bodyWidth(pack, 1)).toBeCloseTo(186.55);
   });

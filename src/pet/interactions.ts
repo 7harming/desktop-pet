@@ -5,6 +5,8 @@ export interface InteractionDeps {
   hitTest(x: number, y: number): boolean;
   canDrag(): boolean;
   onClick(): void;
+  /** The second click of a double-click, at clientX `x`; false: nothing happened, so it counts as a plain click. */
+  onDoubleClick(x: number): boolean;
   onDragStart(): void;
   onNoDrag(): void;
   wrap: HTMLElement;          // the element that swings while dragged
@@ -14,11 +16,13 @@ export interface InteractionDeps {
 }
 
 const DRAG_THRESHOLD = 6;
+const DOUBLE_CLICK_MS = 400;
 const GRAVITY = 2400;
 
 export class Interactions {
   private interactive = false;
-  private press: { x: number; y: number; frameX: number; winY: number } | null = null;
+  private press: { x: number; y: number; clientX: number; frameX: number; winY: number } | null = null;
+  private lastClick = 0;
   private dragging = false;
   private winY = window.screenY;
   private swing = 0;
@@ -67,15 +71,20 @@ export class Interactions {
   private onDown(e: MouseEvent): void {
     if (e.button !== 0 || !this.d.hitTest(e.clientX, e.clientY)) return;
     this.winY = window.screenY;
-    this.press = { x: e.screenX, y: e.screenY, frameX: this.d.getFrameX(), winY: this.winY };
+    this.press = { x: e.screenX, y: e.screenY, clientX: e.clientX, frameX: this.d.getFrameX(), winY: this.winY };
   }
 
   private onUp(): void {
-    if (!this.press) return;
+    const press = this.press;
+    if (!press) return;
     const wasDragging = this.dragging;
     this.press = null;
     this.dragging = false;
-    if (wasDragging) this.fall(); else this.d.onClick();
+    if (wasDragging) { this.fall(); return; }
+    const now = performance.now();
+    if (now - this.lastClick < DOUBLE_CLICK_MS && this.d.onDoubleClick(press.clientX)) { this.lastClick = 0; return; }
+    this.lastClick = now;
+    this.d.onClick();
   }
 
   /** Limp, unbothered swing while held. */

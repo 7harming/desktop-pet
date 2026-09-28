@@ -18,6 +18,27 @@ test('clicking the cat shows a line and a heart', async () => {
   await app.close();
 });
 
+test('double-clicking the resting cat pounces towards the side that was clicked', async () => {
+  const { app } = await launch();
+  const page = await calmPetPage(app);
+  await expect.poll(() => page.evaluate(() => (window as any).__pet.player.video?.readyState ?? 0)).toBeGreaterThanOrEqual(2);
+  const history = () => page.evaluate(() => (window as any).__pet.history.join(','));
+  const resting = () => page.evaluate(() => (window as any).__pet.player.step?.clip);
+  // the rest pose's body centre is at 34% of the frame; the test box spans 18.75%-50%
+  const right = await catPoint(page, 0.45, 0.7);
+  await page.mouse.move(right.x, right.y);
+  await page.mouse.dblclick(right.x, right.y);
+  await expect.poll(history).toMatch(/pounce_right/);
+  await page.mouse.dblclick(right.x, right.y);                       // while pouncing: just a click, no second pounce
+  await expect.poll(resting, { timeout: 10_000 }).toMatch(/^idle_rest/);
+  expect((await history()).match(/pounce/g)).toHaveLength(1);
+  const left = await catPoint(page, 0.22, 0.7);
+  await page.mouse.move(left.x, left.y);
+  await page.mouse.dblclick(left.x, left.y);
+  await expect.poll(history).toMatch(/pounce_right.*pounce_left/);
+  await app.close();
+});
+
 test('clicking a transparent spot does nothing', async () => {
   const { app } = await launch();
   const page = await petPage(app);

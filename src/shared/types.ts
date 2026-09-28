@@ -41,6 +41,12 @@ export interface WalkDef {
   departGlide?: number[];
 }
 
+/**
+ * Double-clicking the cat while it rests in `pose` makes it pounce towards the side that was clicked: `toLeft` / `toRight` are clips
+ * from `pose` back to `pose`. `left` / `right` bound everything the two clips draw, as shares of the frame width.
+ */
+export interface PounceDef { pose: PoseId; toLeft: ClipId; toRight: ClipId; left: number; right: number }
+
 export type LineSet = string[];
 export interface PoseLines { default: LineSet; [pose: string]: LineSet }
 export interface ReminderLines { default: string; [pose: string]: string }
@@ -76,4 +82,5 @@ export interface Pack {
   hd?: Record<ClipId, string>;
   /** A pose the cat drops in on when a reminder comes (drinking from its bowl at the water reminder), then leaves again. */
   reminderPoses?: Partial<Record<ReminderType, PoseId>>;
+  pounce?: PounceDef;
 }
