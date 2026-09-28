@@ -60,6 +60,11 @@ describe('validatePack', () => {
     expect(validatePack(p, allFiles)).toContain('pounce 指到不存在的姿勢：moon');
   });
 
+  it('needs a pounce for pounce commands', () => {
+    const p = makePack(); delete p.pounce;
+    expect(validatePack(p, allFiles)).toContain('指令「向左撲」要撲，但寵物包沒有 pounce');
+  });
+
   it('reports missing high-resolution clip files', () => {
     const p = makePack(); p.hd = { idle_rest: 'hd/idle_rest.webm' };
     expect(validatePack(p, f => f !== 'hd/idle_rest.webm')).toContain('找不到片段 idle_rest 的高解析度檔案：hd/idle_rest.webm');

@@ -168,6 +168,29 @@ describe('BehaviorEngine', () => {
     expect(f.interject('pounce_left', 'rest')).toBeNull();          // already pouncing
   });
 
+  it('pounces on command: at once while resting, otherwise once it is back in that pose', () => {
+    const e = new BehaviorEngine(makePack(), constRng(0)); e.start();
+    expect(e.perform('pounce_left', 'rest')).toMatchObject({ clip: 'pounce_left', from: 'rest', to: 'rest' });
+    e.next();
+    e.command('sit'); e.next(); e.next();                           // rest_to_sit, idle_sit
+    expect(e.perform('pounce_right', 'rest')).toBeNull();           // queued behind the way back
+    expect(e.next().clip).toBe('sit_to_rest');
+    expect(e.next()).toMatchObject({ clip: 'pounce_right', from: 'rest', to: 'rest' });
+  });
+
+  it('pounces now and then by itself while resting, only to the ticked sides', () => {
+    const p = makePack(); p.pounce!.autoChance = 0.5;
+    const rolls = [0, 0, 0.1, 0.9];                                 // start's idle, stay, pounce (0.1 < 0.5), which side
+    const e = new BehaviorEngine(p, () => rolls.shift() ?? 0.99); e.start();
+    e.setAllowed(['rest', 'pounce:right']);
+    expect(e.next()).toMatchObject({ clip: 'pounce_right', from: 'rest', to: 'rest' });
+    const f = new BehaviorEngine(p, constRng(0)); f.start();
+    f.setAllowed(['rest']);                                         // no pounce ticked
+    expect(f.next().clip).toMatch(/^idle_rest/);
+    const g = new BehaviorEngine(makePack(), constRng(0)); g.start(); // no autoChance in the pack
+    expect(g.next().clip).toMatch(/^idle_rest/);
+  });
+
   it('treats an empty or unknown selection as every pose', () => {
     const e = new BehaviorEngine(makePack(), constRng(0.99)); e.start();
     e.setAllowed(['nope']);

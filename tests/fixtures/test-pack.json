@@ -189,6 +189,14 @@
     {
       "label": "坐下",
       "pose": "sit"
+    },
+    {
+      "label": "向左撲",
+      "pounce": "left"
+    },
+    {
+      "label": "向右撲",
+      "pounce": "right"
     }
   ],
   "walk": {

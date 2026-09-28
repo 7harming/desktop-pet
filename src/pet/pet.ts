@@ -1,3 +1,4 @@
+import { pounceSide } from '../shared/actions';
 import { BehaviorEngine } from '../shared/behavior';
 import type { PetInit } from '../shared/ipc';
 import { clickLine, commandLine, pickLine, reminderLine } from '../shared/lines';
@@ -39,10 +40,18 @@ api.onInit((init: PetInit) => {
   player.onEnded = advance;
   player.onError = clip => { api.log('warn', `片段 ${clip} 播放失敗，改走別的路`); engine.markBroken(clip); advance(); };
 
-  api.onCommand(pose => {
+  api.onCommand(key => {
     if (mode !== 'live') return;
-    if (!engine.command(pose)) { api.log('warn', `走不到姿勢 ${pose}`); return; }
-    const line = commandLine(pack, pose);
+    const side = pounceSide(key);
+    if (side) {                     // a pounce from the menu: now if lying, else once it is back in its pounce pose
+      const p = pack.pounce;
+      if (!p) return;
+      const step = engine.perform(side === 'left' ? p.toLeft : p.toRight, p.pose);
+      if (step) void player.play(step);
+      return;
+    }
+    if (!engine.command(key)) { api.log('warn', `走不到姿勢 ${key}`); return; }
+    const line = commandLine(pack, key);
     if (line) bubbles.say(line);
   });
   api.onSetAuto(on => { engine.auto = on; });

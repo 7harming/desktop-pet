@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { controllerCall, launch, panelPage, petPage } from './helpers';
+import { calmPetPage, controllerCall, launch, panelPage, petPage } from './helpers';
 
 test('the panel lists both cats and can show the second one next to the first', async () => {
   const { app } = await launch();
@@ -32,6 +32,20 @@ test('a panel command reaches the cat', async () => {
   await app.close();
 });
 
+test('the pounce buttons make the resting cat pounce', async () => {
+  const { app } = await launch();
+  const page = await calmPetPage(app);
+  await controllerCall(app, c => c.openPanel());
+  const panel = await panelPage(app);
+  const history = () => page.evaluate(() => (window as any).__pet.history.join(','));
+  await panel.locator('[data-pet="testcat"] button[data-pose="pounce:right"]').click();
+  await expect.poll(history, { timeout: 15_000 }).toMatch(/pounce_right/);
+  await expect.poll(() => page.evaluate(() => (window as any).__pet.player.step?.clip), { timeout: 10_000 }).toMatch(/^idle_rest/);
+  await panel.locator('[data-pet="testcat"] button[data-pose="pounce:left"]').click();
+  await expect.poll(history, { timeout: 15_000 }).toMatch(/pounce_right.*pounce_left/);
+  await app.close();
+});
+
 test('ticking actions limits what the cat does on its own', async () => {
   const { app } = await launch();
   const page = await petPage(app);
@@ -40,8 +54,8 @@ test('ticking actions limits what the cat does on its own', async () => {
   const card = panel.locator('[data-pet="testcat"]');
   await card.locator('input.action[data-pose="rest"]').uncheck();
   await card.locator('input.action[data-pose="perch"]').uncheck();
-  await expect.poll(() => controllerCall(app, c => c.settings.pets.testcat.actions)).toEqual(['sit']);
-  await expect(card.locator('input.action[data-pose="sit"]')).toBeDisabled();   // the last tick cannot be removed
+  await expect.poll(() => controllerCall(app, c => c.settings.pets.testcat.actions)).toEqual(['sit', 'pounce:left', 'pounce:right']);
+  await expect(card.locator('input.action[data-pose="sit"]')).toBeDisabled();   // the last pose tick cannot be removed
   // resting is no longer ticked, so after the current clip the cat goes to sit by itself
   await expect.poll(() => page.evaluate(() => (window as any).__pet.history.join(',')), { timeout: 15_000 }).toMatch(/rest_to_sit,idle_sit/);
   await app.close();

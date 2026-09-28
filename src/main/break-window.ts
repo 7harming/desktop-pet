@@ -17,6 +17,7 @@ export class BreakWindow {
     });
     this.win.setBounds(bounds);   // fractional display scaling creates windows a few pixels off
     this.win.setAlwaysOnTop(true, 'screen-saver');
+    if (process.platform === 'darwin') this.win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     this.win.webContents.ipc.on('break:ready', () => {
       this.win.webContents.send('break:init', init);
       this.win.show();

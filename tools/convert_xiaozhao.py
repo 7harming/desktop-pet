@@ -23,13 +23,12 @@ CLIPS = ['idle_lie', 'idle_lie_groom', 'idle_sit', 'lie_to_sit', 'sit_to_lie', '
 POUNCES = ['pounce_left', 'pounce_right']
 STILLS = {'lie': 'lie.png', 'sit': 'sit.png', 'sleep': 'sleep.png', 'boxBelly': 'end_box.png', 'pillow': 'end_pillow.png',
           'drink': 'end_bowl.png', 'stretch': 'end_stretch.png'}
-# walking: the loop goes from walk_start to walk_end; depart ends as walk_left (spike step 21)
-# walking (spike steps 23-26): the loop is one stride cycle cut from a Veo tracking walk (walk_loop_start is its first frame);
-# arrive / depart are Veo clips joined to it; depart's first second is the cat still lying, so it is cut
+# walking (spike steps 42-46): the loop is one stride cycle cut from a strictly side-on Veo tracking walk, at 60 fps
+# (walk_loop_start is its first frame); arrive / depart are Veo clips joined to it, already cut to length in the spike
 WALK_STILLS = {'start': 'walk_loop_start.png', 'left': 'walk_left2.png'}
-WALK_SPEED = 11.7 * 24 / 1280   # the loop's planted paws slide back 11.7 px a frame (xz24): frame widths per second
-TRIM = {'walk_depart': 24}      # frames cut from the start of a clip
-FPS = {'walk_loop': 60}         # the loop is rebuilt at 60 fps (spike steps 29-30); the rest stay at 24
+WALK_SPEED = 9.86 * 24 / 1280   # the loop's planted paws slide back 9.86 px a frame (xz45): frame widths per second
+TRIM = {}                       # frames cut from the start of a clip
+FPS = {'walk_loop': 60}         # the loop is built at 60 fps; the rest stay at 24
 RAMP = 12                       # frames over which arrive / depart ease into and out of the loop's pace
 HD_SIZE = '1920:1080'           # the break's big cat: clips upscaled 2x by Topaz (spike step 28), keyed at this size
 FEATHER = 12 / 960              # side-on, the tail can sweep past the frame's left or top edge (nothing is drawn beyond it):
@@ -148,8 +147,8 @@ def build_pack(geo: dict, walk: dict, pounce: tuple) -> dict:
             'liePillow': {'label': '（抱枕出現）', 'transient': True, **lie, 'shadow': True},
             'pillow': {'label': '藍色抱枕', 'idle': ['pillow_idle'], **geo['pillow'], 'shadow': False, 'draggable': False, 'stay': 0.7, 'autoWeight': 1},
             'lieBowl': {'label': '（水碗出現）', 'transient': True, **lie, 'shadow': True},
-            # only at the water reminder (autoWeight 0): it drinks at least one loop, then comes back
-            'drink': {'label': '喝水', 'idle': ['bowl_idle'], **geo['drink'], 'shadow': False, 'draggable': False, 'brief': True, 'stay': 0.5, 'autoWeight': 0},
+            # at the water reminder, now and then by itself, or when told: at least one drinking loop, then back
+            'drink': {'label': '喝水', 'idle': ['bowl_idle'], **geo['drink'], 'shadow': False, 'draggable': False, 'brief': True, 'stay': 0.5, 'autoWeight': 0.3},
             # at the stretch reminder, now and then by itself, or when told: one hold, then back to what it was doing
             'stretch': {'label': '伸懶腰', 'idle': ['stretch_hold'], **geo['stretch'], 'shadow': True, 'draggable': False, 'brief': True, 'stay': 0, 'autoWeight': 0.3},
         },
@@ -177,7 +176,7 @@ def build_pack(geo: dict, walk: dict, pounce: tuple) -> dict:
             },
             'drag': ['……隨便你', '（液態貓）'],
             'noDrag': ['……（不想動）'],
-            'command': {'lie': '……嗯。', 'sit': '……好啦。', 'sleep': '呼啊——', 'boxBelly': '（盯——紙箱）', 'pillow': '（看了抱枕一眼）', 'stretch': '……伸一下。'},
+            'command': {'lie': '……嗯。', 'sit': '……好啦。', 'sleep': '呼啊——', 'boxBelly': '（盯——紙箱）', 'pillow': '（看了抱枕一眼）', 'stretch': '……伸一下。', 'drink': '……去喝口水。'},
             'reminders': {
                 'water': {'default': '……該喝水了。', 'drink': '……你也喝一點。', 'sleep': '……（睡夢中）去喝水。', 'boxBelly': '……（睡夢中）去喝水。'},
                 'stretch': {'default': '……起來動一動。', 'stretch': '……一起伸個懶腰。', 'sleep': '……（睡夢中）起來動一動。', 'boxBelly': '……（睡夢中）起來動一動。'},
@@ -186,10 +185,12 @@ def build_pack(geo: dict, walk: dict, pounce: tuple) -> dict:
         },
         'clickHeart': True,
         'commands': [{'label': '趴著', 'pose': 'lie'}, {'label': '坐下', 'pose': 'sit'}, {'label': '睡覺', 'pose': 'sleep'},
-                     {'label': '紙箱翻肚', 'pose': 'boxBelly'}, {'label': '藍色抱枕', 'pose': 'pillow'}, {'label': '伸懶腰', 'pose': 'stretch'}],
+                     {'label': '紙箱翻肚', 'pose': 'boxBelly'}, {'label': '藍色抱枕', 'pose': 'pillow'}, {'label': '伸懶腰', 'pose': 'stretch'},
+                     {'label': '喝水', 'pose': 'drink'}, {'label': '向左撲', 'pounce': 'left'}, {'label': '向右撲', 'pounce': 'right'}],
         'walk': walk,
         'reminderPoses': {'water': 'drink', 'stretch': 'stretch'},
-        'pounce': {'pose': 'lie', 'toLeft': 'pounce_left', 'toRight': 'pounce_right', 'left': pounce[0], 'right': pounce[1]},
+        'pounce': {'pose': 'lie', 'toLeft': 'pounce_left', 'toRight': 'pounce_right', 'left': pounce[0], 'right': pounce[1],
+                   'autoChance': 0.08},
     }
 
 

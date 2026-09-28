@@ -1,4 +1,4 @@
-html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; user-select: none; font-family: "Microsoft JhengHei", "Segoe UI", sans-serif; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; user-select: none; font-family: "Microsoft JhengHei", "PingFang TC", "Heiti TC", "Segoe UI", sans-serif; }
 #stage { position: absolute; inset: 0; }
 #cat { position: absolute; top: 0; bottom: 0; }
 canvas.walk { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; visibility: hidden; }

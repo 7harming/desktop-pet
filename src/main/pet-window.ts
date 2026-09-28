@@ -38,6 +38,8 @@ export class PetWindow {
     // At fractional display scaling Windows creates the window a few pixels too big; setting the bounds again fixes it.
     this.win.setBounds(bounds);
     this.win.setIgnoreMouseEvents(true, { forward: true });
+    // macOS: stay on every desktop (Space), and over full-screen apps like the Windows version does
+    if (process.platform === 'darwin') this.win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     this.win.webContents.on('render-process-gone', () => events.crashed(pack.id));
     void this.win.loadURL(`${APP_ORIGIN}/ui/pet.html`);
   }

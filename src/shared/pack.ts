@@ -116,12 +116,19 @@ export function parsePack(raw: unknown): ParseResult {
       for (const k of ['left', 'right'] as const) {
         if (!isNum(pounce[k]) || (pounce[k] as number) < 0 || (pounce[k] as number) > 1) err(`pounce 的 ${k} 要在 0 到 1 之間`);
       }
+      const chance = pounce.autoChance;
+      if (chance !== undefined && (!isNum(chance) || chance < 0 || chance > 1)) err('pounce 的 autoChance 要在 0 到 1 之間');
     }
   }
 
   if (typeof raw.clickHeart !== 'boolean') err('clickHeart 要是 true 或 false');
   if (!Array.isArray(raw.commands)) err('缺少 commands');
-  else raw.commands.forEach((c, i) => { if (!isObj(c) || !isStr(c.label) || !isStr(c.pose)) err(`第 ${i + 1} 個指令缺少 label／pose`); });
+  else raw.commands.forEach((c, i) => {
+    if (!isObj(c) || !isStr(c.label)) { err(`第 ${i + 1} 個指令缺少 label`); return; }
+    if ((c.pose !== undefined) === (c.pounce !== undefined)) err(`指令「${c.label}」要剛好有 pose 或 pounce 其中一個`);
+    else if (c.pose !== undefined && !isStr(c.pose)) err(`指令「${c.label}」的 pose 要是姿勢名稱`);
+    else if (c.pounce !== undefined && c.pounce !== 'left' && c.pounce !== 'right') err(`指令「${c.label}」的 pounce 要是 left 或 right`);
+  });
 
   return errors.length ? { pack: null, errors } : { pack: raw as unknown as Pack, errors };
 }

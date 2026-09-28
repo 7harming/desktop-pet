@@ -75,6 +75,17 @@ describe('parsePack', () => {
     expect(e).toHaveLength(3);
   });
 
+  it('checks pounce commands', () => {
+    const p: any = makePack();
+    p.commands.push({ label: '亂撲', pounce: 'up' }, { label: '兩個都有', pose: 'sit', pounce: 'left' }, { label: '都沒有' });
+    p.pounce.autoChance = 2;
+    const e = parsePack(p).errors;
+    expect(e).toContain('指令「亂撲」的 pounce 要是 left 或 right');
+    expect(e).toContain('指令「兩個都有」要剛好有 pose 或 pounce 其中一個');
+    expect(e).toContain('指令「都沒有」要剛好有 pose 或 pounce 其中一個');
+    expect(e).toContain('pounce 的 autoChance 要在 0 到 1 之間');
+  });
+
   it('allows a pack without walking', () => {
     const p: any = makePack(); delete p.walk;
     expect(parsePack(p).errors).toEqual([]);

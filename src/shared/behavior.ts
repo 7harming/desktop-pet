@@ -1,5 +1,6 @@
 import { findPath, idleStep, pathToSteps, type Step } from './graph';
-import type { ClipId, Pack, PoseId } from './types';
+import { pounceSide } from './actions';
+import type { ClipId, Pack, PoseId, PounceSide } from './types';
 
 export type Rng = () => number;
 
@@ -14,6 +15,7 @@ export class BehaviorEngine {
   private allowed: Set<PoseId> | null = null;   // the poses ticked in the panel; null = all
   private commanded: PoseId | null = null;      // a commanded pose may stay even when it is not ticked
   private visiting: { pose: PoseId; back: PoseId } | null = null;   // a pose it only drops in on (drinking at a reminder)
+  private pounces: Set<PounceSide> | null = null;                 // the pounce sides ticked in the panel; null = both
 
   constructor(private readonly pack: Pack, private readonly rng: Rng) {}
 
@@ -44,7 +46,7 @@ export class BehaviorEngine {
       return this.take(this.idleOf(pose, 0));
     }
     const mayStay = !this.allowed || this.allowed.has(pose) || pose === this.commanded;
-    if (!this.auto || (mayStay && this.rng() < (def.stay ?? DEFAULT_STAY))) return this.take(this.idleOf(pose, 0));
+    if (!this.auto || (mayStay && this.rng() < (def.stay ?? DEFAULT_STAY))) return this.take(this.autoPounce(pose) ?? this.idleOf(pose, 0));
     const target = this.pickTarget(pose);
     if (target && this.plan(target)) {
       if (this.pack.poses[target].brief) this.visiting = { pose: target, back: pose };
@@ -83,10 +85,23 @@ export class BehaviorEngine {
     return this.take(idleStep(this.pack, pose, clip));
   }
 
-  /** Auto mode only moves between these poses. Unknown or transient ids are ignored; nothing left means every pose. */
-  setAllowed(poses: PoseId[] | null): void {
-    const ok = (poses ?? []).filter(p => this.pack.poses[p] && !this.pack.poses[p].transient);
+  /** A pounce from a menu or button: now if resting in `pose`, else queued for when it is back there. Null: not now. */
+  perform(clip: ClipId, pose: PoseId): Step | null {
+    const now = this.interject(clip, pose);
+    if (now || !this.go(pose)) return now;
+    const arrive = this.queue.pop()!;                               // the idle it would rest in: pounce instead
+    this.queue.push({ ...idleStep(this.pack, pose, clip), fadeIn: arrive.fadeIn });
+    return null;
+  }
+
+  /**
+   * Auto mode only moves between these poses, and pounces only to these sides (`pounce:left` / `pounce:right`). Unknown or
+   * transient ids are ignored; no pose left means every pose.
+   */
+  setAllowed(keys: string[] | null): void {
+    const ok = (keys ?? []).filter(p => this.pack.poses[p] && !this.pack.poses[p].transient);
     this.allowed = ok.length ? new Set(ok) : null;
+    this.pounces = keys ? new Set(keys.map(pounceSide).filter((s): s is PounceSide => s !== null)) : null;
   }
 
   markBroken(clip: ClipId): void {
@@ -107,6 +122,16 @@ export class BehaviorEngine {
     };
     add(this.endPose, 0);
     return [...out];
+  }
+
+  /** Now and then, resting in the pounce pose in auto mode, a pounce to a ticked side instead of an idle. */
+  private autoPounce(pose: PoseId): Step | null {
+    const p = this.pack.pounce;
+    if (!this.auto || !p?.autoChance || p.pose !== pose) return null;
+    const sides = (['left', 'right'] as const).filter(s => !this.pounces || this.pounces.has(s));
+    if (!sides.length || this.rng() >= p.autoChance) return null;
+    const side = sides[Math.min(sides.length - 1, Math.floor(this.rng() * sides.length))];
+    return idleStep(this.pack, pose, side === 'left' ? p.toLeft : p.toRight);
   }
 
   private take(step: Step): Step {

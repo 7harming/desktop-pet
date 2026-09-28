@@ -45,7 +45,12 @@ export interface WalkDef {
  * Double-clicking the cat while it rests in `pose` makes it pounce towards the side that was clicked: `toLeft` / `toRight` are clips
  * from `pose` back to `pose`. `left` / `right` bound everything the two clips draw, as shares of the frame width.
  */
-export interface PounceDef { pose: PoseId; toLeft: ClipId; toRight: ClipId; left: number; right: number }
+export interface PounceDef {
+  pose: PoseId; toLeft: ClipId; toRight: ClipId; left: number; right: number;
+  /** Auto mode: the share of idles in `pose` it swaps for a pounce (to a ticked side). */
+  autoChance?: number;
+}
+export type PounceSide = 'left' | 'right';
 
 export type LineSet = string[];
 export interface PoseLines { default: LineSet; [pose: string]: LineSet }
@@ -61,7 +66,8 @@ export interface PackLines {
   reminders: Record<ReminderType, ReminderLines>;
 }
 
-export interface Command { label: string; pose: PoseId }
+/** A menu / panel command: go to a pose, or pounce to one side. Exactly one of the two. */
+export interface Command { label: string; pose?: PoseId; pounce?: PounceSide }
 
 export interface Pack {
   schemaVersion: 1;

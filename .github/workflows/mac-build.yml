@@ -1,0 +1,27 @@
+# A Mac test build, made on GitHub's macOS machines (a Mac app has to be packaged on a Mac). Started by hand from the Actions tab
+# or with `gh workflow run mac-build.yml`; the .dmg is attached to the run as an artifact.
+name: Mac test build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run dist:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'   # no Apple Developer ID: the app is only ad-hoc signed
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-dmg
+          path: release/*.dmg
+          retention-days: 14

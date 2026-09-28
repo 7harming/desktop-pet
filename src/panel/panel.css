@@ -1,4 +1,4 @@
-body { margin: 0; display: grid; grid-template-columns: 150px 1fr; height: 100vh; font-family: "Microsoft JhengHei", "Segoe UI", sans-serif; font-size: 14px; color: #222; background: #f6f7f9; }
+body { margin: 0; display: grid; grid-template-columns: 150px 1fr; height: 100vh; font-family: "Microsoft JhengHei", "PingFang TC", "Heiti TC", "Segoe UI", sans-serif; font-size: 14px; color: #222; background: #f6f7f9; }
 nav { background: #fff; border-right: 1px solid #e3e5ea; padding: 14px 8px; display: flex; flex-direction: column; gap: 4px; }
 nav .brand { font-weight: 600; padding: 4px 10px 12px; }
 .tab { text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 8px; font: inherit; cursor: pointer; color: #555; }

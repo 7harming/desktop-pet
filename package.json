@@ -13,7 +13,8 @@
     "start": "npm run build && electron .",
     "check-pack": "node dist/check-pack.js",
     "dist": "node scripts/require-installer-password.mjs && npm run build && electron-builder --win nsis",
-    "set-installer-password": "node scripts/set-installer-password.mjs"
+    "set-installer-password": "node scripts/set-installer-password.mjs",
+    "dist:mac": "npm run build && electron-builder --mac --publish never"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -55,6 +56,24 @@
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
       "shortcutName": "毛孩桌寵"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "icon": "build/icon-mac.png",
+      "category": "public.app-category.entertainment",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "毛孩桌寵"
     }
   }
 }

@@ -15,6 +15,8 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   let controller: AppController | null = null;
   app.on('second-instance', () => controller?.summon());
+  // macOS: opening the app again (or clicking its Dock icon) while it runs does not start a second instance
+  app.on('activate', () => controller?.summon());
   void app.whenReady().then(() => {
     const log = new Logger(paths.logsDir);
     log.info(`啟動 ${app.getVersion()}`);

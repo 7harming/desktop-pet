@@ -1,5 +1,6 @@
 import { app, ipcMain, Menu, Notification, powerMonitor, screen, type WebContents } from 'electron';
 import { join } from 'node:path';
+import { actionKey, pounceSide } from '../shared/actions';
 import type { PanelAction, PanelState } from '../shared/ipc';
 import { reminderLine } from '../shared/lines';
 import { findFreeCenter } from '../shared/placement';
@@ -23,6 +24,13 @@ const PET_CHANNELS = ['pet:ready', 'pet:set-interactive', 'pet:move', 'pet:drag-
 const EXIT_TIMEOUT_MS = 45_000;
 /** Passed by the login item, so a start at login can tell itself from being opened by hand. */
 export const AUTOSTART_ARG = '--autostart';
+/** Started at login rather than by hand: on Windows the login item passes AUTOSTART_ARG; macOS says so itself. */
+const openedAtLogin = () => process.argv.includes(AUTOSTART_ARG) || (process.platform === 'darwin' && app.getLoginItemSettings().wasOpenedAtLogin);
+const HOW_TO_RECALL = process.platform === 'darwin'
+  ? '要牠回來：點 Dock 上的「毛孩桌寵」，或點螢幕上方選單列的貓咪圖示。'
+  : '要牠回來：再點一次桌面或開始選單的「毛孩桌寵」，或點右下角 ^ 裡的貓咪圖示。';
+/** A pack's commands for the menu and the panel, each named by its action key. */
+const commandItems = (pack: Pack) => pack.commands.map(c => ({ label: c.label, pose: actionKey(c) }));
 /** The eye break: this long, unless DESKTOP_PET_BREAK_SECONDS says otherwise (tests). */
 const BREAK_SECONDS = Number(process.env.DESKTOP_PET_BREAK_SECONDS) || 30;
 const MAX_CRASH_RESTARTS = 3;
@@ -76,7 +84,7 @@ export class AppController {
     const first = this.validPacks()[0];
     this.tray = new TrayController(first ? join(first.dir, first.pack.portrait) : null, () => this.trayMenu(), () => this.openPanel());
     // opened by hand (not at login) with every cat put away: bring the first one back, or it looks as if nothing started
-    if (!process.argv.includes(AUTOSTART_ARG) && !this.settings.petOrder.some(id => this.settings.pets[id]?.visible)) {
+    if (!openedAtLogin() && !this.settings.petOrder.some(id => this.settings.pets[id]?.visible)) {
       const firstId = this.settings.petOrder[0];
       if (firstId) this.settings.pets[firstId].visible = true;
     }
@@ -132,7 +140,7 @@ export class AppController {
     void this.walkOff(id);
     if (!this.settings.petOrder.some(i => this.onScreen(i))) {
       const name = this.packOf(id)?.name ?? '貓咪';
-      this.tray?.balloon(`${name}先去休息了`, '要牠回來：再點一次桌面或開始選單的「毛孩桌寵」，或點右下角 ^ 裡的貓咪圖示。');
+      this.tray?.balloon(`${name}先去休息了`, HOW_TO_RECALL);
     }
     if (this.settings.pets[id]) this.settings.pets[id].visible = false;
     this.status.delete(id);
@@ -175,7 +183,7 @@ export class AppController {
           auto: ps?.auto ?? true,
           actions: ps?.actions ?? null,
           status: this.status.get(p.id) ?? '',
-          commands: p.pack?.commands ?? [],
+          commands: p.pack ? commandItems(p.pack) : [],
         };
       }),
       reminders: { water: r.water, stretch: r.stretch, eyes: r.eyes, notify: r.notify, pausedUntil: r.pausedUntil },
@@ -390,7 +398,7 @@ export class AppController {
     const pet = this.pets.get(id);
     const ps = this.settings.pets[id];
     if (!pet || !ps) return;
-    Menu.buildFromTemplate(petMenuTemplate({ commands: pet.pack.commands, auto: ps.auto, scale: ps.scale }, {
+    Menu.buildFromTemplate(petMenuTemplate({ commands: commandItems(pet.pack), auto: ps.auto, scale: ps.scale }, {
       command: pose => this.command(id, pose),
       setAuto: on => this.setAuto(id, on),
       setScale: s => this.setScale(id, s),
@@ -399,11 +407,12 @@ export class AppController {
     })).popup({ window: pet.win });
   }
 
-  command(id: string, pose: string): void {
+  /** `key`: a pose, or a pounce (`pounce:left` / `pounce:right`, which always has room - see extentOf). */
+  command(id: string, key: string): void {
     const pet = this.pets.get(id);
     if (!pet) return;
-    this.makeRoom(id, pet, pose);
-    pet.send('pet:command', pose);
+    if (!pounceSide(key)) this.makeRoom(id, pet, key);
+    pet.send('pet:command', key);
   }
 
   /** An unticked pose (say the box) may need more room than the cat's spot leaves: make room before it goes there. */

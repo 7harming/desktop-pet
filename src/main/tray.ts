@@ -1,4 +1,4 @@
-import { Menu, nativeImage, Tray, type MenuItemConstructorOptions } from 'electron';
+import { Menu, nativeImage, Notification, Tray, type MenuItemConstructorOptions } from 'electron';
 
 export class TrayController {
   private readonly tray: Tray;
@@ -13,9 +13,10 @@ export class TrayController {
 
   refresh(): void { this.tray.setContextMenu(Menu.buildFromTemplate(this.build())); }
 
-  /** A notice from the tray icon (Windows shows it as a toast). */
+  /** A notice from the tray icon (Windows shows it as a toast; elsewhere it is an ordinary notification). */
   balloon(title: string, content: string): void {
     if (process.platform === 'win32') this.tray.displayBalloon({ title, content, iconType: 'none' });
+    else if (Notification.isSupported()) new Notification({ title, body: content }).show();
   }
   destroy(): void { this.tray.destroy(); }
 }

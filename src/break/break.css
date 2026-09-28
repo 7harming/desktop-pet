@@ -1,4 +1,4 @@
-html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; user-select: none; font-family: "Microsoft JhengHei", "Segoe UI", sans-serif; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; user-select: none; font-family: "Microsoft JhengHei", "PingFang TC", "Heiti TC", "Segoe UI", sans-serif; }
 #dim { position: fixed; inset: 0; background: rgba(12, 14, 20, .38); opacity: 0; transition: opacity .8s; }
 body.on #dim { opacity: 1; }
 #walkarea { position: absolute; left: 0; right: 0; }

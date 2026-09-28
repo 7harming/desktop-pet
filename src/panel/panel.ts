@@ -1,3 +1,4 @@
+import { pounceSide } from '../shared/actions';
 import type { PanelAction, PanelPet, PanelState } from '../shared/ipc';
 
 const api = window.panelApi;
@@ -44,11 +45,13 @@ function petCard(p: PanelPet): HTMLElement {
   scale.addEventListener('change', () => act({ kind: 'pet', id: p.id, scale: Number(scale.value) }));
   card.append(el('div', { className: 'row' },
     el('label', {}, visible, '出現在桌面'), el('label', {}, auto, '自動行動'), el('label', {}, '大小', scale)));
-  // the poses the cat may choose by itself; at least one stays ticked
+  // what the cat may do by itself (poses and pounces); at least one pose stays ticked
   const ticked = new Set(p.actions ?? p.commands.map(c => c.pose));
+  const tickedPoses = [...ticked].filter(k => !pounceSide(k));
   const actions = el('div', { className: 'row actions' }, el('span', { className: 'sub' }, '待機時會做：'));
   for (const c of p.commands) {
-    const box = el('input', { type: 'checkbox', className: 'action', checked: ticked.has(c.pose), disabled: ticked.size === 1 && ticked.has(c.pose) });
+    const last = tickedPoses.length === 1 && tickedPoses[0] === c.pose;
+    const box = el('input', { type: 'checkbox', className: 'action', checked: ticked.has(c.pose), disabled: last });
     box.dataset.pose = c.pose;
     box.addEventListener('change', () => {
       const next = p.commands.map(x => x.pose).filter(pose => (pose === c.pose ? box.checked : ticked.has(pose)));
@@ -89,7 +92,7 @@ function remindersTab(): HTMLElement[] {
 function settingsTab(): HTMLElement[] {
   const autostart = el('input', { type: 'checkbox', className: 'autostart', checked: state.autoStart });
   autostart.addEventListener('change', () => act({ kind: 'autoStart', on: autostart.checked }));
-  const reset = el('button', { className: 'plain reset-positions', textContent: '把所有貓放回工作列' });
+  const reset = el('button', { className: 'plain reset-positions', textContent: navigator.platform.startsWith('Mac') ? '把所有貓放回 Dock 上方' : '把所有貓放回工作列' });
   reset.addEventListener('click', () => act({ kind: 'resetPositions' }));
   return [el('div', { className: 'card' },
     el('div', { className: 'line' }, el('label', {}, autostart, '開機自動啟動')),
