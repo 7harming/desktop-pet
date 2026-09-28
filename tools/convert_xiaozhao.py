@@ -15,8 +15,11 @@ import numpy as np
 from PIL import Image
 
 CLIPS = ['idle_lie', 'idle_lie_groom', 'idle_sit', 'lie_to_sit', 'sit_to_lie', 'idle_sleep', 'lie_to_sleep', 'sleep_to_lie',
-         'box_enter', 'box_idle', 'box_exit', 'pillow_enter', 'pillow_idle', 'pillow_exit', 'walk_loop', 'walk_arrive', 'walk_depart']
-STILLS = {'lie': 'lie.png', 'sit': 'sit.png', 'sleep': 'sleep.png', 'boxBelly': 'end_box.png', 'pillow': 'end_pillow.png'}
+         'box_enter', 'box_idle', 'box_exit', 'pillow_enter', 'pillow_idle', 'pillow_exit', 'walk_loop', 'walk_arrive', 'walk_depart',
+         'bowl_enter', 'bowl_idle', 'bowl_exit']
+# drinking (spike steps 32-35): the bowl fades in beside the lying cat; it walks over, drinks (a seamless loop), walks back
+STILLS = {'lie': 'lie.png', 'sit': 'sit.png', 'sleep': 'sleep.png', 'boxBelly': 'end_box.png', 'pillow': 'end_pillow.png',
+          'drink': 'end_bowl.png'}
 # walking: the loop goes from walk_start to walk_end; depart ends as walk_left (spike step 21)
 # walking (spike steps 23-26): the loop is one stride cycle cut from a Veo tracking walk (walk_loop_start is its first frame);
 # arrive / depart are Veo clips joined to it; depart's first second is the cat still lying, so it is cut
@@ -121,6 +124,9 @@ def build_pack(geo: dict, walk: dict) -> dict:
             'boxBelly': {'label': '紙箱翻肚', 'idle': ['box_idle'], **geo['boxBelly'], 'shadow': False, 'draggable': False, 'asleep': True, 'stay': 0.85, 'autoWeight': 1.4},
             'liePillow': {'label': '（抱枕出現）', 'transient': True, **lie, 'shadow': True},
             'pillow': {'label': '藍色抱枕', 'idle': ['pillow_idle'], **geo['pillow'], 'shadow': False, 'draggable': False, 'stay': 0.7, 'autoWeight': 1},
+            'lieBowl': {'label': '（水碗出現）', 'transient': True, **lie, 'shadow': True},
+            # only at the water reminder (autoWeight 0): it drinks at least one loop, then comes back
+            'drink': {'label': '喝水', 'idle': ['bowl_idle'], **geo['drink'], 'shadow': False, 'draggable': False, 'stay': 0.5, 'autoWeight': 0},
         },
         'clips': {c: {'file': f'clips/{c}.webm', **({'rate': 0.8} if c in ('box_exit', 'pillow_enter') else {})} for c in CLIPS},
         'edges': [
@@ -130,6 +136,8 @@ def build_pack(geo: dict, walk: dict) -> dict:
             {'from': 'boxBelly', 'to': 'lieBox', 'clip': 'box_exit'}, {'from': 'lieBox', 'to': 'lie', 'fade': 0.5},
             {'from': 'lie', 'to': 'liePillow', 'fade': 0.5}, {'from': 'liePillow', 'to': 'pillow', 'clip': 'pillow_enter'},
             {'from': 'pillow', 'to': 'liePillow', 'clip': 'pillow_exit'}, {'from': 'liePillow', 'to': 'lie', 'fade': 0.5},
+            {'from': 'lie', 'to': 'lieBowl', 'fade': 0.5}, {'from': 'lieBowl', 'to': 'drink', 'clip': 'bowl_enter'},
+            {'from': 'drink', 'to': 'lieBowl', 'clip': 'bowl_exit'}, {'from': 'lieBowl', 'to': 'lie', 'fade': 0.5},
         ],
         'lines': {
             'greet': ['……喵。'],
@@ -138,12 +146,13 @@ def build_pack(geo: dict, walk: dict) -> dict:
                 'sit': ['……', '嗯？', '（歪頭）'],
                 'sleep': ['……zzz', '（耳朵動了一下）', '……（不為所動）'],
                 'boxBelly': ['……zzz', '（耳朵動了一下）', '……（不為所動）'],
+                'drink': ['（咕嚕咕嚕）', '……（專心喝水）', '（舔舔）'],
             },
             'drag': ['……隨便你', '（液態貓）'],
             'noDrag': ['……（不想動）'],
             'command': {'lie': '……嗯。', 'sit': '……好啦。', 'sleep': '呼啊——', 'boxBelly': '（盯——紙箱）', 'pillow': '（看了抱枕一眼）'},
             'reminders': {
-                'water': {'default': '……該喝水了。', 'sleep': '……（睡夢中）去喝水。', 'boxBelly': '……（睡夢中）去喝水。'},
+                'water': {'default': '……該喝水了。', 'drink': '……你也喝一點。', 'sleep': '……（睡夢中）去喝水。', 'boxBelly': '……（睡夢中）去喝水。'},
                 'stretch': {'default': '……起來動一動。', 'sleep': '……（睡夢中）起來動一動。', 'boxBelly': '……（睡夢中）起來動一動。'},
                 'eyes': {'default': '……眼睛休息一下。', 'sleep': '……（睡夢中）眼睛休息一下。', 'boxBelly': '……（睡夢中）眼睛休息一下。'},
             },
@@ -152,6 +161,7 @@ def build_pack(geo: dict, walk: dict) -> dict:
         'commands': [{'label': '趴著', 'pose': 'lie'}, {'label': '坐下', 'pose': 'sit'}, {'label': '睡覺', 'pose': 'sleep'},
                      {'label': '紙箱翻肚', 'pose': 'boxBelly'}, {'label': '藍色抱枕', 'pose': 'pillow'}],
         'walk': walk,
+        'reminderPoses': {'water': 'drink'},
     }
 
 

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { controllerCall, launch, petPage } from './helpers';
+import { calmPetPage, controllerCall, launch, petPage } from './helpers';
 
 test('a reminder bubble asks, and snoozing pushes the timer 10 minutes', async () => {
   const { app } = await launch();
@@ -12,6 +12,18 @@ test('a reminder bubble asks, and snoozing pushes the timer 10 minutes', async (
   await bubble.locator('button', { hasText: '10 分鐘後' }).click();
   await expect(bubble).toHaveCount(0);
   await expect.poll(() => controllerCall(app, c => c.scheduler.nextAt('water'))).toBeGreaterThanOrEqual(before + 10 * 60_000 - 5_000);
+  await app.close();
+});
+
+test('the water reminder sends the cat to its reminder pose and back', async () => {
+  const { app } = await launch();
+  const page = await calmPetPage(app);          // auto off: only the visit itself brings it back
+  await controllerCall(app, c => c.setReminders({ notify: false }));
+  const n = await page.evaluate(() => (window as any).__pet.history.length);
+  await controllerCall(app, c => c.testReminder());
+  await expect(page.locator('.bubble.reminder')).toContainText('喝水。');
+  await expect.poll(() => page.evaluate(k => (window as any).__pet.history.slice(k).join(','), n), { timeout: 30_000 })
+    .toMatch(/^rest_to_sit,idle_sit,(idle_sit,)*sit_to_rest,idle_rest/);
   await app.close();
 });
 

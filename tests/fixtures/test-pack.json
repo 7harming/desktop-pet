@@ -253,5 +253,8 @@
   "hd": {
     "idle_rest": "hd/idle_rest.webm",
     "walk_loop": "hd/walk_loop.webm"
+  },
+  "reminderPoses": {
+    "water": "sit"
   }
 }

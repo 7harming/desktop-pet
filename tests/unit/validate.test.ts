@@ -44,6 +44,13 @@ describe('validatePack', () => {
     expect(e).toContain('指令「月球」指到不存在的姿勢：moon');
   });
 
+  it('checks the reminder poses', () => {
+    const p = makePack(); p.reminderPoses = { water: 'restProp', stretch: 'moon' };
+    const e = validatePack(p, allFiles);
+    expect(e).toContain('提醒 water 不能指到過渡姿勢：restProp');
+    expect(e).toContain('提醒 stretch 指到不存在的姿勢：moon');
+  });
+
   it('reports missing high-resolution clip files', () => {
     const p = makePack(); p.hd = { idle_rest: 'hd/idle_rest.webm' };
     expect(validatePack(p, f => f !== 'hd/idle_rest.webm')).toContain('找不到片段 idle_rest 的高解析度檔案：hd/idle_rest.webm');

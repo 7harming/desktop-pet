@@ -107,6 +107,31 @@
    "draggable": false,
    "stay": 0.7,
    "autoWeight": 1
+  },
+  "lieBowl": {
+   "label": "（水碗出現）",
+   "transient": true,
+   "ground": 0.906,
+   "centerX": 0.3,
+   "head": 0.406,
+   "left": 0.126,
+   "right": 0.473,
+   "shadow": true
+  },
+  "drink": {
+   "label": "喝水",
+   "idle": [
+    "bowl_idle"
+   ],
+   "ground": 0.906,
+   "centerX": 0.418,
+   "head": 0.443,
+   "left": 0.052,
+   "right": 0.784,
+   "shadow": false,
+   "draggable": false,
+   "stay": 0.5,
+   "autoWeight": 0
   }
  },
  "clips": {
@@ -162,6 +187,15 @@
   },
   "walk_depart": {
    "file": "clips/walk_depart.webm"
+  },
+  "bowl_enter": {
+   "file": "clips/bowl_enter.webm"
+  },
+  "bowl_idle": {
+   "file": "clips/bowl_idle.webm"
+  },
+  "bowl_exit": {
+   "file": "clips/bowl_exit.webm"
   }
  },
  "edges": [
@@ -224,6 +258,26 @@
    "from": "liePillow",
    "to": "lie",
    "fade": 0.5
+  },
+  {
+   "from": "lie",
+   "to": "lieBowl",
+   "fade": 0.5
+  },
+  {
+   "from": "lieBowl",
+   "to": "drink",
+   "clip": "bowl_enter"
+  },
+  {
+   "from": "drink",
+   "to": "lieBowl",
+   "clip": "bowl_exit"
+  },
+  {
+   "from": "lieBowl",
+   "to": "lie",
+   "fade": 0.5
   }
  ],
  "lines": {
@@ -251,6 +305,11 @@
     "……zzz",
     "（耳朵動了一下）",
     "……（不為所動）"
+   ],
+   "drink": [
+    "（咕嚕咕嚕）",
+    "……（專心喝水）",
+    "（舔舔）"
    ]
   },
   "drag": [
@@ -270,6 +329,7 @@
   "reminders": {
    "water": {
     "default": "……該喝水了。",
+    "drink": "……你也喝一點。",
     "sleep": "……（睡夢中）去喝水。",
     "boxBelly": "……（睡夢中）去喝水。"
    },
@@ -684,6 +744,9 @@
    -0.4092,
    -0.4183
   ]
+ },
+ "reminderPoses": {
+  "water": "drink"
  },
  "hd": {
   "idle_lie": "hd/idle_lie.webm",

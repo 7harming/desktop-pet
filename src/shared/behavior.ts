@@ -13,6 +13,7 @@ export class BehaviorEngine {
   private readonly broken = new Set<ClipId>();
   private allowed: Set<PoseId> | null = null;   // the poses ticked in the panel; null = all
   private commanded: PoseId | null = null;      // a commanded pose may stay even when it is not ticked
+  private visiting: { pose: PoseId; back: PoseId } | null = null;   // a pose it only drops in on (drinking at a reminder)
 
   constructor(private readonly pack: Pack, private readonly rng: Rng) {}
 
@@ -33,6 +34,15 @@ export class BehaviorEngine {
       if (this.plan(this.pack.start)) return this.take(this.queue.shift()!);
       return this.take(this.current!);   // stuck on a transient pose: replay the last clip rather than crash
     }
+    if (this.visiting?.pose === pose) {
+      // one idle came with the visit; after that it lingers as `stay` allows, then goes back - even with auto off
+      if (this.rng() < (def.stay ?? DEFAULT_STAY)) return this.take(this.idleOf(pose, 0));
+      const { back } = this.visiting;
+      this.visiting = null;
+      this.commanded = null;
+      if (this.plan(back)) return this.take(this.queue.shift()!);
+      return this.take(this.idleOf(pose, 0));
+    }
     const mayStay = !this.allowed || this.allowed.has(pose) || pose === this.commanded;
     if (!this.auto || (mayStay && this.rng() < (def.stay ?? DEFAULT_STAY))) return this.take(this.idleOf(pose, 0));
     const target = this.pickTarget(pose);
@@ -44,6 +54,7 @@ export class BehaviorEngine {
   follow(step: Step): void {
     this.queue = [];
     this.commanded = null;
+    this.visiting = null;
     this.current = step;
   }
 
@@ -51,7 +62,16 @@ export class BehaviorEngine {
   command(target: PoseId): boolean {
     this.queue = [];
     this.commanded = target;
+    this.visiting = null;
     return this.plan(target);
+  }
+
+  /** Go to `target` for a while and come back to the pose it was in (or was heading for). */
+  visit(target: PoseId): boolean {
+    const back = this.visiting?.back ?? this.endPose;
+    if (!this.command(target)) return false;
+    this.visiting = { pose: target, back };
+    return true;
   }
 
   /** Auto mode only moves between these poses. Unknown or transient ids are ignored; nothing left means every pose. */

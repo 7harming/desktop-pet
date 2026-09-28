@@ -100,6 +100,14 @@ export function parsePack(raw: unknown): ParseResult {
     }
   }
 
+  if (raw.reminderPoses !== undefined) {
+    if (!isObj(raw.reminderPoses)) err('reminderPoses 要是一個物件');
+    else for (const [t, pose] of Object.entries(raw.reminderPoses)) {
+      if (!(REMINDER_TYPES as string[]).includes(t)) err(`reminderPoses 裡的 ${t} 不是提醒種類`);
+      else if (!isStr(pose)) err(`reminderPoses.${t} 要是姿勢名稱`);
+    }
+  }
+
   if (typeof raw.clickHeart !== 'boolean') err('clickHeart 要是 true 或 false');
   if (!Array.isArray(raw.commands)) err('缺少 commands');
   else raw.commands.forEach((c, i) => { if (!isObj(c) || !isStr(c.label) || !isStr(c.pose)) err(`第 ${i + 1} 個指令缺少 label／pose`); });

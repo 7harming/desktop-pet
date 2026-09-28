@@ -46,5 +46,10 @@ export function validatePack(pack: Pack, fileExists: (relPath: string) => boolea
     if (!p) errors.push(`指令「${c.label}」指到不存在的姿勢：${c.pose}`);
     else if (p.transient) errors.push(`指令「${c.label}」不能指到過渡姿勢：${c.pose}`);
   }
+  for (const [type, pose] of Object.entries(pack.reminderPoses ?? {})) {
+    const p = pack.poses[pose!];
+    if (!p) errors.push(`提醒 ${type} 指到不存在的姿勢：${pose}`);
+    else if (p.transient) errors.push(`提醒 ${type} 不能指到過渡姿勢：${pose}`);
+  }
   return errors;
 }

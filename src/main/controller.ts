@@ -348,10 +348,12 @@ export class AppController {
     if (type === 'eyes') { void this.startBreak(); return; }   // resting the eyes is a full-screen break, not a bubble
     const id = this.settings.petOrder.find(i => this.pets.has(i));
     const pet = id ? this.pets.get(id) : undefined;
+    const pose = pet?.pack.reminderPoses?.[type];   // the cat drops in on this pose (drinks from its bowl) while it reminds
+    if (pet && pose) this.makeRoom(id!, pet, pose);
     if (pet) pet.send('pet:reminder', type);
     else this.scheduler.done(type, Date.now());
     if (this.settings.reminders.notify && Notification.isSupported()) {
-      const body = pet ? reminderLine(pet.pack, type, pet.pack.start) : FALLBACK_LINES[type];
+      const body = pet ? reminderLine(pet.pack, type, pose ?? pet.pack.start) : FALLBACK_LINES[type];
       new Notification({ title: '毛孩桌寵', body }).show();
     }
     this.log.info(`提醒：${type}${pet ? `（${pet.id}）` : '（沒有貓在桌面上）'}`);
@@ -400,10 +402,14 @@ export class AppController {
   command(id: string, pose: string): void {
     const pet = this.pets.get(id);
     if (!pet) return;
-    // an unticked pose (say the box) may need more room than the cat's spot leaves: make room first
+    this.makeRoom(id, pet, pose);
+    pet.send('pet:command', pose);
+  }
+
+  /** An unticked pose (say the box) may need more room than the cat's spot leaves: make room before it goes there. */
+  private makeRoom(id: string, pet: PetWindow, pose: string): void {
     const b = this.restBounds(id, pose);
     if (b.x !== pet.frame.x) pet.place(b, this.workArea());
-    pet.send('pet:command', pose);
   }
 
   setAuto(id: string, on: boolean): void {

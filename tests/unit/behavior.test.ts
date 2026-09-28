@@ -78,6 +78,57 @@ describe('BehaviorEngine', () => {
     expect(e.next().clip).toBe('idle_sit');
   });
 
+  it('visits a pose and comes back to where it was', () => {
+    // rng 0.99: no longer than the one idle the visit plans
+    const e = new BehaviorEngine(makePack(), constRng(0.99)); e.start();
+    e.command('sit'); e.next(); e.next();               // resting in sit
+    expect(e.visit('perch')).toBe(true);
+    expect(e.next().clip).toBe('sit_to_rest');
+    expect(e.next()).toMatchObject({ clip: 'go_perch', fadeIn: 0.5 });
+    expect(e.next().clip).toBe('idle_perch');
+    expect(e.next().clip).toBe('leave_perch');
+    expect(e.next()).toMatchObject({ clip: 'rest_to_sit', fadeIn: 0.5 });
+    expect(e.next().clip).toBe('idle_sit');
+  });
+
+  it('lingers on a visit while the roll is below stay', () => {
+    const e = new BehaviorEngine(makePack(), constRng(0)); e.start();
+    e.visit('perch');
+    expect(e.next().clip).toBe('go_perch');
+    expect(e.next().clip).toBe('idle_perch');
+    expect(e.next().clip).toBe('idle_perch');
+  });
+
+  it('comes back from a visit even when auto is off', () => {
+    const e = new BehaviorEngine(makePack(), constRng(0.99)); e.auto = false; e.start();
+    e.visit('perch');
+    expect(e.next().clip).toBe('go_perch');
+    expect(e.next().clip).toBe('idle_perch');
+    expect(e.next().clip).toBe('leave_perch');
+    expect(e.next()).toMatchObject({ to: 'rest', fadeIn: 0.5 });
+    expect(e.next()).toMatchObject({ from: 'rest', to: 'rest' });
+  });
+
+  it('keeps the first way back when visited again', () => {
+    const e = new BehaviorEngine(makePack(), constRng(0.99)); e.auto = false; e.start();
+    e.visit('perch');
+    expect(e.next().clip).toBe('go_perch');
+    e.visit('perch');                                    // a second reminder on the way there
+    expect(e.next().clip).toBe('idle_perch');
+    expect(e.next().clip).toBe('leave_perch');
+    expect(e.next()).toMatchObject({ to: 'rest' });
+  });
+
+  it('forgets the way back when told to go elsewhere', () => {
+    const e = new BehaviorEngine(makePack(), constRng(0.99)); e.auto = false; e.start();
+    e.visit('perch'); e.next();
+    e.command('sit');
+    expect(e.next().clip).toBe('leave_perch');
+    expect(e.next().clip).toBe('rest_to_sit');
+    expect(e.next().clip).toBe('idle_sit');
+    expect(e.next().clip).toBe('idle_sit');              // auto off: it stays where it was told
+  });
+
   it('treats an empty or unknown selection as every pose', () => {
     const e = new BehaviorEngine(makePack(), constRng(0.99)); e.start();
     e.setAllowed(['nope']);

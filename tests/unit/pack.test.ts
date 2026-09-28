@@ -57,6 +57,14 @@ describe('parsePack', () => {
     expect(e).toContain('hd.idle_sit 要是檔案路徑');
   });
 
+  it('checks the optional reminder poses', () => {
+    const p: any = makePack(); p.reminderPoses = { water: 'perch', nap: 'sit', stretch: 3 };
+    const e = parsePack(p).errors;
+    expect(e).toContain('reminderPoses 裡的 nap 不是提醒種類');
+    expect(e).toContain('reminderPoses.stretch 要是姿勢名稱');
+    expect(e).toHaveLength(2);
+  });
+
   it('allows a pack without walking', () => {
     const p: any = makePack(); delete p.walk;
     expect(parsePack(p).errors).toEqual([]);

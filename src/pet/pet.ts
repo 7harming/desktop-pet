@@ -102,7 +102,10 @@ api.onInit((init: PetInit) => {
   api.onRestY(y => interactions.setRestY(y));
   const DONE_LABEL = { water: '喝好了', stretch: '動好了', eyes: '休息好了' } as const;
   api.onReminder(type => {
-    bubbles.ask(reminderLine(pack, type, engine.endPose), [
+    // a reminder pose (drinking from the bowl): go there for a while, then back to what it was doing
+    const pose = pack.reminderPoses?.[type];
+    const going = !!pose && mode === 'live' && engine.visit(pose);
+    bubbles.ask(reminderLine(pack, type, going ? pose : engine.endPose), [
       { label: DONE_LABEL[type], onClick: () => api.reminderResult(type, 'done') },
       { label: '10 分鐘後', onClick: () => api.reminderResult(type, 'snooze') },
     ], 15_000, () => api.reminderResult(type, 'done'));

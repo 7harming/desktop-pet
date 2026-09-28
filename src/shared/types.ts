@@ -72,4 +72,6 @@ export interface Pack {
   walk?: WalkDef;
   /** Larger copies of some clips (same timing, more pixels) for the full-screen break, where the cat is drawn big. */
   hd?: Record<ClipId, string>;
+  /** A pose the cat drops in on when a reminder comes (drinking from its bowl at the water reminder), then leaves again. */
+  reminderPoses?: Partial<Record<ReminderType, PoseId>>;
 }
