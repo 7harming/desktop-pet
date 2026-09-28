@@ -23,6 +23,7 @@ STILLS = {'lie': 'lie.png', 'sit': 'sit.png', 'sleep': 'sleep.png', 'boxBelly': 
 WALK_STILLS = {'start': 'walk_loop_start.png', 'left': 'walk_left2.png'}
 WALK_SPEED = 11.7 * 24 / 1280   # the loop's planted paws slide back 11.7 px a frame (xz24): frame widths per second
 TRIM = {'walk_depart': 24}      # frames cut from the start of a clip
+FPS = {'walk_loop': 60}         # the loop is rebuilt at 60 fps (spike steps 29-30); the rest stay at 24
 RAMP = 12                       # frames over which arrive / depart ease into and out of the loop's pace
 HD_SIZE = '1920:1080'           # the break's big cat: clips upscaled 2x by Topaz (spike step 28), keyed at this size
 GROUND = 652 / 720          # every still was staged with the feet / prop bottom on this line
@@ -83,10 +84,10 @@ def key_filter(src: Path, choke: int = 1) -> str:
     return f'{keyed},split[c][a];[a]alphaextract{",erosion" * choke}[m];[c][m]alphamerge'
 
 
-def key_clip(src: Path, dst: Path, trim: int = 0, size: str = '960:540', choke: int = 1) -> None:
+def key_clip(src: Path, dst: Path, trim: int = 0, size: str = '960:540', choke: int = 1, fps: int = 24) -> None:
     vf = f'scale={size},{key_filter(src, choke)}'
     cut = ['-ss', f'{trim / 24:.4f}'] if trim else []
-    subprocess.run([FF, '-y', '-loglevel', 'error', *cut, '-i', str(src), '-vf', vf, '-r', '24', '-c:v', 'libvpx-vp9',
+    subprocess.run([FF, '-y', '-loglevel', 'error', *cut, '-i', str(src), '-vf', vf, '-r', str(fps), '-c:v', 'libvpx-vp9',
                     '-pix_fmt', 'yuva420p', '-b:v', '0', '-crf', '32', '-auto-alt-ref', '0', '-an', str(dst)], check=True)
 
 
@@ -170,7 +171,7 @@ def main() -> int:
         mp4, webm = src / 'clips' / f'{c}.mp4', out / 'clips' / f'{c}.webm'
         if webm.exists() and webm.stat().st_mtime >= mp4.stat().st_mtime:
             continue                     # already keyed from this version of the clip
-        key_clip(mp4, webm, TRIM.get(c, 0))
+        key_clip(mp4, webm, TRIM.get(c, 0), fps=FPS.get(c, 24))
         print('keyed', c)
     geo = {pose: geometry(src / f) for pose, f in STILLS.items()}
     portrait(src / 'lie.png', out / 'portrait.png')
@@ -182,7 +183,7 @@ def main() -> int:
             continue
         if not (webm.exists() and webm.stat().st_mtime >= mp4.stat().st_mtime):
             webm.parent.mkdir(exist_ok=True)
-            key_clip(mp4, webm, TRIM.get(c, 0), HD_SIZE, choke=2)
+            key_clip(mp4, webm, TRIM.get(c, 0), HD_SIZE, choke=2, fps=FPS.get(c, 24))
             print('keyed hd', c)
         hd[c] = f'hd/{c}.webm'
     walk = walk_section(src, geo['lie'])
