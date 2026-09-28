@@ -7,7 +7,8 @@ describe('petMenuTemplate', () => {
   it('lists the commands, then auto, size, reset and hide', () => {
     const h = handlers();
     const t = petMenuTemplate({ commands: [{ label: '休息', pose: 'rest' }, { label: '上台子', pose: 'perch' }], auto: true, scale: 1 }, h);
-    expect(t.map(i => i.label ?? i.type)).toEqual(['休息', '上台子', 'separator', '自動行動', '大小', '放回工作列', '先收起來']);
+    const putBack = process.platform === 'darwin' ? '放回 Dock 上方' : '放回工作列';   // the Mac has a Dock, not a taskbar
+    expect(t.map(i => i.label ?? i.type)).toEqual(['休息', '上台子', 'separator', '自動行動', '大小', putBack, '先收起來']);
     expect(t[3]).toMatchObject({ type: 'checkbox', checked: true });
     const sizes = t[4].submenu as any[];
     expect(sizes.map(s => [s.label, s.checked])).toEqual([['小', false], ['中', true], ['大', false]]);
