@@ -46,7 +46,10 @@ export class BehaviorEngine {
     const mayStay = !this.allowed || this.allowed.has(pose) || pose === this.commanded;
     if (!this.auto || (mayStay && this.rng() < (def.stay ?? DEFAULT_STAY))) return this.take(this.idleOf(pose, 0));
     const target = this.pickTarget(pose);
-    if (target && this.plan(target)) return this.take(this.queue.shift()!);
+    if (target && this.plan(target)) {
+      if (this.pack.poses[target].brief) this.visiting = { pose: target, back: pose };
+      return this.take(this.queue.shift()!);
+    }
     return this.take(this.idleOf(pose, 0));
   }
 
@@ -58,18 +61,16 @@ export class BehaviorEngine {
     this.current = step;
   }
 
-  /** Replace whatever was queued with the shortest way to `target`, starting after the current clip. */
+  /** Replace whatever was queued with the shortest way to `target`, starting after the current clip. A brief pose is visited. */
   command(target: PoseId): boolean {
-    this.queue = [];
-    this.commanded = target;
-    this.visiting = null;
-    return this.plan(target);
+    if (this.pack.poses[target]?.brief) return this.visit(target);
+    return this.go(target);
   }
 
   /** Go to `target` for a while and come back to the pose it was in (or was heading for). */
   visit(target: PoseId): boolean {
     const back = this.visiting?.back ?? this.endPose;
-    if (!this.command(target)) return false;
+    if (!this.go(target)) return false;
     this.visiting = { pose: target, back };
     return true;
   }
@@ -104,6 +105,13 @@ export class BehaviorEngine {
     if (step.from !== step.to && step.from === this.commanded) this.commanded = null;   // it left the commanded pose
     this.current = step;
     return step;
+  }
+
+  private go(target: PoseId): boolean {
+    this.queue = [];
+    this.commanded = target;
+    this.visiting = null;
+    return this.plan(target);
   }
 
   private plan(target: PoseId): boolean {

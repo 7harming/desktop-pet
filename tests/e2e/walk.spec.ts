@@ -4,15 +4,8 @@ import { controllerCall, launch, petPage } from './helpers';
 test('a cat walks in from the left edge, loop after loop, and lies down at its spot', async () => {
   const { app } = await launch();
   const page = await petPage(app, 'testcat', false);
-  // record where the walker draws each frame while it walks in
-  await page.evaluate(() => {
-    const w = (window as any).__pet.walker;
-    const draw = w.draw.bind(w);
-    (window as any).__drawn = [];
-    w.draw = (v: any, origin: number, f: any, mirror: boolean) => { (window as any).__drawn.push(origin); draw(v, origin, f, mirror); };
-  });
   await expect.poll(() => page.evaluate(() => (window as any).__pet.mode), { timeout: 20_000 }).toBe('live');
-  const drawn: number[] = await page.evaluate(() => (window as any).__drawn);
+  const drawn: number[] = await page.evaluate(() => (window as any).__pet.drawn);   // where the walker drew each frame
   const { frameX, frameW } = await controllerCall(app, c => {
     const p = c.pets.get('testcat');
     return { frameX: p.frame.x - p.stripBounds.x, frameW: p.frame.width };

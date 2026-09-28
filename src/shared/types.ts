@@ -14,6 +14,8 @@ export interface PoseDef {
   shadow?: boolean;
   draggable?: boolean;
   asleep?: boolean;
+  /** A pose it only drops in on (a stretch): afterwards it goes back to the pose it came from, even when told to go there. */
+  brief?: boolean;
   stay?: number;
   autoWeight?: number;
 }

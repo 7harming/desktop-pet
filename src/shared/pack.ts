@@ -32,7 +32,7 @@ export function parsePack(raw: unknown): ParseResult {
       if (!isNum(p[k]) || (p[k] as number) < 0 || (p[k] as number) > 1) err(`姿勢 ${id} 的 ${k} 要在 0 到 1 之間`);
     }
     if (p.idle !== undefined && !isStrArr(p.idle)) err(`姿勢 ${id} 的 idle 要是片段名稱的陣列`);
-    for (const k of ['transient', 'shadow', 'draggable', 'asleep'] as const) {
+    for (const k of ['transient', 'shadow', 'draggable', 'asleep', 'brief'] as const) {
       if (p[k] !== undefined && typeof p[k] !== 'boolean') err(`姿勢 ${id} 的 ${k} 要是 true 或 false`);
     }
     for (const k of ['stay', 'autoWeight'] as const) {

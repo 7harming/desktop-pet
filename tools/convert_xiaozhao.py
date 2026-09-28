@@ -16,10 +16,11 @@ from PIL import Image
 
 CLIPS = ['idle_lie', 'idle_lie_groom', 'idle_sit', 'lie_to_sit', 'sit_to_lie', 'idle_sleep', 'lie_to_sleep', 'sleep_to_lie',
          'box_enter', 'box_idle', 'box_exit', 'pillow_enter', 'pillow_idle', 'pillow_exit', 'walk_loop', 'walk_arrive', 'walk_depart',
-         'bowl_enter', 'bowl_idle', 'bowl_exit']
+         'bowl_enter', 'bowl_idle', 'bowl_exit', 'stretch_enter', 'stretch_hold', 'stretch_exit']
 # drinking (spike steps 32-35): the bowl fades in beside the lying cat; it walks over, drinks (a seamless loop), walks back
+# stretching (spike steps 36-39): gets up, stretches side-on, holds it (a back-and-forth loop), lies down again
 STILLS = {'lie': 'lie.png', 'sit': 'sit.png', 'sleep': 'sleep.png', 'boxBelly': 'end_box.png', 'pillow': 'end_pillow.png',
-          'drink': 'end_bowl.png'}
+          'drink': 'end_bowl.png', 'stretch': 'end_stretch.png'}
 # walking: the loop goes from walk_start to walk_end; depart ends as walk_left (spike step 21)
 # walking (spike steps 23-26): the loop is one stride cycle cut from a Veo tracking walk (walk_loop_start is its first frame);
 # arrive / depart are Veo clips joined to it; depart's first second is the cat still lying, so it is cut
@@ -29,6 +30,8 @@ TRIM = {'walk_depart': 24}      # frames cut from the start of a clip
 FPS = {'walk_loop': 60}         # the loop is rebuilt at 60 fps (spike steps 29-30); the rest stay at 24
 RAMP = 12                       # frames over which arrive / depart ease into and out of the loop's pace
 HD_SIZE = '1920:1080'           # the break's big cat: clips upscaled 2x by Topaz (spike step 28), keyed at this size
+FEATHER = 12 / 960              # side-on, the tail can sweep past the frame's left or top edge (nothing is drawn beyond it):
+                                # fade the frame's top, left and right edges over this share of its width so it tapers off
 GROUND = 652 / 720          # every still was staged with the feet / prop bottom on this line
 FF = imageio_ffmpeg.get_ffmpeg_exe()
 
@@ -87,8 +90,13 @@ def key_filter(src: Path, choke: int = 1) -> str:
     return f'{keyed},split[c][a];[a]alphaextract{",erosion" * choke}[m];[c][m]alphamerge'
 
 
+def edge_feather(px: int) -> str:
+    """Fade the alpha to nothing at the frame's top, left and right edges, over `px` pixels (the ground edge is left alone)."""
+    return f"format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*clip(min(min(X,W-1-X),Y)/{px},0,1)'"
+
+
 def key_clip(src: Path, dst: Path, trim: int = 0, size: str = '960:540', choke: int = 1, fps: int = 24) -> None:
-    vf = f'scale={size},{key_filter(src, choke)}'
+    vf = f'scale={size},{key_filter(src, choke)},{edge_feather(round(FEATHER * int(size.split(":")[0])))}'
     cut = ['-ss', f'{trim / 24:.4f}'] if trim else []
     subprocess.run([FF, '-y', '-loglevel', 'error', *cut, '-i', str(src), '-vf', vf, '-r', str(fps), '-c:v', 'libvpx-vp9',
                     '-pix_fmt', 'yuva420p', '-b:v', '0', '-crf', '32', '-auto-alt-ref', '0', '-an', str(dst)], check=True)
@@ -126,7 +134,9 @@ def build_pack(geo: dict, walk: dict) -> dict:
             'pillow': {'label': '藍色抱枕', 'idle': ['pillow_idle'], **geo['pillow'], 'shadow': False, 'draggable': False, 'stay': 0.7, 'autoWeight': 1},
             'lieBowl': {'label': '（水碗出現）', 'transient': True, **lie, 'shadow': True},
             # only at the water reminder (autoWeight 0): it drinks at least one loop, then comes back
-            'drink': {'label': '喝水', 'idle': ['bowl_idle'], **geo['drink'], 'shadow': False, 'draggable': False, 'stay': 0.5, 'autoWeight': 0},
+            'drink': {'label': '喝水', 'idle': ['bowl_idle'], **geo['drink'], 'shadow': False, 'draggable': False, 'brief': True, 'stay': 0.5, 'autoWeight': 0},
+            # at the stretch reminder, now and then by itself, or when told: one hold, then back to what it was doing
+            'stretch': {'label': '伸懶腰', 'idle': ['stretch_hold'], **geo['stretch'], 'shadow': True, 'draggable': False, 'brief': True, 'stay': 0, 'autoWeight': 0.3},
         },
         'clips': {c: {'file': f'clips/{c}.webm', **({'rate': 0.8} if c in ('box_exit', 'pillow_enter') else {})} for c in CLIPS},
         'edges': [
@@ -138,6 +148,7 @@ def build_pack(geo: dict, walk: dict) -> dict:
             {'from': 'pillow', 'to': 'liePillow', 'clip': 'pillow_exit'}, {'from': 'liePillow', 'to': 'lie', 'fade': 0.5},
             {'from': 'lie', 'to': 'lieBowl', 'fade': 0.5}, {'from': 'lieBowl', 'to': 'drink', 'clip': 'bowl_enter'},
             {'from': 'drink', 'to': 'lieBowl', 'clip': 'bowl_exit'}, {'from': 'lieBowl', 'to': 'lie', 'fade': 0.5},
+            {'from': 'lie', 'to': 'stretch', 'clip': 'stretch_enter'}, {'from': 'stretch', 'to': 'lie', 'clip': 'stretch_exit'},
         ],
         'lines': {
             'greet': ['……喵。'],
@@ -147,21 +158,22 @@ def build_pack(geo: dict, walk: dict) -> dict:
                 'sleep': ['……zzz', '（耳朵動了一下）', '……（不為所動）'],
                 'boxBelly': ['……zzz', '（耳朵動了一下）', '……（不為所動）'],
                 'drink': ['（咕嚕咕嚕）', '……（專心喝水）', '（舔舔）'],
+                'stretch': ['（伸——）', '……（伸懶腰中）'],
             },
             'drag': ['……隨便你', '（液態貓）'],
             'noDrag': ['……（不想動）'],
-            'command': {'lie': '……嗯。', 'sit': '……好啦。', 'sleep': '呼啊——', 'boxBelly': '（盯——紙箱）', 'pillow': '（看了抱枕一眼）'},
+            'command': {'lie': '……嗯。', 'sit': '……好啦。', 'sleep': '呼啊——', 'boxBelly': '（盯——紙箱）', 'pillow': '（看了抱枕一眼）', 'stretch': '……伸一下。'},
             'reminders': {
                 'water': {'default': '……該喝水了。', 'drink': '……你也喝一點。', 'sleep': '……（睡夢中）去喝水。', 'boxBelly': '……（睡夢中）去喝水。'},
-                'stretch': {'default': '……起來動一動。', 'sleep': '……（睡夢中）起來動一動。', 'boxBelly': '……（睡夢中）起來動一動。'},
+                'stretch': {'default': '……起來動一動。', 'stretch': '……一起伸個懶腰。', 'sleep': '……（睡夢中）起來動一動。', 'boxBelly': '……（睡夢中）起來動一動。'},
                 'eyes': {'default': '……眼睛休息一下。', 'sleep': '……（睡夢中）眼睛休息一下。', 'boxBelly': '……（睡夢中）眼睛休息一下。'},
             },
         },
         'clickHeart': True,
         'commands': [{'label': '趴著', 'pose': 'lie'}, {'label': '坐下', 'pose': 'sit'}, {'label': '睡覺', 'pose': 'sleep'},
-                     {'label': '紙箱翻肚', 'pose': 'boxBelly'}, {'label': '藍色抱枕', 'pose': 'pillow'}],
+                     {'label': '紙箱翻肚', 'pose': 'boxBelly'}, {'label': '藍色抱枕', 'pose': 'pillow'}, {'label': '伸懶腰', 'pose': 'stretch'}],
         'walk': walk,
-        'reminderPoses': {'water': 'drink'},
+        'reminderPoses': {'water': 'drink', 'stretch': 'stretch'},
     }
 
 

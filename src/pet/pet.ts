@@ -136,7 +136,11 @@ api.onInit((init: PetInit) => {
   // walking in and out: the loop is drawn on the strip by the walker; arrive and depart are ordinary clips at the resting spot
   const walk = pack.walk;
   const walker = walk ? new Walker(stage, new URL(pack.clips[walk.loop].file, init.packUrl).href, walk) : null;
-  if (debug) Object.assign(debug, { walker });
+  if (debug && walker) {
+    const drawn: number[] = [];                // from the very first frame: a test that hooks in later can miss the start
+    walker.onDraw = x => drawn.push(x);
+    Object.assign(debug, { walker, drawn });
+  }
   const walkLoops = (plan: WalkPlan, mirror: boolean, onFirstFrame?: () => void) =>
     walker!.run({ plan, frameW: frameW(), frameH: window.innerHeight, ground: g0, mirror, onFirstFrame });
   const greet = (ms: number) => setTimeout(() => { if (mode === 'live') bubbles.say(pickLine(pack.lines.greet, Math.random)); }, ms);

@@ -129,6 +129,26 @@ describe('BehaviorEngine', () => {
     expect(e.next().clip).toBe('idle_sit');              // auto off: it stays where it was told
   });
 
+  it('comes back from a brief pose it was told to go to', () => {
+    const p = makePack(); p.poses.sit.brief = true;
+    const e = new BehaviorEngine(p, constRng(0.99)); e.auto = false; e.start();
+    e.command('sit');
+    expect(e.next().clip).toBe('rest_to_sit');
+    expect(e.next().clip).toBe('idle_sit');
+    expect(e.next().clip).toBe('sit_to_rest');
+    expect(e.next()).toMatchObject({ from: 'rest', to: 'rest' });
+  });
+
+  it('goes back to where it was after a brief pose it picked by itself', () => {
+    // rng 0.99 picks sit from rest; from an ordinary sit it would go on to perch (see above), from a brief one it goes back
+    const p = makePack(); p.poses.sit.brief = true;
+    const e = new BehaviorEngine(p, constRng(0.99)); e.start();
+    expect(e.next().clip).toBe('rest_to_sit');
+    expect(e.next().clip).toBe('idle_sit');
+    expect(e.next().clip).toBe('sit_to_rest');
+    expect(e.next()).toMatchObject({ from: 'rest', to: 'rest' });
+  });
+
   it('treats an empty or unknown selection as every pose', () => {
     const e = new BehaviorEngine(makePack(), constRng(0.99)); e.start();
     e.setAllowed(['nope']);

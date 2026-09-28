@@ -130,8 +130,25 @@
    "right": 0.784,
    "shadow": false,
    "draggable": false,
+   "brief": true,
    "stay": 0.5,
    "autoWeight": 0
+  },
+  "stretch": {
+   "label": "伸懶腰",
+   "idle": [
+    "stretch_hold"
+   ],
+   "ground": 0.906,
+   "centerX": 0.462,
+   "head": 0.703,
+   "left": 0.047,
+   "right": 0.877,
+   "shadow": true,
+   "draggable": false,
+   "brief": true,
+   "stay": 0,
+   "autoWeight": 0.3
   }
  },
  "clips": {
@@ -196,6 +213,15 @@
   },
   "bowl_exit": {
    "file": "clips/bowl_exit.webm"
+  },
+  "stretch_enter": {
+   "file": "clips/stretch_enter.webm"
+  },
+  "stretch_hold": {
+   "file": "clips/stretch_hold.webm"
+  },
+  "stretch_exit": {
+   "file": "clips/stretch_exit.webm"
   }
  },
  "edges": [
@@ -278,6 +304,16 @@
    "from": "lieBowl",
    "to": "lie",
    "fade": 0.5
+  },
+  {
+   "from": "lie",
+   "to": "stretch",
+   "clip": "stretch_enter"
+  },
+  {
+   "from": "stretch",
+   "to": "lie",
+   "clip": "stretch_exit"
   }
  ],
  "lines": {
@@ -310,6 +346,10 @@
     "（咕嚕咕嚕）",
     "……（專心喝水）",
     "（舔舔）"
+   ],
+   "stretch": [
+    "（伸——）",
+    "……（伸懶腰中）"
    ]
   },
   "drag": [
@@ -324,7 +364,8 @@
    "sit": "……好啦。",
    "sleep": "呼啊——",
    "boxBelly": "（盯——紙箱）",
-   "pillow": "（看了抱枕一眼）"
+   "pillow": "（看了抱枕一眼）",
+   "stretch": "……伸一下。"
   },
   "reminders": {
    "water": {
@@ -335,6 +376,7 @@
    },
    "stretch": {
     "default": "……起來動一動。",
+    "stretch": "……一起伸個懶腰。",
     "sleep": "……（睡夢中）起來動一動。",
     "boxBelly": "……（睡夢中）起來動一動。"
    },
@@ -366,6 +408,10 @@
   {
    "label": "藍色抱枕",
    "pose": "pillow"
+  },
+  {
+   "label": "伸懶腰",
+   "pose": "stretch"
   }
  ],
  "walk": {
@@ -746,7 +792,8 @@
   ]
  },
  "reminderPoses": {
-  "water": "drink"
+  "water": "drink",
+  "stretch": "stretch"
  },
  "hd": {
   "idle_lie": "hd/idle_lie.webm",

@@ -29,8 +29,9 @@ describe('parsePack', () => {
   });
 
   it('checks optional booleans on a pose', () => {
-    const p: any = makePack(); p.poses.perch.asleep = 'yes';
+    const p: any = makePack(); p.poses.perch.asleep = 'yes'; p.poses.sit.brief = 1;
     expect(parsePack(p).errors).toContain('姿勢 perch 的 asleep 要是 true 或 false');
+    expect(parsePack(p).errors).toContain('姿勢 sit 的 brief 要是 true 或 false');
   });
 
   it('checks the optional pose extent', () => {

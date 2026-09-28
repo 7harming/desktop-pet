@@ -28,6 +28,8 @@ export interface ClipRun extends Frame {
  * evenly even though the clips have fewer frames per second than the screen, and its planted paws stay put.
  */
 export class Walker {
+  /** Called with where each frame is drawn (the debug build records them for the tests). */
+  onDraw: (origin: number) => void = () => {};
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly video: FrameVideo;
@@ -162,6 +164,7 @@ export class Walker {
   private draw(v: HTMLVideoElement, origin: number, f: Frame, mirror: boolean): void {
     const { ctx, walk: w } = this;
     const { frameW: W, frameH: H } = f;
+    this.onDraw(origin);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     // a soft shadow under the walking cat
     const cx = origin + (mirror ? 1 - w.centerX : w.centerX) * W;
