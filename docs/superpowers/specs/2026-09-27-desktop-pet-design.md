@@ -417,3 +417,9 @@ packs/xiaozhao/
 ### B.6 效能（實測）
 - 待機 CPU 約 5%（影片解碼約 3%、畫面合成約 1.6%；透明帶比貓咪框大小的視窗多約 0.7%），走路時約 8.5%。
 - 私有記憶體約 400 MB（Electron 本身約 186 MB）。第 14 節 250 MB 的目標目前達不到。
+
+### B.7 安裝密碼（2026-09-28）
+- 安裝程式的第一頁要求輸入密碼，錯 5 次就關閉；不允許靜默安裝（/S），因為那樣會略過密碼頁。
+- 密碼由飼主用 `npm run set-installer-password` 自己設定（輸入時顯示星號），只存「加鹽後重複 2000 次 SHA-256」的雜湊值在 `build/installer-password.nsh`，這個檔案不進 git；沒設定時 `npm run dist` 會拒絕打包。
+- 安裝程式用 StdUtils::HashText 計算（UTF-8、大寫十六進位），和 `scripts/installer-password.mjs` 一致（含中文，已實測）。
+- 限制：這只能擋住一般人直接安裝。NSIS 安裝檔可以用 7-Zip 解開取出程式檔，所以安裝檔本身還是不要外流。

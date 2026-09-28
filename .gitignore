@@ -5,3 +5,5 @@ tests/fixtures/packs/
 test-results/
 playwright-report/
 __pycache__
+# the installer password (salted hash); set with npm run set-installer-password
+build/installer-password.nsh

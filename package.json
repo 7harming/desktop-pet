@@ -12,7 +12,8 @@
     "test:e2e": "npm run build && node scripts/make-test-pack.mjs && playwright test",
     "start": "npm run build && electron .",
     "check-pack": "node dist/check-pack.js",
-    "dist": "npm run build && electron-builder --win nsis"
+    "dist": "node scripts/require-installer-password.mjs && npm run build && electron-builder --win nsis",
+    "set-installer-password": "node scripts/set-installer-password.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -27,13 +28,33 @@
   "build": {
     "appId": "local.desktoppet",
     "productName": "毛孩桌寵",
-    "directories": { "output": "release" },
-    "files": ["dist/**", "package.json"],
-    "extraResources": [{ "from": "packs", "to": "packs", "filter": ["**/*"] }],
-    "win": { "target": "nsis", "icon": "packs/xiaozhao/portrait.png" },
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "packs",
+        "to": "packs",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "packs/xiaozhao/portrait.png"
+    },
     "nsis": {
-      "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": "always", "createStartMenuShortcut": true, "shortcutName": "毛孩桌寵"
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "毛孩桌寵"
     }
   }
 }
