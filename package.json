@@ -1,6 +1,6 @@
 {
   "name": "desktop-pet",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "打工貓貓",
   "private": true,
   "main": "dist/main.js",
