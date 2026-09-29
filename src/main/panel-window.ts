@@ -11,7 +11,7 @@ export class PanelWindow {
   open(): void {
     if (this.win && !this.win.isDestroyed()) { this.win.show(); this.win.focus(); return; }
     this.win = new BrowserWindow({
-      width: 780, height: 560, title: '毛孩桌寵', autoHideMenuBar: true,
+      width: 780, height: 560, title: '打工貓貓', autoHideMenuBar: true,
       webPreferences: { preload: join(this.preloadDir, 'preload-panel.js'), contextIsolation: true, nodeIntegration: false },
     });
     void this.win.loadURL(`${APP_ORIGIN}/ui/panel.html`);

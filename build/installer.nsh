@@ -1,4 +1,4 @@
-﻿; 毛孩桌寵: the installer asks for a password before anything is installed (spec appendix B.7).
+﻿; 打工貓貓 (was 毛孩桌寵): the installer asks for a password before anything is installed (spec appendix B.7).
 ; The salt, rounds and hash live in build\installer-password.nsh, which stays out of git; `npm run set-installer-password`
 ; writes it. electron-builder reads this file before its installer template, so everything that needs MUI2, UAC or
 ; LogicLib sits inside the macros below, which the template expands after including those.
@@ -19,7 +19,7 @@
     ${If} ${UAC_IsInnerInstance}
       Abort                     ; installing for all users relaunches elevated; the first instance already asked
     ${EndIf}
-    !insertmacro MUI_HEADER_TEXT "安裝密碼" "安裝毛孩桌寵之前，請先輸入密碼。"
+    !insertmacro MUI_HEADER_TEXT "安裝密碼" "安裝打工貓貓之前，請先輸入密碼。"
     nsDialogs::Create 1018
     Pop $0
     ${NSD_CreateLabel} 0 0 100% 20u "請輸入安裝密碼："
