@@ -29,8 +29,8 @@ export const AUTOSTART_ARG = '--autostart';
 /** Started at login rather than by hand: on Windows the login item passes AUTOSTART_ARG; macOS says so itself. */
 const openedAtLogin = () => process.argv.includes(AUTOSTART_ARG) || (process.platform === 'darwin' && app.getLoginItemSettings().wasOpenedAtLogin);
 const HOW_TO_RECALL = process.platform === 'darwin'
-  ? '要牠回來：點 Dock 上的「毛孩桌寵」，或點螢幕上方選單列的貓咪圖示。'
-  : '要牠回來：再點一次桌面或開始選單的「毛孩桌寵」，或點右下角 ^ 裡的貓咪圖示。';
+  ? '要牠回來：點 Dock 上的「打工貓貓」，或點螢幕上方選單列的貓咪圖示。'
+  : '要牠回來：再點一次桌面或開始選單的「打工貓貓」，或點右下角 ^ 裡的貓咪圖示。';
 /** A pack's commands for the menu and the panel, each named by its action key. */
 const commandItems = (pack: Pack) => pack.commands.map(c => ({ label: c.label, pose: actionKey(c) }));
 /** The eye break: this long, unless DESKTOP_PET_BREAK_SECONDS says otherwise (tests). */
@@ -66,6 +66,8 @@ export class AppController {
   /** A play-fight under way: the two cats, which of them are ready or done, whether it was asked for on the panel. */
   private fight: { ids: [string, string]; ready: Set<string>; done: Set<string>; manual: boolean; timer: ReturnType<typeof setTimeout> } | null = null;
   private lastFight = 0;
+  /** Reminders out as bubbles, and the cats still asking (the first answer settles it for all). */
+  private readonly reminding = new Map<ReminderType, Set<string>>();
   /** Why the panel's fight button did nothing, shown for a moment. */
   private notice: { text: string; until: number } | null = null;
   protected readonly panel: PanelWindow;
@@ -405,8 +407,12 @@ export class AppController {
     this.changed();
   }
 
-  protected onReminderResult(_id: string, type: string, result: string): void {
+  protected onReminderResult(id: string, type: string, result: string): void {
     const t = type as ReminderType;
+    const asked = this.reminding.get(t);
+    if (!asked?.has(id)) return;            // already settled by the other cat
+    this.reminding.delete(t);               // the first answer counts; the other cat's bubble goes
+    for (const other of asked) if (other !== id) this.pets.get(other)?.send('pet:reminder-close', t);
     if (result === 'snooze') this.scheduler.snooze(t, Date.now());
     else this.scheduler.done(t, Date.now());
   }
@@ -421,26 +427,28 @@ export class AppController {
     for (const t of this.scheduler.due(now)) this.deliver(t);
   }
 
-  /** The first visible cat (in panel order) says it; without a cat only the notification shows. */
   /**
-   * The eye break: the cats walk off, a big cat walks in over a dimmed screen and lies down while a countdown runs, then it walks
-   * off and the cats walk back in.
+   * The eye break: the cats walk off, then big copies of them (or of the first cat, if none was out) walk in over a dimmed screen,
+   * each lying in its own share of it while a countdown runs, and walk off together; then the cats walk back in.
    */
   async startBreak(): Promise<void> {
     if (this.breaking || this.quitting) return;
     this.breaking = true;
-    const back = [...this.pets.keys()].filter(id => this.onScreen(id));
-    const packId = back[0] ?? this.settings.petOrder.find(id => this.packOf(id));
-    const pack = packId ? this.packOf(packId) : null;
-    this.log.info(`休息 ${BREAK_SECONDS} 秒`);
+    this.endFight();
+    const back = this.settings.petOrder.filter(id => this.onScreen(id));
+    const first = this.settings.petOrder.find(id => this.packOf(id));
+    const ids = back.length ? back : first ? [first] : [];
+    const cats = ids.map(id => this.packOf(id)!).map(pack => ({ pack, packUrl: `${APP_ORIGIN}/packs/${pack.id}/` }));
+    this.log.info(`休息 ${BREAK_SECONDS} 秒（${ids.join('、') || '沒有貓'}）`);
     await Promise.all(back.map(id => this.walkOff(id)));
-    if (pack && !this.quitting) {
+    if (cats.length && !this.quitting) {
       await new Promise<void>(resolve => {
         let win: BreakWindow | null = null;
         const timer = setTimeout(() => this.endBreak?.(), (BREAK_SECONDS + 90) * 1000);
         this.endBreak = () => { clearTimeout(timer); this.endBreak = null; win?.close(); resolve(); };
-        win = new BreakWindow({ pack, packUrl: `${APP_ORIGIN}/packs/${pack.id}/`, seconds: BREAK_SECONDS,
-          line: reminderLine(pack, 'eyes', pack.start), debug: this.debug }, this.paths.uiDir, () => this.endBreak?.());
+        const { pack } = cats[0];
+        win = new BreakWindow({ cats, seconds: BREAK_SECONDS, line: reminderLine(pack, 'eyes', pack.start), debug: this.debug },
+          this.paths.uiDir, () => this.endBreak?.());
       });
     }
     this.scheduler.done('eyes', Date.now());
@@ -448,19 +456,27 @@ export class AppController {
     if (!this.quitting) for (const id of back) if (this.settings.pets[id]?.visible) this.showPet(id);
   }
 
+  /**
+   * Every cat on the desktop reminds at once (each dropping in on its reminder pose, if it has one); the first answer, from
+   * either, settles it and closes the other's bubble. Without a cat only the notification shows.
+   */
   private deliver(type: ReminderType): void {
     if (type === 'eyes') { void this.startBreak(); return; }   // resting the eyes is a full-screen break, not a bubble
-    const id = this.settings.petOrder.find(i => this.pets.has(i));
-    const pet = id ? this.pets.get(id) : undefined;
-    const pose = pet?.pack.reminderPoses?.[type];   // the cat drops in on this pose (drinks from its bowl) while it reminds
-    if (pet && pose) this.makeRoom(id!, pet, pose);
-    if (pet) pet.send('pet:reminder', type);
+    const ids = this.settings.petOrder.filter(i => this.pets.has(i) && this.onScreen(i));
+    for (const id of ids) {
+      const pet = this.pets.get(id)!;
+      const pose = pet.pack.reminderPoses?.[type];   // the cat drops in on this pose (drinks from its bowl) while it reminds
+      if (pose) this.makeRoom(id, pet, pose);
+      pet.send('pet:reminder', type);
+    }
+    if (ids.length) this.reminding.set(type, new Set(ids));
     else this.scheduler.done(type, Date.now());
     if (this.settings.reminders.notify && Notification.isSupported()) {
-      const body = pet ? reminderLine(pet.pack, type, pose ?? pet.pack.start) : FALLBACK_LINES[type];
-      new Notification({ title: '毛孩桌寵', body }).show();
+      const pet = ids.length ? this.pets.get(ids[0])! : null;
+      const body = pet ? reminderLine(pet.pack, type, pet.pack.reminderPoses?.[type] ?? pet.pack.start) : FALLBACK_LINES[type];
+      new Notification({ title: '打工貓貓', body }).show();
     }
-    this.log.info(`提醒：${type}${pet ? `（${pet.id}）` : '（沒有貓在桌面上）'}`);
+    this.log.info(`提醒：${type}${ids.length ? `（${ids.join('、')}）` : '（沒有貓在桌面上）'}`);
   }
 
   private trayMenu() {

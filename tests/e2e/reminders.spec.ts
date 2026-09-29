@@ -15,6 +15,20 @@ test('a reminder bubble asks, and snoozing pushes the timer 10 minutes', async (
   await app.close();
 });
 
+test('with two cats out, both remind, and the first answer settles it for both', async () => {
+  const { app } = await launch();
+  await petPage(app, 'testcat');
+  await controllerCall(app, c => { c.setReminders({ notify: false }); c.showPet('testcat2'); });
+  const pages = [await petPage(app, 'testcat'), await petPage(app, 'testcat2')];
+  await controllerCall(app, c => c.testReminder());
+  for (const p of pages) await expect(p.locator('.bubble.reminder')).toContainText('喝水。');
+  const before = Date.now();
+  await pages[1].locator('.bubble.reminder button', { hasText: '10 分鐘後' }).click();
+  await expect(pages[0].locator('.bubble.reminder')).toHaveCount(0);            // the other cat's bubble went with it
+  await expect.poll(() => controllerCall(app, c => c.scheduler.nextAt('water'))).toBeGreaterThanOrEqual(before + 10 * 60_000 - 5_000);
+  await app.close();
+});
+
 test('the water reminder sends the cat to its reminder pose and back', async () => {
   const { app } = await launch();
   const page = await calmPetPage(app);          // auto off: only the visit itself brings it back

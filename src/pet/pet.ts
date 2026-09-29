@@ -172,6 +172,7 @@ api.onInit((init: PetInit) => {
       { label: '10 分鐘後', onClick: () => api.reminderResult(type, 'snooze') },
     ], 15_000, () => api.reminderResult(type, 'done'));
   });
+  api.onReminderClose(() => bubbles.clear());
 
   // styles are written only when they change: rewriting them every frame kept the page repainting at 60 fps
   let drawn = '';

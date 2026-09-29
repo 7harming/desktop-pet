@@ -23,6 +23,8 @@ export interface PetApi {
   onSetActions(cb: (actions: PoseId[] | null) => void): void;
   onSetInterval(cb: (seconds: number) => void): void;
   onReminder(cb: (type: ReminderType) => void): void;
+  /** The other cat's reminder bubble was answered: close this one. */
+  onReminderClose(cb: (type: ReminderType) => void): void;
   onPause(cb: (paused: boolean) => void): void;
   onRestY(cb: (y: number) => void): void;
   onFrameX(cb: (x: number) => void): void;
@@ -70,8 +72,8 @@ export type PanelAction =
   | { kind: 'fight' }
   | { kind: 'resetPositions' }
   | { kind: 'testBreak' };
-/** The full-screen break: `seconds` of rest, `line` shown under the countdown. */
-export interface BreakInit { pack: Pack; packUrl: string; seconds: number; line: string; debug: boolean }
+/** The full-screen break: `cats` (each in its own share of the screen), `seconds` of rest, `line` shown under the countdown. */
+export interface BreakInit { cats: { pack: Pack; packUrl: string }[]; seconds: number; line: string; debug: boolean }
 export interface BreakApi {
   onInit(cb: (init: BreakInit) => void): void;
   ready(): void;

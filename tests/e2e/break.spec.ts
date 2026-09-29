@@ -16,6 +16,28 @@ test('a break walks the cats off, shows the big cat with a countdown, then walks
   await app.close();
 });
 
+test('with two cats out, the break brings both, each lying in the middle of its own half, and both come back', async () => {
+  const { app } = await launch({ DESKTOP_PET_BREAK_SECONDS: '4' });
+  await petPage(app, 'testcat');
+  await controllerCall(app, c => c.showPet('testcat2'));
+  await petPage(app, 'testcat2');
+  await controllerCall(app, c => { void c.startBreak(); });
+  const brk = await breakPage(app);
+  await expect(brk.locator('.cat')).toHaveCount(2);
+  // once both lie there: each cat's resting body is centred in its half of the screen
+  await expect.poll(() => brk.evaluate(() => [...document.querySelectorAll<HTMLElement>('.cat')].map(c => c.style.visibility)),
+    { timeout: 20_000 }).toEqual(['', '']);
+  const centres = await brk.evaluate(() => [...document.querySelectorAll<HTMLElement>('.cat')].map(c => {
+    const r = c.getBoundingClientRect();
+    return (r.left + 0.34 * r.width) / window.innerWidth;    // the test pack's resting pose is centred at 0.34 of its frame
+  }));
+  expect(centres[0]).toBeCloseTo(0.25, 1);
+  expect(centres[1]).toBeCloseTo(0.75, 1);
+  await expect.poll(() => breakOpen(app), { timeout: 40_000 }).toBe(false);
+  await expect.poll(() => controllerCall(app, c => [c.onScreen('testcat'), c.onScreen('testcat2')]), { timeout: 20_000 }).toEqual([true, true]);
+  await app.close();
+});
+
 test('a break can be skipped', async () => {
   const { app } = await launch({ DESKTOP_PET_BREAK_SECONDS: '60' });
   await petPage(app);
