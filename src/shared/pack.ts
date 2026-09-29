@@ -17,6 +17,7 @@ export function parsePack(raw: unknown): ParseResult {
 
   if (raw.schemaVersion !== 1) err(`不支援的 schemaVersion：${String(raw.schemaVersion)}`);
   for (const k of ['id', 'name', 'personality', 'portrait', 'start'] as const) if (!isStr(raw[k])) err(`缺少或錯誤的欄位：${k}`);
+  if (raw.order !== undefined && !isNum(raw.order)) err('order 要是數字');
 
   const frame = raw.frame;
   if (!isObj(frame) || !isNum(frame.aspect) || frame.aspect <= 0 || !isNum(frame.displayHeight) || frame.displayHeight <= 0) {

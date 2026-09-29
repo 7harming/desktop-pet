@@ -1,6 +1,7 @@
 {
  "schemaVersion": 1,
  "id": "xiaozhao",
+ "order": 1,
  "name": "小昭",
  "personality": "淡定、愛翻肚、最愛紙箱",
  "portrait": "portrait.png",

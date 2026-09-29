@@ -17,6 +17,15 @@ describe('pack loader', () => {
     const packs = loadPacks(FIXTURES);
     expect(packs.map(p => [p.id, p.errors])).toEqual([['testcat', []], ['testcat2', []]]);
   });
+  it('puts packs by their order first, then the rest by folder name', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dpet-order-'));
+    for (const [id, order] of [['testcat', undefined], ['testcat2', 1]] as const) {
+      cpSync(join(FIXTURES, id), join(root, id), { recursive: true });
+      const json = JSON.parse(readFileSync(join(root, id, 'pack.json'), 'utf8'));
+      writeFileSync(join(root, id, 'pack.json'), JSON.stringify({ ...json, order }));
+    }
+    expect(loadPacks(root).map(p => p.id)).toEqual(['testcat2', 'testcat']);
+  });
   it('reports a missing clip file', () => {
     const dir = copyPack();
     rmSync(join(dir, 'clips/go_perch.webm'));

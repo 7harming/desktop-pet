@@ -77,6 +77,8 @@ export interface Command { label: string; pose?: PoseId; pounce?: PounceSide }
 export interface Pack {
   schemaVersion: 1;
   id: string;
+  /** Where the cat comes among the packs (the panel, the tray, the one shown on a first start): lower first; none: last. */
+  order?: number;
   name: string;
   personality: string;
   portrait: string;

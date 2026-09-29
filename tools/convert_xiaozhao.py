@@ -135,7 +135,7 @@ def portrait(lie: Path, dst: Path) -> None:
 def build_pack(geo: dict, walk: dict, pounce: tuple) -> dict:
     lie = geo['lie']
     return {
-        'schemaVersion': 1, 'id': 'xiaozhao', 'name': '小昭', 'personality': '淡定、愛翻肚、最愛紙箱', 'portrait': 'portrait.png',
+        'schemaVersion': 1, 'id': 'xiaozhao', 'order': 1, 'name': '小昭', 'personality': '淡定、愛翻肚、最愛紙箱', 'portrait': 'portrait.png',
         'frame': {'aspect': round(16 / 9, 4), 'displayHeight': 440},
         'start': 'lie',
         'poses': {

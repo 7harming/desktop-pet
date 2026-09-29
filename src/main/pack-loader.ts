@@ -21,10 +21,13 @@ export function loadPack(dir: string): LoadedPack {
   return more.length ? { id: folder, dir, pack: null, errors: more } : { id: folder, dir, pack, errors: [] };
 }
 
+/** Every pack in `packsDir`: by each pack's `order`, then (and packs without one after) by folder name. */
 export function loadPacks(packsDir: string): LoadedPack[] {
   if (!existsSync(packsDir)) return [];
+  const rank = (p: LoadedPack) => p.pack?.order ?? Infinity;
   return readdirSync(packsDir)
     .filter(n => statSync(join(packsDir, n)).isDirectory())
     .sort()
-    .map(n => loadPack(join(packsDir, n)));
+    .map(n => loadPack(join(packsDir, n)))
+    .sort((a, b) => rank(a) - rank(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
