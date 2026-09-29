@@ -57,6 +57,13 @@ export interface PounceDef {
 }
 export type PounceSide = 'left' | 'right';
 
+/**
+ * Play-fighting with another cat close by: resting in `pose`, it turns to the other cat, arches its back, swats at it and lies down
+ * again. `toLeft` / `toRight` are clips from `pose` back to `pose`, facing a cat on that side; `left` / `right` bound everything they
+ * draw, as shares of the frame width.
+ */
+export interface FightDef { pose: PoseId; toLeft: ClipId; toRight: ClipId; left: number; right: number }
+
 export type LineSet = string[];
 export interface PoseLines { default: LineSet; [pose: string]: LineSet }
 export interface ReminderLines { default: string; [pose: string]: string }
@@ -69,6 +76,8 @@ export interface PackLines {
   noDrag: LineSet;
   command: Record<PoseId, string>;
   reminders: Record<ReminderType, ReminderLines>;
+  /** Said once a play-fight is over. */
+  fight?: LineSet;
 }
 
 /** A menu / panel command: go to a pose, or pounce to one side. Exactly one of the two. */
@@ -96,4 +105,5 @@ export interface Pack {
   /** A pose the cat drops in on when a reminder comes (drinking from its bowl at the water reminder), then leaves again. */
   reminderPoses?: Partial<Record<ReminderType, PoseId>>;
   pounce?: PounceDef;
+  fight?: FightDef;
 }

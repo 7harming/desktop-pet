@@ -17,8 +17,8 @@ export function restY(pack: Pack, scale: number, wa: WorkArea): number {
 }
 
 /**
- * Everything the cat may draw at its resting spot: the ticked poses (null = all), the start pose it passes through, walking and
- * pouncing.
+ * Everything the cat may draw at its resting spot: the ticked poses (null = all), the start pose it passes through, walking,
+ * pouncing and play-fighting.
  * A pose without `left`/`right` may use the whole frame.
  */
 export function extentOf(pack: Pack, poses: string[] | null): Extent {
@@ -27,6 +27,7 @@ export function extentOf(pack: Pack, poses: string[] | null): Extent {
   const spans: Extent[] = [...ids].map(id => [pack.poses[id].left ?? 0, pack.poses[id].right ?? 1]);
   if (pack.walk) spans.push([pack.walk.left, pack.walk.right]);
   if (pack.pounce) spans.push([pack.pounce.left, pack.pounce.right]);
+  if (pack.fight) spans.push([pack.fight.left, pack.fight.right]);
   return [Math.min(...spans.map(e => e[0])), Math.max(...spans.map(e => e[1]))];
 }
 

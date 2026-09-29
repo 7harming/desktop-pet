@@ -116,6 +116,18 @@ function settingsTab(): HTMLElement[] {
     el('div', { className: 'line' }, el('span', {}, '版本'), `v${state.version}`))];
 }
 
+/** Two cats together: play-fighting now and then by themselves, or now on the button. */
+function fightCard(): HTMLElement {
+  const auto = el('input', { type: 'checkbox', className: 'fight-auto', checked: state.fightAuto });
+  auto.addEventListener('change', () => act({ kind: 'fightAuto', on: auto.checked }));
+  const go = el('button', { className: 'cmd fight', textContent: '讓牠們打鬧一下' });
+  go.addEventListener('click', () => act({ kind: 'fight' }));
+  const card = el('div', { className: 'card' },
+    el('div', { className: 'line' }, el('label', {}, auto, '兩隻貓靠近時偶爾打鬧'), go));
+  if (state.notice) card.append(el('div', { className: 'sub fight-notice' }, state.notice));
+  return card;
+}
+
 /**
  * Builds the tabs from the state; when only a cat's status changed, just writes it into its card (rebuilding the tabs
  * under the pointer loses clicks and drags). `rebuild`: after an action, so every control shows what was really kept.
@@ -133,7 +145,7 @@ function render(rebuild = false): void {
     return;
   }
   built = key;
-  $('tab-pets').replaceChildren(...state.pets.map(petCard),
+  $('tab-pets').replaceChildren(...state.pets.map(petCard), ...(state.canFight ? [fightCard()] : []),
     el('div', { className: 'card sub' }, '之後做好的貓咪會出現在這裡'));
   $('tab-reminders').replaceChildren(...remindersTab());
   $('tab-settings').replaceChildren(...settingsTab());

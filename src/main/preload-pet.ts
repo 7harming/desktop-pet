@@ -14,6 +14,9 @@ const api: PetApi = {
   onRestY: cb => listen('pet:rest-y', cb),
   onFrameX: cb => listen('pet:frame-x', cb),
   onExit: cb => listen('pet:exit', cb),
+  onFightReady: cb => listen('pet:fight-ready', cb),
+  onFightGo: cb => listen('pet:fight-go', cb),
+  onFightCancel: cb => listen('pet:fight-cancel', cb),
   ready: () => ipcRenderer.send('pet:ready'),
   setInteractive: interactive => ipcRenderer.send('pet:set-interactive', interactive),
   moveWindow: y => ipcRenderer.send('pet:move', y),
@@ -23,5 +26,6 @@ const api: PetApi = {
   reportStatus: label => ipcRenderer.send('pet:status', label),
   reminderResult: (type, result) => ipcRenderer.send('pet:reminder-result', type, result),
   log: (level, message) => ipcRenderer.send('pet:log', level, message),
+  fightState: state => ipcRenderer.send('pet:fight-state', state),
 };
 contextBridge.exposeInMainWorld('petApi', api);

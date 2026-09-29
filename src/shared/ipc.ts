@@ -1,4 +1,12 @@
-import type { Pack, PoseId, ReminderType } from './types';
+import type { Pack, PoseId, PounceSide, ReminderType } from './types';
+
+/**
+ * A play-fight, pet to main: `ready` resting in its fight pose (holding there), `no` it can not now (asleep, walking, ...), `done`
+ * its fight clip is over.
+ */
+export type FightState = 'ready' | 'no' | 'done';
+/** Main to pet: get ready to fight facing `side`; `manual`: asked for on the panel (fights even with auto mode off). */
+export interface FightCall { side: PounceSide; manual: boolean }
 
 /** `frameX`: where the cat's frame starts inside the strip window, in px. `interval`: seconds it rests in a pose (auto mode). */
 export interface PetInit {
@@ -19,6 +27,9 @@ export interface PetApi {
   onRestY(cb: (y: number) => void): void;
   onFrameX(cb: (x: number) => void): void;
   onExit(cb: () => void): void;
+  onFightReady(cb: (call: FightCall) => void): void;
+  onFightGo(cb: () => void): void;
+  onFightCancel(cb: () => void): void;
   ready(): void;
   setInteractive(interactive: boolean): void;
   /** Lift or lower the strip window (a drag moves the cat sideways inside it). */
@@ -29,6 +40,7 @@ export interface PetApi {
   reportStatus(poseLabel: string): void;
   reminderResult(type: ReminderType, result: ReminderResult): void;
   log(level: LogLevel, message: string): void;
+  fightState(state: FightState): void;
 }
 
 export interface PanelPet {
@@ -40,6 +52,10 @@ export interface PanelState {
   reminders: { water: number; stretch: number; eyes: number; notify: boolean; pausedUntil: number | null };
   autoStart: boolean;
   actionInterval: number;
+  /** Two cats close together play-fight now and then; `canFight`: at least two packs can. `notice`: why a fight did not start. */
+  fightAuto: boolean;
+  canFight: boolean;
+  notice: string | null;
   version: string;
   warning: string | null;
 }
@@ -50,6 +66,8 @@ export type PanelAction =
   | { kind: 'testReminder' }
   | { kind: 'autoStart'; on: boolean }
   | { kind: 'actionInterval'; seconds: number }
+  | { kind: 'fightAuto'; on: boolean }
+  | { kind: 'fight' }
   | { kind: 'resetPositions' }
   | { kind: 'testBreak' };
 /** The full-screen break: `seconds` of rest, `line` shown under the countdown. */

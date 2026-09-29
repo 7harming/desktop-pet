@@ -60,6 +60,15 @@ describe('validatePack', () => {
     expect(validatePack(p, allFiles)).toContain('pounce 指到不存在的姿勢：moon');
   });
 
+  it('checks the fight', () => {
+    const p = makePack(); p.fight = { ...p.fight!, pose: 'restProp', toLeft: 'nope' };
+    const e = validatePack(p, allFiles);
+    expect(e).toContain('fight 不能從過渡姿勢開始：restProp');
+    expect(e).toContain('fight 用到未定義的片段：nope');
+    p.fight.pose = 'moon';
+    expect(validatePack(p, allFiles)).toContain('fight 指到不存在的姿勢：moon');
+  });
+
   it('needs a pounce for pounce commands', () => {
     const p = makePack(); delete p.pounce;
     expect(validatePack(p, allFiles)).toContain('指令「向左撲」要撲，但寵物包沒有 pounce');

@@ -83,11 +83,15 @@ export class BehaviorEngine {
     return true;
   }
 
-  /** Play `clip` now instead of the idle it rests in (a pounce): only while resting in `pose` with nothing planned. */
-  interject(clip: ClipId, pose: PoseId): Step | null {
+  /** Resting in `pose` (playing one of its idles) with nothing planned: a clip could be played in at once. */
+  restingIn(pose: PoseId): boolean {
     const s = this.current;
-    const resting = !!s && s.from === pose && s.to === pose && (this.pack.poses[pose].idle ?? []).includes(s.clip);
-    if (!resting || this.queue.length) return null;
+    return !!s && s.from === pose && s.to === pose && (this.pack.poses[pose]?.idle ?? []).includes(s.clip) && !this.queue.length;
+  }
+
+  /** Play `clip` now instead of the idle it rests in (a pounce, a play-fight): only while resting in `pose` with nothing planned. */
+  interject(clip: ClipId, pose: PoseId): Step | null {
+    if (!this.restingIn(pose)) return null;
     return this.take(idleStep(this.pack, pose, clip));
   }
 

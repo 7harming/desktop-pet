@@ -75,6 +75,15 @@ describe('parsePack', () => {
     expect(e).toHaveLength(3);
   });
 
+  it('checks the optional fight and its lines', () => {
+    const p: any = makePack(); p.fight = { pose: 'rest', toRight: 'fight_right', left: -0.1, right: 1 }; p.lines.fight = [];
+    const e = parsePack(p).errors;
+    expect(e).toContain('fight 缺少 toLeft');
+    expect(e).toContain('fight 的 left 要在 0 到 1 之間');
+    expect(e).toContain('lines.fight 要是至少一句台詞的陣列');
+    expect(e).toHaveLength(3);
+  });
+
   it('checks pounce commands', () => {
     const p: any = makePack();
     p.commands.push({ label: '亂撲', pounce: 'up' }, { label: '兩個都有', pose: 'sit', pounce: 'left' }, { label: '都沒有' });

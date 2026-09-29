@@ -107,6 +107,12 @@
     },
     "pounce_right": {
       "file": "clips/pounce_right.webm"
+    },
+    "fight_left": {
+      "file": "clips/fight_left.webm"
+    },
+    "fight_right": {
+      "file": "clips/fight_right.webm"
     }
   },
   "edges": [
@@ -174,7 +180,10 @@
       "eyes": {
         "default": "休息眼睛。"
       }
-    }
+    },
+    "fight": [
+      "哼。"
+    ]
   },
   "clickHeart": true,
   "commands": [
@@ -275,6 +284,13 @@
     "pose": "rest",
     "toLeft": "pounce_left",
     "toRight": "pounce_right",
+    "left": 0.1875,
+    "right": 0.5
+  },
+  "fight": {
+    "pose": "rest",
+    "toLeft": "fight_left",
+    "toRight": "fight_right",
     "left": 0.1875,
     "right": 0.5
   }

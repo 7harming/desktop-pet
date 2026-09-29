@@ -10,6 +10,8 @@ describe('normalizeSettings', () => {
     expect(settings.firstRunDone).toBe(false);
     expect(settings.reminders).toEqual(defaultSettings().reminders);
     expect(settings.actionInterval).toBe(30);
+    expect(settings.fightAuto).toBe(true);
+    expect(normalizeSettings({ fightAuto: false }, ['a']).settings.fightAuto).toBe(false);
   });
   it('keeps a saved action interval that is one of the choices', () => {
     expect(normalizeSettings({ actionInterval: 60 }, ['a']).settings.actionInterval).toBe(60);

@@ -21,6 +21,39 @@ test('the panel lists both cats and can show the second one next to the first', 
   await app.close();
 });
 
+test('two cats side by side play-fight on the panel button, facing each other; too far apart, the panel says so', async () => {
+  const { app } = await launch();
+  await petPage(app, 'testcat');
+  await controllerCall(app, c => c.openPanel());
+  const panel = await panelPage(app);
+  await panel.locator('[data-pet="testcat2"] input.visible').check();
+  const pages = { testcat: await petPage(app, 'testcat'), testcat2: await petPage(app, 'testcat2') };
+  // far apart: the button only says why not
+  await controllerCall(app, c => {
+    c.settings.pets.testcat.x = 0.15; c.settings.pets.testcat2.x = 0.85;
+    for (const id of ['testcat', 'testcat2']) c.pets.get(id).place(c.restBounds(id), c.workArea());
+  });
+  await panel.locator('button.fight').click();
+  await expect(panel.locator('.fight-notice')).toContainText('離太遠');
+  // side by side (placed as showing the second cat placed it: next to the first, not on it)
+  await controllerCall(app, c => {
+    c.settings.pets.testcat2.x = null;
+    c.settings.pets.testcat.x = 0.5;
+    c.pets.get('testcat').place(c.restBounds('testcat'), c.workArea());
+    const w = c.pets.get('testcat').frame.width;
+    const wa = c.workArea();
+    c.settings.pets.testcat2.x = 0.5 + (w * 0.4) / wa.width;
+    c.pets.get('testcat2').place(c.restBounds('testcat2'), wa);
+  });
+  await panel.locator('button.fight').click();
+  // testcat is on the left: it faces right; testcat2 faces left - and both come back to rest, having said their line
+  const history = (id: 'testcat' | 'testcat2') => pages[id].evaluate(() => (window as any).__pet.history.join(','));
+  await expect.poll(() => history('testcat'), { timeout: 20_000 }).toMatch(/fight_right/);
+  await expect.poll(() => history('testcat2'), { timeout: 20_000 }).toMatch(/fight_left/);
+  await expect.poll(() => controllerCall(app, c => c.fight), { timeout: 20_000 }).toBeNull();
+  await app.close();
+});
+
 test('the panel keeps its controls while the cats play on', async () => {
   const { app } = await launch();
   const page = await calmPetPage(app);   // auto off: it keeps resting, so every clip it starts reports the same status

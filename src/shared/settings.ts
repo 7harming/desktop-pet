@@ -1,12 +1,16 @@
 /** `actions`: the poses auto mode may use (ticked in the panel); null = all of them. */
 export interface PetSettings { visible: boolean; scale: number; auto: boolean; x: number | null; actions: string[] | null }
 export interface ReminderSettings { water: number; stretch: number; eyes: number; notify: boolean; pausedUntil: number | null }
-/** `actionInterval`: in auto mode every cat rests about this many seconds in a pose before it does something else. */
+/**
+ * `actionInterval`: in auto mode every cat rests about this many seconds in a pose before it does something else. `fightAuto`: two
+ * cats close together play-fight now and then.
+ */
 export interface Settings {
   version: 1;
   firstRunDone: boolean;
   autoStart: boolean;
   actionInterval: number;
+  fightAuto: boolean;
   pets: Record<string, PetSettings>;
   petOrder: string[];
   reminders: ReminderSettings;
@@ -26,7 +30,7 @@ const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFi
 
 export function defaultSettings(): Settings {
   return {
-    version: 1, firstRunDone: false, autoStart: true, actionInterval: 30, pets: {}, petOrder: [],
+    version: 1, firstRunDone: false, autoStart: true, actionInterval: 30, fightAuto: true, pets: {}, petOrder: [],
     reminders: { water: 45, stretch: 60, eyes: 0, notify: true, pausedUntil: null },
   };
 }
@@ -46,6 +50,7 @@ export function normalizeSettings(raw: unknown, packIds: string[]): { settings: 
     firstRunDone: typeof r.firstRunDone === 'boolean' ? r.firstRunDone : d.firstRunDone,
     autoStart: typeof r.autoStart === 'boolean' ? r.autoStart : d.autoStart,
     actionInterval: finite(r.actionInterval) && ACTION_INTERVALS.includes(r.actionInterval) ? r.actionInterval : d.actionInterval,
+    fightAuto: typeof r.fightAuto === 'boolean' ? r.fightAuto : d.fightAuto,
     pets: {},
     petOrder: order,
     reminders: normalizeReminders(r.reminders, d.reminders),

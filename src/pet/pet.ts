@@ -1,6 +1,8 @@
 import { pounceSide } from '../shared/actions';
 import { BehaviorEngine } from '../shared/behavior';
+import { fightClip } from '../shared/fight';
 import type { PetInit } from '../shared/ipc';
+import type { PounceSide } from '../shared/types';
 import { clickLine, commandLine, pickLine, reminderLine } from '../shared/lines';
 import { isAsleep, poseValueAt, showsShadow } from '../shared/pose-geometry';
 import { arriveGlidePx, departGlidePx, planWalkIn, planWalkOut, type WalkPlan } from '../shared/walk-plan';
@@ -26,6 +28,8 @@ api.onInit((init: PetInit) => {
   // entering: walking in; live: its normal life; leaving: heading back to the start pose; gone: getting up and walking off
   let mode: 'entering' | 'live' | 'leaving' | 'gone' = 'live';
   let exitWanted = false;   // told to leave while still walking in
+  // a play-fight with the cat next to it: `ready` once resting in the fight pose, `clip` once fighting
+  let fight: { side: PounceSide; wasAuto: boolean; ready: boolean; clip: string | null; timer: ReturnType<typeof setTimeout> } | null = null;
   const debug = init.debug ? { id: pack.id, history, engine, player, get mode() { return mode; } } : null;
   if (debug) (window as unknown as Record<string, unknown>).__pet = debug;
 
@@ -37,8 +41,18 @@ api.onInit((init: PetInit) => {
     history.push(step.clip);
     api.reportStatus(pack.poses[step.to].label);
     player.keep(engine.upcomingClips());
+    const f = pack.fight;
+    if (fight && !fight.ready && f && step.from === f.pose && step.to === f.pose) { fight.ready = true; api.fightState('ready'); }
   };
-  player.onEnded = advance;
+  player.onEnded = () => {
+    if (fight?.clip) {                // the fight is over: back to its own ways, with a word about it
+      const line = pack.lines.fight ? pickLine(pack.lines.fight, Math.random) : null;
+      endFight();
+      api.fightState('done');
+      if (line) bubbles.say(line);
+    }
+    advance();
+  };
   player.onError = clip => { api.log('warn', `片段 ${clip} 播放失敗，改走別的路`); engine.markBroken(clip); advance(); };
 
   api.onCommand(key => {
@@ -55,7 +69,34 @@ api.onInit((init: PetInit) => {
     const line = commandLine(pack, key);
     if (line) bubbles.say(line);
   });
-  api.onSetAuto(on => { engine.auto = on; });
+  api.onSetAuto(on => { if (fight) fight.wasAuto = on; else engine.auto = on; });
+
+  // Both cats must start the fight together: each gets to its fight pose and holds still there (auto off) until main, having heard
+  // `ready` from both, says go.
+  const endFight = () => {
+    if (!fight) return;
+    clearTimeout(fight.timer);
+    engine.auto = fight.wasAuto;
+    fight = null;
+  };
+  api.onFightReady(({ side, manual }) => {
+    const f = pack.fight;
+    if (fight || !f || mode !== 'live' || busy || (!manual && !engine.auto) || isAsleep(pack, engine.endPose)) { api.fightState('no'); return; }
+    fight = { side, wasAuto: engine.auto, ready: false, clip: null, timer: setTimeout(() => { endFight(); api.fightState('no'); }, 20_000) };
+    engine.auto = false;
+    if (engine.restingIn(f.pose)) { fight.ready = true; api.fightState('ready'); }
+    else if (!engine.command(f.pose)) { endFight(); api.fightState('no'); }
+  });
+  api.onFightGo(() => {
+    const f = pack.fight;
+    if (!fight || !f) return;
+    clearTimeout(fight.timer);
+    const step = engine.interject(fightClip(f, fight.side), f.pose);
+    if (!step) { endFight(); api.fightState('done'); return; }
+    fight.clip = step.clip;
+    void player.play(step);
+  });
+  api.onFightCancel(endFight);
   api.onSetActions(actions => engine.setAllowed(actions));
   api.onSetInterval(seconds => engine.setDwell(seconds));
   api.onPause(paused => { if (paused) player.pause(); else player.resume(); });
@@ -193,6 +234,7 @@ api.onInit((init: PetInit) => {
     if (mode === 'entering') { exitWanted = true; return; }
     if (mode !== 'live') return;
     busy = true;
+    if (fight && !fight.clip) { endFight(); api.fightState('no'); }   // leaving before the fight began: call it off
     bubbles.clear();
     walker!.preload(clipUrl(walk.depart));
     const s = engine.currentStep;

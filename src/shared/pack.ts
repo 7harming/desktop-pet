@@ -133,6 +133,18 @@ export function parsePack(raw: unknown): ParseResult {
     }
   }
 
+  const fight = raw.fight;
+  if (fight !== undefined) {
+    if (!isObj(fight)) err('fight 要是一個物件');
+    else {
+      for (const k of ['pose', 'toLeft', 'toRight'] as const) if (!isStr(fight[k])) err(`fight 缺少 ${k}`);
+      for (const k of ['left', 'right'] as const) {
+        if (!isNum(fight[k]) || (fight[k] as number) < 0 || (fight[k] as number) > 1) err(`fight 的 ${k} 要在 0 到 1 之間`);
+      }
+    }
+  }
+  if (isObj(lines) && lines.fight !== undefined && !isStrArr(lines.fight)) err('lines.fight 要是至少一句台詞的陣列');
+
   if (typeof raw.clickHeart !== 'boolean') err('clickHeart 要是 true 或 false');
   if (!Array.isArray(raw.commands)) err('缺少 commands');
   else raw.commands.forEach((c, i) => {

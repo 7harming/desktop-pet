@@ -2,7 +2,7 @@ import { BrowserWindow } from 'electron';
 import { join } from 'node:path';
 import { APP_ORIGIN } from './app-protocol';
 import type { Bounds, WorkArea } from './pet-geometry';
-import type { LogLevel, PetInit, ReminderResult } from '../shared/ipc';
+import type { FightState, LogLevel, PetInit, ReminderResult } from '../shared/ipc';
 import type { Pack, ReminderType } from '../shared/types';
 
 export interface PetEvents {
@@ -13,6 +13,7 @@ export interface PetEvents {
   crashed(id: string): void;
   exited(id: string): void;
   log(id: string, level: LogLevel, message: string): void;
+  fightState(id: string, state: FightState): void;
 }
 
 /**
@@ -72,6 +73,7 @@ export class PetWindow {
       case 'pet:status': this.events.status(this.id, String(args[0])); break;
       case 'pet:reminder-result': this.events.reminderResult(this.id, args[0] as ReminderType, args[1] as ReminderResult); break;
       case 'pet:log': this.events.log(this.id, args[0] as LogLevel, String(args[1])); break;
+      case 'pet:fight-state': this.events.fightState(this.id, args[0] as FightState); break;
     }
   }
 

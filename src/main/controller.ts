@@ -1,7 +1,8 @@
 import { app, ipcMain, Menu, Notification, powerMonitor, screen, type WebContents } from 'electron';
 import { join } from 'node:path';
 import { actionKey, pounceSide } from '../shared/actions';
-import type { PanelAction, PanelState } from '../shared/ipc';
+import { closestPair } from '../shared/fight';
+import type { FightState, PanelAction, PanelState } from '../shared/ipc';
 import { reminderLine } from '../shared/lines';
 import { findFreeCenter } from '../shared/placement';
 import { ReminderScheduler } from '../shared/reminders';
@@ -19,7 +20,8 @@ import type { AppPaths } from './paths';
 import { SettingsStore } from './settings-store';
 import { TrayController } from './tray';
 
-const PET_CHANNELS = ['pet:ready', 'pet:set-interactive', 'pet:move', 'pet:drag-end', 'pet:menu', 'pet:status', 'pet:reminder-result', 'pet:log', 'pet:exited'];
+const PET_CHANNELS = ['pet:ready', 'pet:set-interactive', 'pet:move', 'pet:drag-end', 'pet:menu', 'pet:status', 'pet:reminder-result', 'pet:log', 'pet:exited',
+  'pet:fight-state'];
 /** Walking off can mean first getting out of the box, then getting up and crossing the screen; never wait longer than this. */
 const EXIT_TIMEOUT_MS = 45_000;
 /** Passed by the login item, so a start at login can tell itself from being opened by hand. */
@@ -35,6 +37,13 @@ const commandItems = (pack: Pack) => pack.commands.map(c => ({ label: c.label, p
 const BREAK_SECONDS = Number(process.env.DESKTOP_PET_BREAK_SECONDS) || 30;
 const MAX_CRASH_RESTARTS = 3;
 const REMINDER_TICK_MS = 15_000;
+/** Play-fights by themselves: looked for this often, started with this chance when two cats are close, at most once per gap. */
+const FIGHT_TICK_MS = 20_000;
+const FIGHT_CHANCE = 0.25;
+const FIGHT_GAP_MS = 10 * 60_000;
+/** Getting ready (walking over to the fight pose), then the fight itself: never wait longer than this. */
+const FIGHT_TIMEOUT_MS = 30_000;
+const NOTICE_MS = 6_000;
 const PAUSE_MS = 3_600_000;
 const FALLBACK_LINES: Record<ReminderType, string> = { water: '該喝水了。', stretch: '起來動一動。', eyes: '讓眼睛休息一下。' };
 
@@ -54,6 +63,11 @@ export class AppController {
   /** Ends the break now (closes its window), while one is on. */
   private endBreak: (() => void) | null = null;
   private breaking = false;
+  /** A play-fight under way: the two cats, which of them are ready or done, whether it was asked for on the panel. */
+  private fight: { ids: [string, string]; ready: Set<string>; done: Set<string>; manual: boolean; timer: ReturnType<typeof setTimeout> } | null = null;
+  private lastFight = 0;
+  /** Why the panel's fight button did nothing, shown for a moment. */
+  private notice: { text: string; until: number } | null = null;
   protected readonly panel: PanelWindow;
   private tray: TrayController | null = null;
   scheduler!: ReminderScheduler;
@@ -94,6 +108,9 @@ export class AppController {
     this.scheduler = new ReminderScheduler({ water: r.water, stretch: r.stretch, eyes: r.eyes }, Date.now());
     if (r.pausedUntil && r.pausedUntil > Date.now()) this.scheduler.pause(r.pausedUntil);
     setInterval(() => this.tickReminders(), REMINDER_TICK_MS);
+    setInterval(() => {
+      if (this.settings.fightAuto && Date.now() - this.lastFight > FIGHT_GAP_MS && Math.random() < FIGHT_CHANCE) this.startFight(false);
+    }, FIGHT_TICK_MS);
     const pauseAll = (paused: boolean) => { for (const p of this.pets.values()) p.send('pet:pause', paused); };
     powerMonitor.on('suspend', () => pauseAll(true));
     powerMonitor.on('lock-screen', () => pauseAll(true));
@@ -190,6 +207,9 @@ export class AppController {
       reminders: { water: r.water, stretch: r.stretch, eyes: r.eyes, notify: r.notify, pausedUntil: r.pausedUntil },
       autoStart: this.settings.autoStart,
       actionInterval: this.settings.actionInterval,
+      fightAuto: this.settings.fightAuto,
+      canFight: this.validPacks().filter(p => p.pack.fight).length >= 2,
+      notice: this.notice && this.notice.until > Date.now() ? this.notice.text : null,
       version: app.getVersion(),
       warning: this.warning,
     };
@@ -209,6 +229,13 @@ export class AppController {
       case 'testReminder': this.testReminder(); break;
       case 'autoStart': this.setAutoStart(a.on); break;
       case 'actionInterval': this.setActionInterval(a.seconds); break;
+      case 'fightAuto': this.settings.fightAuto = a.on; this.saveSoon(); break;
+      case 'fight': {
+        const why = this.startFight(true);
+        this.notice = why ? { text: why, until: Date.now() + NOTICE_MS } : null;
+        if (why) setTimeout(() => this.changed(), NOTICE_MS + 50);   // clear it from the panel again
+        break;
+      }
       case 'resetPositions': this.resetAllPositions(); break;
       case 'testBreak': void this.startBreak(); break;
     }
@@ -252,6 +279,60 @@ export class AppController {
   }
 
   setAutoStart(on: boolean): void { this.settings.autoStart = on; this.applyAutoStart(); this.saveSoon(); this.changed(); }
+
+  /**
+   * A play-fight between the two cats on the desktop closest together (their resting bodies at most one body apart). Both get
+   * ready - each to its fight pose, where it holds still - and main starts them together once both are. Returns why it can not
+   * start, or null.
+   */
+  startFight(manual: boolean): string | null {
+    if (this.fight || this.breaking || this.quitting) return '牠們正在忙，等一下再試。';
+    const spots = this.settings.petOrder.filter(id => this.onScreen(id)).flatMap(id => {
+      const pet = this.pets.get(id)!;
+      const f = pet.pack.fight;
+      if (!f) return [];
+      const pose = pet.pack.poses[f.pose];
+      const { x, width } = pet.frame;
+      return [{ id, left: x + (pose.left ?? 0) * width, right: x + (pose.right ?? 1) * width }];
+    });
+    if (spots.length < 2) return '要兩隻會打鬧的貓都在桌面上才行。';
+    const pair = closestPair(spots);
+    if (!pair) return '兩隻貓離太遠了，把牠們拖近一點再試。';
+    const ids: [string, string] = [pair.left, pair.right];
+    this.fight = { ids, ready: new Set(), done: new Set(), manual, timer: setTimeout(() => this.endFight(), FIGHT_TIMEOUT_MS) };
+    this.log.info(`打鬧：${ids.join(' 和 ')}（${manual ? '面板' : '自己'}）`);
+    this.pets.get(pair.left)!.send('pet:fight-ready', { side: 'right', manual });   // the left one turns right, to the other
+    this.pets.get(pair.right)!.send('pet:fight-ready', { side: 'left', manual });
+    return null;
+  }
+
+  private onFightState(id: string, state: FightState): void {
+    const f = this.fight;
+    if (!f || !f.ids.includes(id)) return;
+    if (state === 'no') {                 // one of them can not now: call it off for both
+      if (f.manual) {
+        this.notice = { text: '牠們現在正忙（睡覺或走路中），等一下再試。', until: Date.now() + NOTICE_MS };
+        this.changed();
+      }
+      this.endFight();
+      return;
+    }
+    (state === 'ready' ? f.ready : f.done).add(id);
+    if (state === 'ready' && f.ready.size === 2) {
+      this.lastFight = Date.now();
+      for (const i of f.ids) this.pets.get(i)?.send('pet:fight-go');
+    }
+    if (f.done.size === 2) this.endFight(false);
+  }
+
+  /** The fight is over or called off: `cancel` tells both cats to stop waiting for it. */
+  private endFight(cancel = true): void {
+    const f = this.fight;
+    if (!f) return;
+    clearTimeout(f.timer);
+    this.fight = null;
+    if (cancel) for (const i of f.ids) this.pets.get(i)?.send('pet:fight-cancel');
+  }
 
   /** How long every cat rests in a pose (auto mode) before it does something else. */
   setActionInterval(seconds: number): void {
@@ -411,6 +492,7 @@ export class AppController {
       crashed: id => this.onCrashed(id),
       exited: id => this.leaving.get(id)?.finish(),
       log: (id, level, message) => this.log[level](`[${id}] ${message}`),
+      fightState: (id, state) => this.onFightState(id, state),
     };
   }
 
