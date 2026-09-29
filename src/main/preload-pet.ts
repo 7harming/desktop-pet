@@ -8,6 +8,7 @@ const api: PetApi = {
   onCommand: cb => listen('pet:command', cb),
   onSetAuto: cb => listen('pet:set-auto', cb),
   onSetActions: cb => listen('pet:set-actions', cb),
+  onSetInterval: cb => listen('pet:set-interval', cb),
   onReminder: cb => listen('pet:reminder', cb),
   onPause: cb => listen('pet:pause', cb),
   onRestY: cb => listen('pet:rest-y', cb),

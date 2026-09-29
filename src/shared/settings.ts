@@ -1,20 +1,23 @@
 /** `actions`: the poses auto mode may use (ticked in the panel); null = all of them. */
 export interface PetSettings { visible: boolean; scale: number; auto: boolean; x: number | null; actions: string[] | null }
 export interface ReminderSettings { water: number; stretch: number; eyes: number; notify: boolean; pausedUntil: number | null }
+/** `actionInterval`: in auto mode every cat rests about this many seconds in a pose before it does something else. */
 export interface Settings {
   version: 1;
   firstRunDone: boolean;
   autoStart: boolean;
+  actionInterval: number;
   pets: Record<string, PetSettings>;
   petOrder: string[];
   reminders: ReminderSettings;
 }
 
 export const REMINDER_CHOICES = [0, 30, 45, 60, 90];
-export const SIZE_PRESETS = { s: 0.75, m: 1, l: 1.3 } as const;
+export const ACTION_INTERVALS = [15, 30, 60];
+export const SIZE_PRESETS = { s: 0.5, m: 1, l: 1.3 } as const;
 /** A new cat rests near the bottom-right corner (pulled in as far as its props need). */
 export const DEFAULT_X = 0.85;
-export const MIN_SCALE = 0.6;
+export const MIN_SCALE = 0.4;
 export const MAX_SCALE = 1.5;
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -23,7 +26,7 @@ const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFi
 
 export function defaultSettings(): Settings {
   return {
-    version: 1, firstRunDone: false, autoStart: true, pets: {}, petOrder: [],
+    version: 1, firstRunDone: false, autoStart: true, actionInterval: 30, pets: {}, petOrder: [],
     reminders: { water: 45, stretch: 60, eyes: 0, notify: true, pausedUntil: null },
   };
 }
@@ -42,6 +45,7 @@ export function normalizeSettings(raw: unknown, packIds: string[]): { settings: 
     version: 1,
     firstRunDone: typeof r.firstRunDone === 'boolean' ? r.firstRunDone : d.firstRunDone,
     autoStart: typeof r.autoStart === 'boolean' ? r.autoStart : d.autoStart,
+    actionInterval: finite(r.actionInterval) && ACTION_INTERVALS.includes(r.actionInterval) ? r.actionInterval : d.actionInterval,
     pets: {},
     petOrder: order,
     reminders: normalizeReminders(r.reminders, d.reminders),

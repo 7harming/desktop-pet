@@ -1,8 +1,8 @@
 import type { Pack, PoseId, ReminderType } from './types';
 
-/** `frameX`: where the cat's frame starts inside the strip window, in px. */
+/** `frameX`: where the cat's frame starts inside the strip window, in px. `interval`: seconds it rests in a pose (auto mode). */
 export interface PetInit {
-  pack: Pack; packUrl: string; frameX: number; auto: boolean; actions: PoseId[] | null; restY: number; debug: boolean;
+  pack: Pack; packUrl: string; frameX: number; auto: boolean; actions: PoseId[] | null; interval: number; restY: number; debug: boolean;
   enter: boolean;   // walk in from the left edge (when the pack can walk)
 }
 export type ReminderResult = 'done' | 'snooze';
@@ -13,6 +13,7 @@ export interface PetApi {
   onCommand(cb: (pose: PoseId) => void): void;
   onSetAuto(cb: (auto: boolean) => void): void;
   onSetActions(cb: (actions: PoseId[] | null) => void): void;
+  onSetInterval(cb: (seconds: number) => void): void;
   onReminder(cb: (type: ReminderType) => void): void;
   onPause(cb: (paused: boolean) => void): void;
   onRestY(cb: (y: number) => void): void;
@@ -38,6 +39,7 @@ export interface PanelState {
   pets: PanelPet[];
   reminders: { water: number; stretch: number; eyes: number; notify: boolean; pausedUntil: number | null };
   autoStart: boolean;
+  actionInterval: number;
   version: string;
   warning: string | null;
 }
@@ -47,6 +49,7 @@ export type PanelAction =
   | { kind: 'reminders'; water?: number; stretch?: number; eyes?: number; notify?: boolean }
   | { kind: 'testReminder' }
   | { kind: 'autoStart'; on: boolean }
+  | { kind: 'actionInterval'; seconds: number }
   | { kind: 'resetPositions' }
   | { kind: 'testBreak' };
 /** The full-screen break: `seconds` of rest, `line` shown under the countdown. */

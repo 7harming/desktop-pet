@@ -1,10 +1,13 @@
 import { findPath, idleStep, pathToSteps, type Step } from './graph';
 import { pounceSide } from './actions';
-import type { ClipId, Pack, PoseId, PounceSide } from './types';
+import type { ClipId, Pack, PoseDef, PoseId, PounceSide } from './types';
 
 export type Rng = () => number;
+export type Clock = () => number;
 
 const DEFAULT_STAY = 0.6;
+/** With a dwell set, each rest lasts the dwell give or take this share of it (picked when the rest begins). */
+const DWELL_JITTER = 0.15;
 
 /** Decides which clip plays next. The player calls next() exactly when the current clip ends. */
 export class BehaviorEngine {
@@ -16,8 +19,11 @@ export class BehaviorEngine {
   private commanded: PoseId | null = null;      // a commanded pose may stay even when it is not ticked
   private visiting: { pose: PoseId; back: PoseId } | null = null;   // a pose it only drops in on (drinking at a reminder)
   private pounces: Set<PounceSide> | null = null;                 // the pounce sides ticked in the panel; null = both
+  private dwellMs: number | null = null;   // auto mode rests about this long in a pose before moving on; null: a `stay` roll per idle
+  private restSince = 0;                   // when it began resting in the pose it is in
+  private restFor = 0;                     // how long it means to rest there this time
 
-  constructor(private readonly pack: Pack, private readonly rng: Rng) {}
+  constructor(private readonly pack: Pack, private readonly rng: Rng, private readonly now: Clock = Date.now) {}
 
   get endPose(): PoseId { return this.current ? this.current.to : this.pack.start; }
   get currentStep(): Step | null { return this.current; }
@@ -46,7 +52,7 @@ export class BehaviorEngine {
       return this.take(this.idleOf(pose, 0));
     }
     const mayStay = !this.allowed || this.allowed.has(pose) || pose === this.commanded;
-    if (!this.auto || (mayStay && this.rng() < (def.stay ?? DEFAULT_STAY))) return this.take(this.autoPounce(pose) ?? this.idleOf(pose, 0));
+    if (!this.auto || (mayStay && this.restsOn(def))) return this.take(this.autoPounce(pose) ?? this.idleOf(pose, 0));
     const target = this.pickTarget(pose);
     if (target && this.plan(target)) {
       if (this.pack.poses[target].brief) this.visiting = { pose: target, back: pose };
@@ -104,6 +110,16 @@ export class BehaviorEngine {
     this.pounces = keys ? new Set(keys.map(pounceSide).filter((s): s is PounceSide => s !== null)) : null;
   }
 
+  /**
+   * Auto mode rests in each pose about `seconds` (give or take DWELL_JITTER) before it moves on, deciding as each idle ends; null
+   * goes back to a `stay` roll per idle. A pose with `stay: 0` is never rested in, and brief visits keep their `stay` rolls.
+   */
+  setDwell(seconds: number | null): void {
+    const ms = seconds === null ? null : seconds * 1000;
+    if (ms !== null) this.restFor = this.dwellMs !== null ? this.restFor * (ms / this.dwellMs) : this.pickRest(ms);
+    this.dwellMs = ms;
+  }
+
   markBroken(clip: ClipId): void {
     this.broken.add(clip);
     this.queue = [];
@@ -136,9 +152,23 @@ export class BehaviorEngine {
 
   private take(step: Step): Step {
     if (step.from !== step.to && step.from === this.commanded) this.commanded = null;   // it left the commanded pose
+    const prev = this.current;
+    // an idle after a way in (a clip, a fade, walking in) or at the start: a new rest begins
+    if (step.from === step.to && (!prev || prev.from !== prev.to || prev.to !== step.to)) {
+      this.restSince = this.now();
+      if (this.dwellMs !== null) this.restFor = this.pickRest(this.dwellMs);
+    }
     this.current = step;
     return step;
   }
+
+  /** Auto mode, at the end of an idle in an ordinary pose: rest on there? */
+  private restsOn(def: PoseDef): boolean {
+    if (this.dwellMs === null) return this.rng() < (def.stay ?? DEFAULT_STAY);
+    return def.stay !== 0 && this.now() - this.restSince < this.restFor;
+  }
+
+  private pickRest(ms: number): number { return ms * (1 - DWELL_JITTER + 2 * DWELL_JITTER * this.rng()); }
 
   private go(target: PoseId): boolean {
     this.queue = [];

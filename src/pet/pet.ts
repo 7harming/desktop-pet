@@ -20,6 +20,7 @@ api.onInit((init: PetInit) => {
   const engine = new BehaviorEngine(pack, Math.random);
   engine.auto = init.auto;
   engine.setAllowed(init.actions);
+  engine.setDwell(init.interval);
   const player = new Player(layer, pack, init.packUrl);
   const history: string[] = [];
   // entering: walking in; live: its normal life; leaving: heading back to the start pose; gone: getting up and walking off
@@ -56,6 +57,7 @@ api.onInit((init: PetInit) => {
   });
   api.onSetAuto(on => { engine.auto = on; });
   api.onSetActions(actions => engine.setAllowed(actions));
+  api.onSetInterval(seconds => engine.setDwell(seconds));
   api.onPause(paused => { if (paused) player.pause(); else player.resume(); });
 
   const g0 = pack.poses[pack.start].ground;

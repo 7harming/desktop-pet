@@ -5,7 +5,7 @@ import type { PanelAction, PanelState } from '../shared/ipc';
 import { reminderLine } from '../shared/lines';
 import { findFreeCenter } from '../shared/placement';
 import { ReminderScheduler } from '../shared/reminders';
-import { DEFAULT_X, MAX_SCALE, MIN_SCALE, type Settings } from '../shared/settings';
+import { ACTION_INTERVALS, DEFAULT_X, MAX_SCALE, MIN_SCALE, type Settings } from '../shared/settings';
 import type { Pack, ReminderType } from '../shared/types';
 import { APP_ORIGIN } from './app-protocol';
 import { BreakWindow } from './break-window';
@@ -130,7 +130,8 @@ export class AppController {
     ps.x = (center - wa.x) / wa.width;
     ps.visible = true;
     const pet = new PetWindow(pack, this.restBounds(id), wa,
-      { auto: ps.auto, actions: ps.actions, restY: restY(pack, ps.scale, wa), debug: this.debug, enter: enter && !!pack.walk }, this.petEvents(), this.paths.uiDir);
+      { auto: ps.auto, actions: ps.actions, interval: this.settings.actionInterval, restY: restY(pack, ps.scale, wa), debug: this.debug,
+        enter: enter && !!pack.walk }, this.petEvents(), this.paths.uiDir);
     this.pets.set(id, pet);
     this.saveSoon();
     this.changed();
@@ -188,6 +189,7 @@ export class AppController {
       }),
       reminders: { water: r.water, stretch: r.stretch, eyes: r.eyes, notify: r.notify, pausedUntil: r.pausedUntil },
       autoStart: this.settings.autoStart,
+      actionInterval: this.settings.actionInterval,
       version: app.getVersion(),
       warning: this.warning,
     };
@@ -206,6 +208,7 @@ export class AppController {
       case 'reminders': this.setReminders(a); break;
       case 'testReminder': this.testReminder(); break;
       case 'autoStart': this.setAutoStart(a.on); break;
+      case 'actionInterval': this.setActionInterval(a.seconds); break;
       case 'resetPositions': this.resetAllPositions(); break;
       case 'testBreak': void this.startBreak(); break;
     }
@@ -249,6 +252,18 @@ export class AppController {
   }
 
   setAutoStart(on: boolean): void { this.settings.autoStart = on; this.applyAutoStart(); this.saveSoon(); this.changed(); }
+
+  /** How long every cat rests in a pose (auto mode) before it does something else. */
+  setActionInterval(seconds: number): void {
+    if (!ACTION_INTERVALS.includes(seconds)) return;
+    this.settings.actionInterval = seconds;
+    for (const pet of this.pets.values()) {
+      pet.updateInit({ interval: seconds });
+      pet.send('pet:set-interval', seconds);
+    }
+    this.saveSoon();
+    this.changed();
+  }
   /** The cats walk off first (the tray's 結束); the app quits once they are gone. */
   async quit(): Promise<void> {
     if (this.quitting) return;

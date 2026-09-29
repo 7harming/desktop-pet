@@ -209,3 +209,44 @@ describe('BehaviorEngine', () => {
     expect(e.upcomingClips().sort()).toEqual(['go_perch', 'idle_rest', 'idle_rest2', 'rest_to_sit']);
   });
 });
+
+describe('BehaviorEngine with a dwell', () => {
+  it('rests in a pose about the dwell, then moves on', () => {
+    // rng 0.99 would leave rest at once by the stay roll (0.99 >= 0.7); with a dwell the time decides. Rest: 30 s x 1.147
+    let t = 0;
+    const e = new BehaviorEngine(makePack(), constRng(0.99), () => t);
+    e.setDwell(30); e.start();
+    t = 20_000; expect(e.next()).toMatchObject({ from: 'rest', to: 'rest' });
+    t = 34_000; expect(e.next()).toMatchObject({ from: 'rest', to: 'rest' });
+    t = 35_000; expect(e.next().clip).toBe('rest_to_sit');
+    expect(e.next()).toMatchObject({ clip: 'idle_sit', to: 'sit' });       // a new rest begins at 35 s
+    t = 50_000; expect(e.next()).toMatchObject({ clip: 'idle_sit', to: 'sit' });
+    t = 70_000; expect(e.next().to).not.toBe('sit');
+  });
+
+  it('never rests in a pose whose stay is 0', () => {
+    const p = makePack(); p.poses.rest.stay = 0;
+    const e = new BehaviorEngine(p, constRng(0.99), () => 0);
+    e.setDwell(30); e.start();
+    expect(e.next().clip).toBe('rest_to_sit');       // no time has passed, but rest is only passed through
+  });
+
+  it('keeps the stay rolls for brief visits', () => {
+    const e = new BehaviorEngine(makePack(), constRng(0.99), () => 0);
+    e.setDwell(30); e.start();
+    e.visit('perch');
+    expect(e.next().clip).toBe('go_perch');
+    expect(e.next().clip).toBe('idle_perch');
+    expect(e.next().clip).toBe('leave_perch');        // 0.99 >= perch's stay, though no time has passed
+  });
+
+  it('shortens the rest under way when the dwell is shortened', () => {
+    // rng 0.5: the rest is exactly the dwell; 0.5 x (perch 2 + sit 1) = 1.5 picks perch
+    let t = 0;
+    const e = new BehaviorEngine(makePack(), constRng(0.5), () => t);
+    e.setDwell(60); e.start();
+    t = 40_000; expect(e.next()).toMatchObject({ from: 'rest', to: 'rest' });
+    e.setDwell(30);
+    expect(e.next().clip).toBe('go_perch');
+  });
+});

@@ -1,5 +1,6 @@
 import { pounceSide } from '../shared/actions';
 import type { PanelAction, PanelPet, PanelState } from '../shared/ipc';
+import { ACTION_INTERVALS, MAX_SCALE, MIN_SCALE } from '../shared/settings';
 
 const api = window.panelApi;
 const $ = (id: string) => document.getElementById(id)!;
@@ -41,7 +42,7 @@ function petCard(p: PanelPet): HTMLElement {
   visible.addEventListener('change', () => act({ kind: 'pet', id: p.id, visible: visible.checked }));
   const auto = el('input', { type: 'checkbox', className: 'auto', checked: p.auto });
   auto.addEventListener('change', () => act({ kind: 'pet', id: p.id, auto: auto.checked }));
-  const scale = el('input', { type: 'range', className: 'scale', min: '0.6', max: '1.5', step: '0.05', value: String(p.scale) });
+  const scale = el('input', { type: 'range', className: 'scale', min: String(MIN_SCALE), max: String(MAX_SCALE), step: '0.05', value: String(p.scale) });
   scale.addEventListener('change', () => act({ kind: 'pet', id: p.id, scale: Number(scale.value) }));
   card.append(el('div', { className: 'row' },
     el('label', {}, visible, '出現在桌面'), el('label', {}, auto, '自動行動'), el('label', {}, '大小', scale)));
@@ -94,8 +95,12 @@ function settingsTab(): HTMLElement[] {
   autostart.addEventListener('change', () => act({ kind: 'autoStart', on: autostart.checked }));
   const reset = el('button', { className: 'plain reset-positions', textContent: navigator.platform.startsWith('Mac') ? '把所有貓放回 Dock 上方' : '把所有貓放回工作列' });
   reset.addEventListener('click', () => act({ kind: 'resetPositions' }));
+  const interval = el('select', { className: 'action-interval' });
+  for (const s of ACTION_INTERVALS) interval.append(el('option', { value: String(s), textContent: `約 ${s} 秒`, selected: state.actionInterval === s }));
+  interval.addEventListener('change', () => act({ kind: 'actionInterval', seconds: Number(interval.value) }));
   return [el('div', { className: 'card' },
     el('div', { className: 'line' }, el('label', {}, autostart, '開機自動啟動')),
+    el('div', { className: 'line' }, el('span', {}, '自動行動時，多久換一個動作'), interval),
     el('div', { className: 'line' }, el('span', {}, '貓咪跑到奇怪的地方時'), reset),
     el('div', { className: 'line' }, el('span', {}, '版本'), `v${state.version}`))];
 }

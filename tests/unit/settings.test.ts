@@ -9,6 +9,15 @@ describe('normalizeSettings', () => {
     expect(settings.pets.mimi.visible).toBe(false);
     expect(settings.firstRunDone).toBe(false);
     expect(settings.reminders).toEqual(defaultSettings().reminders);
+    expect(settings.actionInterval).toBe(30);
+  });
+  it('keeps a saved action interval that is one of the choices', () => {
+    expect(normalizeSettings({ actionInterval: 60 }, ['a']).settings.actionInterval).toBe(60);
+    expect(normalizeSettings({ actionInterval: 45 }, ['a']).settings.actionInterval).toBe(30);
+  });
+  it('lets a cat shrink to 0.4', () => {
+    expect(normalizeSettings({ pets: { a: { scale: 0.4 } } }, ['a']).settings.pets.a.scale).toBe(0.4);
+    expect(normalizeSettings({ pets: { a: { scale: 0.1 } } }, ['a']).settings.pets.a.scale).toBe(0.4);
   });
   it('keeps saved values, clamps bad ones and hides newly added cats', () => {
     const raw = { firstRunDone: true, autoStart: false, petOrder: ['gone', 'xiaozhao'],
