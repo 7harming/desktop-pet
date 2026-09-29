@@ -399,7 +399,12 @@ export class AppController {
 
   protected petEvents(): PetEvents {
     return {
-      status: (id, label) => { this.status.set(id, label); this.changed(); },
+      // reported at every clip start, mostly with the same pose: only a new one is news for the panel and the tray
+      status: (id, label) => {
+        if (this.status.get(id) === label) return;
+        this.status.set(id, label);
+        this.changed();
+      },
       menu: id => this.onPetMenu(id),
       dragEnd: (id, frameX) => this.onDragEnd(id, frameX),
       reminderResult: (id, type, result) => this.onReminderResult(id, type, result),

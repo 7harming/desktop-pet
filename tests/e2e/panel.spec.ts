@@ -21,6 +21,29 @@ test('the panel lists both cats and can show the second one next to the first', 
   await app.close();
 });
 
+test('the panel keeps its controls while the cats play on', async () => {
+  const { app } = await launch();
+  const page = await calmPetPage(app);   // auto off: it keeps resting, so every clip it starts reports the same status
+  await controllerCall(app, c => c.openPanel());
+  const panel = await panelPage(app);
+  const status = panel.locator('[data-pet="testcat"] .status');
+  await expect(status).toHaveText('目前：休息');
+  await controllerCall(app, c => {
+    const push = c.panel.push.bind(c.panel);
+    c.pushes = 0;
+    c.panel.push = (s: unknown) => { c.pushes++; push(s); };
+  });
+  const box = await panel.locator('[data-pet="testcat"] input.auto').elementHandle();
+  const clips = () => page.evaluate(() => (window as any).__pet.history.length);
+  const n = await clips();
+  await expect.poll(clips, { timeout: 10_000 }).toBeGreaterThanOrEqual(n + 3);
+  expect(await controllerCall(app, c => c.pushes)).toBe(0);   // the same status again is no news
+  await controllerCall(app, c => c.command('testcat', 'sit'));
+  await expect(status).toHaveText('目前：坐著');
+  expect(await box!.evaluate(e => e.isConnected)).toBe(true);   // the new status is written in; the card is not rebuilt
+  await app.close();
+});
+
 test('a panel command reaches the cat', async () => {
   const { app } = await launch();
   const page = await petPage(app);

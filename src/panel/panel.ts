@@ -10,7 +10,9 @@ const reminderPatch = (key: ReminderKey, minutes: number) => ({ kind: 'reminders
 const CHOICES = [0, 30, 45, 60, 90];
 
 let state: PanelState;
-const act = async (a: PanelAction) => { state = await api.act(a); render(); };
+/** The state the tabs were last built from, statuses left out. */
+let built = '';
+const act = async (a: PanelAction) => { state = await api.act(a); render(true); };
 
 for (const b of document.querySelectorAll<HTMLButtonElement>('.tab')) {
   b.addEventListener('click', () => {
@@ -25,13 +27,22 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLEl
   return e;
 }
 
+/** What the cat is doing, beside its name while it is on the desktop. */
+function showStatus(head: Element, p: PanelPet): void {
+  const text = p.visible && p.status ? `目前：${p.status}` : '';
+  let s = head.querySelector<HTMLElement>('.status');
+  if (!text) { s?.remove(); return; }
+  s ??= head.appendChild(el('span', { className: 'status' }));
+  s.textContent = text;
+}
+
 function petCard(p: PanelPet): HTMLElement {
   const card = el('div', { className: 'card' });
   card.dataset.pet = p.id;
   const head = el('div', { className: 'head' },
     p.portraitUrl ? el('img', { src: p.portraitUrl, alt: '' }) : el('div'),
     el('div', {}, el('div', { className: 'name' }, p.name), el('div', { className: 'sub' }, p.personality)));
-  if (p.visible && p.status) head.append(el('span', { className: 'status' }, `目前：${p.status}`));
+  showStatus(head, p);
   card.append(head);
   if (p.errors.length) {
     card.append(el('div', { className: 'sub' }, '這隻貓的寵物包有問題，暫時不能使用：'),
@@ -105,10 +116,23 @@ function settingsTab(): HTMLElement[] {
     el('div', { className: 'line' }, el('span', {}, '版本'), `v${state.version}`))];
 }
 
-function render(): void {
+/**
+ * Builds the tabs from the state; when only a cat's status changed, just writes it into its card (rebuilding the tabs
+ * under the pointer loses clicks and drags). `rebuild`: after an action, so every control shows what was really kept.
+ */
+function render(rebuild = false): void {
   const w = $('warning');
   w.hidden = !state.warning;
   w.textContent = state.warning ?? '';
+  const key = JSON.stringify({ ...state, pets: state.pets.map(p => ({ ...p, status: '' })) });
+  if (key === built && !rebuild) {
+    for (const p of state.pets) {
+      const head = $('tab-pets').querySelector(`[data-pet="${CSS.escape(p.id)}"] > .head`);
+      if (head) showStatus(head, p);
+    }
+    return;
+  }
+  built = key;
   $('tab-pets').replaceChildren(...state.pets.map(petCard),
     el('div', { className: 'card sub' }, '之後做好的貓咪會出現在這裡'));
   $('tab-reminders').replaceChildren(...remindersTab());
