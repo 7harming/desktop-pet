@@ -11,17 +11,23 @@ Like 小昭's pack (convert_xiaozhao.py, whose keying and measuring this reuses)
   - his two sides differ, so walking left is his own loop (walk.leftward), not the right one mirrored
 """
 import argparse
+import io
 import json
+import subprocess
 import sys
 from pathlib import Path
 
 import numpy as np
+from PIL import Image
+from scipy import ndimage
 
-from convert_xiaozhao import HD_SIZE, clip_extent, geometry, key_clip, portrait
+from convert_xiaozhao import FF, HD_SIZE, clip_extent, geometry, key_clip, key_filter
 
 CLIPS = ['idle_lie', 'lie_to_sit', 'idle_sit', 'sit_to_lie', 'lick', 'knead_lie', 'lickpaw', 'lie_to_sleep', 'idle_sleep',
          'sleep_to_lie', 'lie_to_side', 'idle_side', 'side_to_lie', 'lie_to_loaf', 'idle_loaf', 'loaf_to_lie',
-         'walk_loop', 'walk_left_loop', 'walk_arrive', 'walk_depart']
+         'walk_loop', 'walk_left_loop', 'walk_arrive', 'walk_depart', 'fight_left', 'fight_right']
+# play-fighting (spike fight1-6, 2026-09-29): with 小昭 close by he gets up, arches his back facing her, sits and swats, lies down
+FIGHTS = ['fight_left', 'fight_right']
 FPS = {'walk_loop': 60, 'walk_left_loop': 60}   # the loops are built at 60 fps (Topaz); the rest stay at 24
 STILLS = {'lie': 'lie.png', 'loaf': 'loaf.png', 'sit': 'sit.png', 'sleep': 'sleep.png', 'side': 'side.png'}
 WALK_STILLS = {'right': 'walk_right_loop_start.png', 'left': 'walk_left_loop_start.png'}
@@ -48,6 +54,27 @@ def eased_glide(track: list, at_start: bool, loop_speed: float) -> list:
     return [round(float(x), 4) for x in np.cumsum(v)]
 
 
+def portrait(still: Path, dst: Path) -> None:
+    """The head, centred on the face. 小昭's portrait centres on the cat's highest band, but lying loafed 阿胖's back rises about as
+    high as his ears, which pulled that crop onto his back: centre between the amber eyes instead, from just above the ear tips."""
+    png = subprocess.run([FF, '-v', 'error', '-i', str(still), '-vf', key_filter(still), '-f', 'image2pipe', '-vcodec', 'png', '-'],
+                         capture_output=True, check=True).stdout
+    img = Image.open(io.BytesIO(png)).convert('RGBA')
+    a = np.asarray(img).astype(np.int16)
+    r, g, b, al = a[..., 0], a[..., 1], a[..., 2], a[..., 3]
+    amber = (al > 128) & (r > 150) & (g > 70) & (g < 200) & (b < 110) & (r - b > 90) & (r - g > 25)
+    lab, n = ndimage.label(ndimage.binary_opening(amber))
+    eyes = sorted(((lab == i).sum(), i) for i in range(1, n + 1))[-2:]
+    ys, xs = np.nonzero(np.isin(lab, [i for _, i in eyes]))
+    cx = xs.mean()
+    head = al[:, int(cx - 120):int(cx + 120)] > 128                   # the head's columns: its top is the ear tips
+    top = np.nonzero(head.any(1))[0].min()
+    size = 1.25 * (ys.mean() - top) + 120                            # ear tips to eyes, then the muzzle and chin: framed like 小昭's
+    box = (int(cx - size / 2), int(top - 12), int(cx + size / 2), int(top - 12 + size))
+    # resize premultiplied, so the transparent stage colour does not bleed into the edge
+    img.convert('RGBa').crop(box).resize((256, 256), Image.LANCZOS).convert('RGBA').save(dst)
+
+
 def walk_section(src: Path, lie: dict) -> dict:
     g = {k: geometry(src / f) for k, f in WALK_STILLS.items()}
     glide = json.loads((src / 'glide.json').read_text())
@@ -63,7 +90,7 @@ def walk_section(src: Path, lie: dict) -> dict:
                          'width': round(g['left']['right'] - g['left']['left'], 3), 'speed': left}}
 
 
-def build_pack(geo: dict, walk: dict) -> dict:
+def build_pack(geo: dict, walk: dict, fight: tuple) -> dict:
     fade = lambda a, b: {'from': a, 'to': b, 'fade': JOIN_FADE}
     return {
         'schemaVersion': 1, 'id': 'apang', 'order': 2, 'name': '阿胖', 'personality': '膽小但很親人、喜歡撒嬌', 'portrait': 'portrait.png',
@@ -79,6 +106,9 @@ def build_pack(geo: dict, walk: dict) -> dict:
             'knead': {'label': '踏踏', 'idle': ['knead_lie'], **geo['knead'], 'shadow': True, 'draggable': False, 'brief': True, 'stay': 0, 'autoWeight': 0.3},
             'lickpaw': {'label': '洗臉', 'idle': ['lickpaw'], **geo['lickpaw'], 'shadow': True, 'draggable': False, 'brief': True, 'stay': 0, 'autoWeight': 0.3},
             'lick': {'label': '舔嘴巴', 'idle': ['lick'], **geo['lick'], 'shadow': True, 'draggable': False, 'brief': True, 'stay': 0, 'autoWeight': 0.3},
+            # the stretch reminder (he has no stretch of his own, owner 2026-09-29): he rolls onto his side, stretched out, then
+            # back - the side pose's clips, as a brief visit that is never picked or ticked by itself
+            'sideStretch': {'label': '伸展', 'idle': ['idle_side'], **geo['side'], 'shadow': True, 'draggable': False, 'brief': True, 'stay': 0, 'autoWeight': 0},
         },
         'clips': {c: {'file': f'clips/{c}.webm'} for c in CLIPS},
         'edges': [
@@ -86,6 +116,7 @@ def build_pack(geo: dict, walk: dict) -> dict:
             {'from': 'lie', 'to': 'sit', 'clip': 'lie_to_sit'}, {'from': 'sit', 'to': 'lie', 'clip': 'sit_to_lie'},
             {'from': 'lie', 'to': 'sleep', 'clip': 'lie_to_sleep'}, {'from': 'sleep', 'to': 'lie', 'clip': 'sleep_to_lie'},
             {'from': 'lie', 'to': 'side', 'clip': 'lie_to_side'}, {'from': 'side', 'to': 'lie', 'clip': 'side_to_lie'},
+            {'from': 'lie', 'to': 'sideStretch', 'clip': 'lie_to_side'}, {'from': 'sideStretch', 'to': 'lie', 'clip': 'side_to_lie'},
             *[e for pose, (base, _) in ACTIONS.items() for e in (fade(base, pose), fade(pose, base))],
         ],
         'lines': {
@@ -99,22 +130,26 @@ def build_pack(geo: dict, walk: dict) -> dict:
                 'knead': ['（踩踩踩）', '呼嚕呼嚕……'],
                 'lickpaw': ['（舔舔）', '（洗臉中）'],
                 'lick': ['（舔舔嘴）', '好吃～'],
+                'sideStretch': ['（伸——）', '（伸展中）'],
             },
             'drag': ['喵！（嚇一跳）', '（縮成一團）'],
             'noDrag': ['……（不想動）', '（抱緊地板）'],
             'command': {'loaf': '（揣手手）', 'sit': '喵～好。', 'sleep': '呼啊——', 'side': '（翻身躺平）', 'knead': '（踩踩～）',
                         'lickpaw': '洗個臉。', 'lick': '（舔舔嘴）'},
             'reminders': {
-                'water': {'default': '喵～該喝水了。', 'sleep': '……（睡夢中）去喝水。', 'side': '……（睡夢中）去喝水。'},
-                'stretch': {'default': '喵～起來動一動。', 'sleep': '……（睡夢中）起來動一動。', 'side': '……（睡夢中）起來動一動。'},
+                'water': {'default': '喵～該喝水了。', 'lick': '（舔舔嘴）喵～你也喝點水。', 'sleep': '……（睡夢中）去喝水。', 'side': '……（睡夢中）去喝水。'},
+                'stretch': {'default': '喵～起來動一動。', 'sideStretch': '喵～一起伸展一下。', 'sleep': '……（睡夢中）起來動一動。', 'side': '……（睡夢中）起來動一動。'},
                 'eyes': {'default': '喵～眼睛休息一下。', 'sleep': '……（睡夢中）眼睛休息一下。', 'side': '……（睡夢中）眼睛休息一下。'},
             },
+            'fight': ['喵嗚～', '（躲到一邊舔舔毛）', '喵！（我贏了）'],
         },
         'clickHeart': True,
         'commands': [{'label': '母雞蹲', 'pose': 'loaf'}, {'label': '坐下', 'pose': 'sit'}, {'label': '睡覺', 'pose': 'sleep'},
                      {'label': '側躺', 'pose': 'side'}, {'label': '踏踏', 'pose': 'knead'}, {'label': '洗臉', 'pose': 'lickpaw'},
                      {'label': '舔嘴巴', 'pose': 'lick'}],
         'walk': walk,
+        'reminderPoses': {'water': 'lick', 'stretch': 'sideStretch'},
+        'fight': {'pose': 'lie', 'toLeft': 'fight_left', 'toRight': 'fight_right', 'left': fight[0], 'right': fight[1]},
     }
 
 
@@ -153,7 +188,7 @@ def main() -> int:
             key_clip(mp4, webm, size=HD_SIZE, choke=2, fps=FPS.get(c, 24))
             print('keyed hd', c, flush=True)
         hd[c] = f'hd/{c}.webm'
-    pack = build_pack(geo, walk_section(src, geo['lie']))
+    pack = build_pack(geo, walk_section(src, geo['lie']), clip_extent([src / 'clips' / f'{c}.mp4' for c in FIGHTS]))
     if hd:
         pack['hd'] = hd
     (out / 'pack.json').write_text(json.dumps(pack, ensure_ascii=False, indent=1), encoding='utf-8')

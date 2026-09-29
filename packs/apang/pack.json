@@ -135,6 +135,22 @@
    "brief": true,
    "stay": 0,
    "autoWeight": 0.3
+  },
+  "sideStretch": {
+   "label": "伸展",
+   "idle": [
+    "idle_side"
+   ],
+   "ground": 0.906,
+   "centerX": 0.501,
+   "head": 0.532,
+   "left": 0.111,
+   "right": 0.891,
+   "shadow": true,
+   "draggable": false,
+   "brief": true,
+   "stay": 0,
+   "autoWeight": 0
   }
  },
  "clips": {
@@ -197,6 +213,12 @@
   },
   "walk_depart": {
    "file": "clips/walk_depart.webm"
+  },
+  "fight_left": {
+   "file": "clips/fight_left.webm"
+  },
+  "fight_right": {
+   "file": "clips/fight_right.webm"
   }
  },
  "edges": [
@@ -237,6 +259,16 @@
   },
   {
    "from": "side",
+   "to": "lie",
+   "clip": "side_to_lie"
+  },
+  {
+   "from": "lie",
+   "to": "sideStretch",
+   "clip": "lie_to_side"
+  },
+  {
+   "from": "sideStretch",
    "to": "lie",
    "clip": "side_to_lie"
   },
@@ -314,6 +346,10 @@
    "lick": [
     "（舔舔嘴）",
     "好吃～"
+   ],
+   "sideStretch": [
+    "（伸——）",
+    "（伸展中）"
    ]
   },
   "drag": [
@@ -336,11 +372,13 @@
   "reminders": {
    "water": {
     "default": "喵～該喝水了。",
+    "lick": "（舔舔嘴）喵～你也喝點水。",
     "sleep": "……（睡夢中）去喝水。",
     "side": "……（睡夢中）去喝水。"
    },
    "stretch": {
     "default": "喵～起來動一動。",
+    "sideStretch": "喵～一起伸展一下。",
     "sleep": "……（睡夢中）起來動一動。",
     "side": "……（睡夢中）起來動一動。"
    },
@@ -349,7 +387,12 @@
     "sleep": "……（睡夢中）眼睛休息一下。",
     "side": "……（睡夢中）眼睛休息一下。"
    }
-  }
+  },
+  "fight": [
+   "喵嗚～",
+   "（躲到一邊舔舔毛）",
+   "喵！（我贏了）"
+  ]
  },
  "clickHeart": true,
  "commands": [
@@ -753,6 +796,17 @@
    "width": 0.61,
    "speed": 0.1665
   }
+ },
+ "reminderPoses": {
+  "water": "lick",
+  "stretch": "sideStretch"
+ },
+ "fight": {
+  "pose": "lie",
+  "toLeft": "fight_left",
+  "toRight": "fight_right",
+  "left": 0.169,
+  "right": 0.959
  },
  "hd": {
   "idle_lie": "hd/idle_lie.webm",

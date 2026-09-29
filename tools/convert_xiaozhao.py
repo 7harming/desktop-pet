@@ -16,7 +16,10 @@ from PIL import Image
 
 CLIPS = ['idle_lie', 'idle_lie_groom', 'idle_sit', 'lie_to_sit', 'sit_to_lie', 'idle_sleep', 'lie_to_sleep', 'sleep_to_lie',
          'box_enter', 'box_idle', 'box_exit', 'pillow_enter', 'pillow_idle', 'pillow_exit', 'walk_loop', 'walk_arrive', 'walk_depart',
-         'bowl_enter', 'bowl_idle', 'bowl_exit', 'stretch_enter', 'stretch_hold', 'stretch_exit', 'pounce_left', 'pounce_right']
+         'bowl_enter', 'bowl_idle', 'bowl_exit', 'stretch_enter', 'stretch_hold', 'stretch_exit', 'pounce_left', 'pounce_right',
+         'fight_left', 'fight_right']
+# play-fighting (spike fight1-6, 2026-09-29): with 阿胖 close by she gets up, arches her back facing him, sits and swats, lies down
+FIGHTS = ['fight_left', 'fight_right']
 # drinking (spike steps 32-35): the bowl fades in beside the lying cat; it walks over, drinks (a seamless loop), walks back
 # stretching (spike steps 36-39): gets up, stretches side-on, holds it (a back-and-forth loop), lies down again
 # pouncing (spike steps 40-41): double-clicked while lying, she pounces to that side and lies down again in her spot
@@ -132,7 +135,7 @@ def portrait(lie: Path, dst: Path) -> None:
     img.convert('RGBa').crop(box).resize((256, 256), Image.LANCZOS).convert('RGBA').save(dst)
 
 
-def build_pack(geo: dict, walk: dict, pounce: tuple) -> dict:
+def build_pack(geo: dict, walk: dict, pounce: tuple, fight: tuple) -> dict:
     lie = geo['lie']
     return {
         'schemaVersion': 1, 'id': 'xiaozhao', 'order': 1, 'name': '小昭', 'personality': '淡定、愛翻肚、最愛紙箱', 'portrait': 'portrait.png',
@@ -182,6 +185,7 @@ def build_pack(geo: dict, walk: dict, pounce: tuple) -> dict:
                 'stretch': {'default': '……起來動一動。', 'stretch': '……一起伸個懶腰。', 'sleep': '……（睡夢中）起來動一動。', 'boxBelly': '……（睡夢中）起來動一動。'},
                 'eyes': {'default': '……眼睛休息一下。', 'sleep': '……（睡夢中）眼睛休息一下。', 'boxBelly': '……（睡夢中）眼睛休息一下。'},
             },
+            'fight': ['……哼。', '（甩甩尾巴）', '……（假裝沒事）'],
         },
         'clickHeart': True,
         'commands': [{'label': '趴著', 'pose': 'lie'}, {'label': '坐下', 'pose': 'sit'}, {'label': '睡覺', 'pose': 'sleep'},
@@ -191,6 +195,7 @@ def build_pack(geo: dict, walk: dict, pounce: tuple) -> dict:
         'reminderPoses': {'water': 'drink', 'stretch': 'stretch'},
         'pounce': {'pose': 'lie', 'toLeft': 'pounce_left', 'toRight': 'pounce_right', 'left': pounce[0], 'right': pounce[1],
                    'autoChance': 0.08},
+        'fight': {'pose': 'lie', 'toLeft': 'fight_left', 'toRight': 'fight_right', 'left': fight[0], 'right': fight[1]},
     }
 
 
@@ -227,7 +232,8 @@ def main() -> int:
         hd[c] = f'hd/{c}.webm'
     walk = walk_section(src, geo['lie'])
     pounce = clip_extent([src / 'clips' / f'{c}.mp4' for c in POUNCES])
-    pack = build_pack(geo, walk, pounce)
+    fight = clip_extent([src / 'clips' / f'{c}.mp4' for c in FIGHTS])
+    pack = build_pack(geo, walk, pounce, fight)
     if hd:
         pack['hd'] = hd
     (out / 'pack.json').write_text(json.dumps(pack, ensure_ascii=False, indent=1), encoding='utf-8')

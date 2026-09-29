@@ -229,6 +229,12 @@
   },
   "pounce_right": {
    "file": "clips/pounce_right.webm"
+  },
+  "fight_left": {
+   "file": "clips/fight_left.webm"
+  },
+  "fight_right": {
+   "file": "clips/fight_right.webm"
   }
  },
  "edges": [
@@ -393,7 +399,12 @@
     "sleep": "……（睡夢中）眼睛休息一下。",
     "boxBelly": "……（睡夢中）眼睛休息一下。"
    }
-  }
+  },
+  "fight": [
+   "……哼。",
+   "（甩甩尾巴）",
+   "……（假裝沒事）"
+  ]
  },
  "clickHeart": true,
  "commands": [
@@ -795,6 +806,13 @@
   "left": 0.0,
   "right": 0.831,
   "autoChance": 0.08
+ },
+ "fight": {
+  "pose": "lie",
+  "toLeft": "fight_left",
+  "toRight": "fight_right",
+  "left": 0.0,
+  "right": 0.756
  },
  "hd": {
   "idle_lie": "hd/idle_lie.webm",
