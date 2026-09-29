@@ -160,8 +160,9 @@ api.onInit((init: PetInit) => {
     walk.leftward ? new URL(pack.clips[walk.leftward.loop].file, init.packUrl).href : undefined) : null;
   if (debug && walker) {
     const drawn: number[] = [];                // from the very first frame: a test that hooks in later can miss the start
-    walker.onDraw = x => drawn.push(x);
-    Object.assign(debug, { walker, drawn });
+    const sizes: [number, number][] = [];      // and how big each one was drawn
+    walker.onDraw = (x, w, h) => { drawn.push(x); sizes.push([w, h]); };
+    Object.assign(debug, { walker, drawn, sizes });
   }
   const walkLoops = (plan: WalkPlan, mirror: boolean, onFirstFrame?: () => void) =>
     walker!.run({ plan, frameW: frameW(), frameH: window.innerHeight, ground: g0, mirror, onFirstFrame });

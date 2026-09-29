@@ -20,6 +20,26 @@ test('a cat walks in from the left edge, loop after loop, and lies down at its s
   await app.close();
 });
 
+test('resizing a cat while it walks keeps its proportions', async () => {
+  const { app } = await launch();
+  const page = await petPage(app, 'testcat', false);
+  await expect.poll(() => page.evaluate(() => (window as any).__pet.drawn.length), { timeout: 20_000 }).toBeGreaterThan(0);
+  await controllerCall(app, c => c.setScale('testcat', 0.5));   // at once: walking in takes about 2 s
+  // frames drawn after the window shrank: as high as the window now, as wide as the frame's aspect makes that
+  await expect.poll(() => page.evaluate(() => {
+    const [w, h] = (window as any).__pet.sizes.at(-1);
+    return Math.abs(h - window.innerHeight) < 1 ? Math.round((w / h) * 100) / 100 : null;
+  }), { timeout: 10_000 }).toBe(1.78);
+  // and the canvas has the pixels of its new size (else the browser stretches the old ones: the full width, the new height)
+  const canvas = await page.evaluate(() => {
+    const c = document.querySelector('canvas.walk') as HTMLCanvasElement;
+    const dpr = window.devicePixelRatio || 1;
+    return [c.width - Math.round(c.clientWidth * dpr), c.height - Math.round(c.clientHeight * dpr)];
+  });
+  expect(canvas).toEqual([0, 0]);
+  await app.close();
+});
+
 test('hiding a cat walks it off the left edge before its window closes', async () => {
   const { app } = await launch();
   const page = await petPage(app);

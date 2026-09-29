@@ -28,8 +28,8 @@ export interface ClipRun extends Frame {
  * evenly even though the clips have fewer frames per second than the screen, and its planted paws stay put.
  */
 export class Walker {
-  /** Called with where each frame is drawn (the debug build records them for the tests). */
-  onDraw: (origin: number) => void = () => {};
+  /** Called with where each frame is drawn and how big (the debug build records them for the tests). */
+  onDraw: (origin: number, width: number, height: number) => void = () => {};
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly video: FrameVideo;
@@ -128,6 +128,7 @@ export class Walker {
       };
       const onDisplay = (now: number) => {
         if (token !== this.token || done) return;
+        this.fitCanvas();
         if (offset !== null) {
           const media = Math.min((now / 1000 + offset) * rate, loops * (v.duration || 1));
           const p = x(media);
@@ -165,10 +166,23 @@ export class Walker {
     this.canvas.style.visibility = 'visible';
   }
 
+  /**
+   * The window can be resized while the cat walks (the size slider): give the canvas the pixels of its new size, or the browser
+   * stretches the old ones onto it - the full screen's width but the new height, so the cat comes out squashed.
+   */
+  private fitCanvas(): void {
+    const dpr = window.devicePixelRatio || 1;
+    const c = this.canvas;
+    if (c.width !== Math.round(c.clientWidth * dpr) || c.height !== Math.round(c.clientHeight * dpr)) this.prepareCanvas();
+  }
+
   private draw(v: HTMLVideoElement, origin: number, f: Frame, mirror: boolean): void {
     const { ctx, walk: w } = this;
-    const { frameW: W, frameH: H } = f;
-    this.onDraw(origin);
+    // resized since the walk began: draw the frame at the canvas's height now (its width in step), where it was going
+    const k = f.frameH > 0 && this.canvas.clientHeight > 0 ? this.canvas.clientHeight / f.frameH : 1;
+    const W = f.frameW * k;
+    const H = f.frameH * k;
+    this.onDraw(origin, W, H);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     // a soft shadow under the walking cat
     const centre = v === this.leftVideo ? w.leftward!.centerX : mirror ? 1 - w.centerX : w.centerX;
