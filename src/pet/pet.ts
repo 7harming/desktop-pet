@@ -9,7 +9,7 @@ import { arriveGlidePx, departGlidePx, planWalkIn, planWalkOut, type WalkPlan } 
 import { Bubbles } from './bubble';
 import { Interactions } from './interactions';
 import { Player } from './player';
-import { Walker } from './walker';
+import { SETTLE_WAIT_MS, Walker, within } from './walker';
 
 const api = window.petApi;
 const layer = document.getElementById('layer')!;
@@ -200,6 +200,7 @@ api.onInit((init: PetInit) => {
   const walk = pack.walk;
   const walker = walk ? new Walker(stage, new URL(pack.clips[walk.loop].file, init.packUrl).href, walk,
     walk.leftward ? new URL(pack.clips[walk.leftward.loop].file, init.packUrl).href : undefined) : null;
+  if (walker) walker.onWarn = message => api.log('warn', message);
   if (debug && walker) {
     const drawn: number[] = [];                // from the very first frame: a test that hooks in later can miss the start
     const sizes: [number, number][] = [];      // and how big each one was drawn
@@ -218,11 +219,17 @@ api.onInit((init: PetInit) => {
     const W = frameW();
     walker!.preload(clipUrl(walk!.arrive));
     const arriveFrom = frameX - arriveGlidePx(walk!, W);   // arrive glides from here to the resting spot
-    await walkLoops(planWalkIn(walk!, W, arriveFrom, await walker!.duration()), false);
-    await walker!.playClip({ url: clipUrl(walk!.arrive), base: arriveFrom, glide: walk!.arriveGlide, frameW: W, frameH: window.innerHeight, ground: g0 });
+    const secs = await walker!.duration();
+    const walked = secs !== null && await walkLoops(planWalkIn(walk!, W, arriveFrom, secs), false)
+      && await walker!.playClip({ url: clipUrl(walk!.arrive), base: arriveFrom, glide: walk!.arriveGlide, frameW: W, frameH: window.innerHeight, ground: g0 });
+    if (!walked) {                     // walking in stalled: rather than stay away, it is simply there, resting at its spot
+      api.log('warn', '走進來的影片卡住了，直接在位置上休息');
+      walker!.clear();
+    }
     // home: the engine carries on from the start pose, and its first idle covers the walker's last frame
     cat.style.visibility = '';
-    await player.play(engine.start());   // home: it rests a moment in its start pose before doing anything else
+    // home: it rests a moment in its start pose before doing anything else (if that clip will not start, it is home all the same)
+    if (!await within(player.play(engine.start()), SETTLE_WAIT_MS)) api.log('warn', '回到位置後的片段沒有開始播');
     walker!.clear();
     // only now: leaving any earlier would start depart on the walker, and the clear above would stop it
     mode = 'live'; busy = false;
@@ -247,9 +254,11 @@ api.onInit((init: PetInit) => {
   const walkAway = async () => {
     const W = frameW();
     // depart takes over from the cat's own clip (both show it lying there), then the mirrored loop walks it off
-    await walker!.playClip({ url: clipUrl(walk!.depart), base: frameX, glide: walk!.departGlide, frameW: W, frameH: window.innerHeight,
-      ground: g0, onFirstFrame: () => { cat.style.visibility = 'hidden'; } });
-    await walkLoops(planWalkOut(walk!, W, frameX + departGlidePx(walk!, W), await walker!.duration(true)), true);
+    const departed = await walker!.playClip({ url: clipUrl(walk!.depart), base: frameX, glide: walk!.departGlide, frameW: W,
+      frameH: window.innerHeight, ground: g0, onFirstFrame: () => { cat.style.visibility = 'hidden'; } });
+    const secs = departed ? await walker!.duration(true) : null;
+    const walked = secs !== null && await walkLoops(planWalkOut(walk!, W, frameX + departGlidePx(walk!, W), secs), true);
+    if (!walked) api.log('warn', '走出去的影片卡住了，直接離開');   // it is simply gone: its window closes
     walker!.clear();
     api.exited();
   };

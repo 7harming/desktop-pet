@@ -79,6 +79,7 @@ export interface BreakApi {
   ready(): void;
   /** The big cat has walked off: close the break. */
   done(): void;
+  log(level: LogLevel, message: string): void;
 }
 
 export interface PanelApi {

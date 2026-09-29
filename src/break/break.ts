@@ -3,7 +3,7 @@ import type { BreakInit } from '../shared/ipc';
 import type { Pack } from '../shared/types';
 import { arriveGlidePx, departGlidePx, planWalkIn, planWalkOut, type WalkPlan } from '../shared/walk-plan';
 import { Player } from '../pet/player';
-import { Walker } from '../pet/walker';
+import { SETTLE_WAIT_MS, Walker, within } from '../pet/walker';
 
 const api = window.breakApi;
 const $ = (id: string) => document.getElementById(id)!;
@@ -60,6 +60,7 @@ api.onInit((init: BreakInit) => {
     const player = new Player(layer, pack, packUrl);
     const walker = walk ? new Walker(area, new URL(pack.clips[walk.loop].file, packUrl).href, walk,
       walk.leftward ? new URL(pack.clips[walk.leftward.loop].file, packUrl).href : undefined) : null;
+    if (walker) walker.onWarn = message => api.log('warn', `${pack.id}：${message}`);
     const loops = (plan: WalkPlan, mirror: boolean, onFirstFrame?: () => void) =>
       walker!.run({ plan, frameW, frameH, ground: start.ground, mirror, onFirstFrame });
     const clipUrl = (clip: string) => new URL(pack.clips[clip].file, packUrl).href;
@@ -71,9 +72,14 @@ api.onInit((init: BreakInit) => {
       phase = 'leaving';
       if (!walk) { finish(); return; }
       // depart takes over from the lying cat's own clip, then its left walk walks it off
-      await walker!.playClip({ url: clipUrl(walk.depart), base: restX, glide: walk.departGlide, frameW, frameH, ground: start.ground,
-        onFirstFrame: () => { cat.style.visibility = 'hidden'; } });
-      await loops(planWalkOut(walk, frameW, restX + departGlidePx(walk, frameW), await walker!.duration(true)), true);
+      const departed = await walker!.playClip({ url: clipUrl(walk.depart), base: restX, glide: walk.departGlide, frameW, frameH,
+        ground: start.ground, onFirstFrame: () => { cat.style.visibility = 'hidden'; } });
+      const secs = departed ? await walker!.duration(true) : null;
+      if (secs === null || !await loops(planWalkOut(walk, frameW, restX + departGlidePx(walk, frameW), secs), true)) {
+        api.log('warn', `${pack.id} 走出去的影片卡住了，直接離開`);   // simply gone, not left lying there while the others walk off
+        cat.style.visibility = 'hidden';
+        walker!.clear();
+      }
       finish();
     };
     departs.push(() => { if (phase === 'resting') void depart(); });
@@ -91,10 +97,15 @@ api.onInit((init: BreakInit) => {
       walker!.preload(clipUrl(walk.arrive));
       walker!.preload(clipUrl(walk.depart));
       const from = restX - arriveGlidePx(walk, frameW);     // arrive glides from here to its resting spot
-      await loops(planWalkIn(walk, frameW, from, await walker!.duration()), false);
-      await walker!.playClip({ url: clipUrl(walk.arrive), base: from, glide: walk.arriveGlide, frameW, frameH, ground: start.ground });
+      const secs = await walker!.duration();
+      const walked = secs !== null && await loops(planWalkIn(walk, frameW, from, secs), false)
+        && await walker!.playClip({ url: clipUrl(walk.arrive), base: from, glide: walk.arriveGlide, frameW, frameH, ground: start.ground });
+      if (!walked) {                       // walking in stalled: it is simply there, lying at its spot
+        api.log('warn', `${pack.id} 走進來的影片卡住了，直接躺在位置上`);
+        walker!.clear();
+      }
       cat.style.visibility = '';
-      await player.play(engine.start());  // its first idle covers the walker's last frame
+      await within(player.play(engine.start()), SETTLE_WAIT_MS);  // its first idle covers the walker's last frame
       walker!.clear();
       phase = 'resting';                   // only now, so a depart cannot start before the clear above
       if (timeUp) void depart();

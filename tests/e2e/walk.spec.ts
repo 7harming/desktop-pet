@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { controllerCall, launch, petPage } from './helpers';
+import { controllerCall, launch, petPage, readLog, stallWalking } from './helpers';
 
 test('a cat walks in from the left edge, loop after loop, and lies down at its spot', async () => {
   const { app } = await launch();
@@ -39,6 +39,25 @@ test('resizing a cat while it walks keeps its proportions', async () => {
   expect(canvas).toEqual([0, 0]);
   await app.close();
 });
+
+for (const how of ['load', 'play'] as const) {
+  test(`a cat whose walking clips never ${how} is home all the same, resting at its spot, and can still leave`, async () => {
+    const { app, userDir } = await launch();
+    await petPage(app, 'testcat');
+    await stallWalking(app, how);
+    await controllerCall(app, c => c.showPet('testcat2'));
+    const page = await petPage(app, 'testcat2');           // 'live' in time all the same
+    expect(await page.evaluate(() => [document.getElementById('cat')!.style.visibility, (window as any).__pet.history[0]]))
+      .toEqual(['', expect.stringMatching(/^idle_rest/)]);
+    await controllerCall(app, c => c.hidePet('testcat2'));
+    // gone well before the main process would give up on it (EXIT_TIMEOUT_MS)
+    await expect.poll(() => controllerCall(app, c => c.pets.has('testcat2')), { timeout: 20_000 }).toBe(false);
+    const log = readLog(userDir);
+    expect(log).toContain('[testcat2] 走進來的影片卡住了');
+    expect(log).toContain('[testcat2] 走出去的影片卡住了');
+    await app.close();
+  });
+}
 
 test('hiding a cat walks it off the left edge before its window closes', async () => {
   const { app } = await launch();

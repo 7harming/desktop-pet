@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { breakOpen, breakPage, controllerCall, launch, petPage } from './helpers';
+import { breakOpen, breakPage, controllerCall, launch, petPage, readLog, stallWalking } from './helpers';
 
 test('a break walks the cats off, shows the big cat with a countdown, then walks them back in', async () => {
   const { app } = await launch({ DESKTOP_PET_BREAK_SECONDS: '2' });
@@ -35,6 +35,20 @@ test('with two cats out, the break brings both, each lying in the middle of its 
   expect(centres[1]).toBeCloseTo(0.75, 1);
   await expect.poll(() => breakOpen(app), { timeout: 40_000 }).toBe(false);
   await expect.poll(() => controllerCall(app, c => [c.onScreen('testcat'), c.onScreen('testcat2')]), { timeout: 20_000 }).toEqual([true, true]);
+  await app.close();
+});
+
+test('a break whose cat will not walk still shows it lying there, and still ends', async () => {
+  const { app, userDir } = await launch({ DESKTOP_PET_BREAK_SECONDS: '2' });
+  await petPage(app);
+  await stallWalking(app, 'play');
+  await controllerCall(app, c => { void c.startBreak(); });
+  const brk = await breakPage(app);
+  await expect.poll(() => brk.evaluate(() => document.querySelector<HTMLElement>('.cat')!.style.visibility), { timeout: 20_000 }).toBe('');
+  await expect.poll(() => breakOpen(app), { timeout: 30_000 }).toBe(false);
+  const log = readLog(userDir);
+  expect(log).toContain('[休息] testcat 走進來的影片卡住了');
+  expect(log).toContain('[休息] testcat 走出去的影片卡住了');
   await app.close();
 });
 

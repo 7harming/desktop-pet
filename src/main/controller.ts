@@ -448,7 +448,7 @@ export class AppController {
         this.endBreak = () => { clearTimeout(timer); this.endBreak = null; win?.close(); resolve(); };
         const { pack } = cats[0];
         win = new BreakWindow({ cats, seconds: BREAK_SECONDS, line: reminderLine(pack, 'eyes', pack.start), debug: this.debug },
-          this.paths.uiDir, () => this.endBreak?.());
+          this.paths.uiDir, () => this.endBreak?.(), (level, message) => this.log[level](`[休息] ${message}`));
       });
     }
     this.scheduler.done('eyes', Date.now());

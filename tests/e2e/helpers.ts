@@ -1,5 +1,5 @@
 import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -63,3 +63,29 @@ export async function breakPage(app: ElectronApplication): Promise<Page> {
 }
 
 export const breakOpen = (app: ElectronApplication) => app.windows().some(w => w.url().endsWith('/ui/break.html'));
+
+/**
+ * From now on, walking clips in windows that open stall: with `load` they never load (no metadata), with `play` they load but
+ * never start (no frames, no 'ended'), as if their decoder had stopped.
+ */
+export async function stallWalking(app: ElectronApplication, how: 'load' | 'play'): Promise<void> {
+  await app.context().addInitScript(how => {
+    const proto = HTMLMediaElement.prototype;
+    if (how === 'load') {
+      const src = Object.getOwnPropertyDescriptor(proto, 'src')!;
+      Object.defineProperty(proto, 'src', {
+        ...src,
+        set(this: HTMLMediaElement, url: string) { if (!this.classList.contains('walk-source')) src.set!.call(this, url); },
+      });
+    } else {
+      const play = proto.play;
+      proto.play = function (this: HTMLMediaElement) { return this.classList.contains('walk-source') ? new Promise<void>(() => {}) : play.call(this); };
+    }
+  }, how);
+}
+
+/** Everything the app has logged so far. */
+export function readLog(userDir: string): string {
+  const dir = join(userDir, 'logs');
+  return readdirSync(dir).map(f => readFileSync(join(dir, f), 'utf8')).join('');
+}

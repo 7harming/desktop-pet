@@ -1,13 +1,13 @@
 import { BrowserWindow, screen } from 'electron';
 import { join } from 'node:path';
 import { APP_ORIGIN } from './app-protocol';
-import type { BreakInit } from '../shared/ipc';
+import type { BreakInit, LogLevel } from '../shared/ipc';
 
 /** A full-screen window over everything (the taskbar too) for the eye break; it closes itself when the big cat has walked off. */
 export class BreakWindow {
   private readonly win: BrowserWindow;
 
-  constructor(init: BreakInit, preloadDir: string, onDone: () => void) {
+  constructor(init: BreakInit, preloadDir: string, onDone: () => void, onLog: (level: LogLevel, message: string) => void) {
     const bounds = screen.getPrimaryDisplay().bounds;
     this.win = new BrowserWindow({
       ...bounds,
@@ -24,6 +24,7 @@ export class BreakWindow {
       this.win.focus();
     });
     this.win.webContents.ipc.on('break:done', () => onDone());
+    this.win.webContents.ipc.on('break:log', (_e, level: LogLevel, message: string) => onLog(level, String(message)));
     this.win.on('closed', () => onDone());
     void this.win.loadURL(`${APP_ORIGIN}/ui/break.html`);
   }

@@ -6,6 +6,22 @@ type FrameVideo = HTMLVideoElement & { requestVideoFrameCallback(cb: (now: numbe
 
 /** The source clips' frame rate: glide tracks have one entry per frame. */
 const FPS = 24;
+/** A local clip knows its length within milliseconds; one that still does not after this will not load: give up on walking. */
+const METADATA_WAIT_MS = 8_000;
+/** A walk not over by twice its own length plus this has stalled (no frames, no 'ended'): stop waiting and draw its end. */
+const STALL_SLACK_MS = 3_000;
+
+/** Home from walking in, the cat's first resting clip starts well within this; if it has not, the cat is home all the same. */
+export const SETTLE_WAIT_MS = 5_000;
+
+/** The clip's file name, for the log. */
+const clipName = (v: HTMLVideoElement) => decodeURIComponent(v.src.split('/').pop() ?? v.src);
+
+/** Wait for `p`, but never longer than `ms`: true if it settled in time. */
+export const within = (p: Promise<unknown>, ms: number): Promise<boolean> => Promise.race([
+  p.then(() => true, () => true),
+  new Promise<boolean>(resolve => setTimeout(() => resolve(false), ms)),
+]);
 
 interface Frame { frameW: number; frameH: number; ground: number }
 
@@ -30,6 +46,8 @@ export interface ClipRun extends Frame {
 export class Walker {
   /** Called with where each frame is drawn and how big (the debug build records them for the tests). */
   onDraw: (origin: number, width: number, height: number) => void = () => {};
+  /** Told why a clip was given up on (for the log). */
+  onWarn: (message: string) => void = () => {};
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly video: FrameVideo;
@@ -47,18 +65,23 @@ export class Walker {
     this.leftVideo = leftUrl ? this.source(leftUrl, true) : null;
   }
 
-  /** How long one loop lasts (at playback rate 1): the right loop, or with `left` the one walking left uses. */
-  duration(left = false): Promise<number> {
+  /**
+   * How long one loop lasts (at playback rate 1): the right loop, or with `left` the one walking left uses. null if the loop will
+   * not load: there is no walking then.
+   */
+  async duration(left = false): Promise<number | null> {
     const v = left && this.leftVideo ? this.leftVideo : this.video;
-    if (v.readyState >= 1 && v.duration) return Promise.resolve(v.duration);
-    return new Promise(resolve => v.addEventListener('loadedmetadata', () => resolve(v.duration), { once: true }));
+    return await this.loaded(v) ? v.duration : null;
   }
 
   /** Start loading a clip that playClip() will want soon. */
   preload(url: string): void { this.source(url, false); }
 
-  /** Walk the planned loops; resolves when the last one has ended (its final frame stays drawn until clear()). */
-  run(r: WalkRun): Promise<void> {
+  /**
+   * Walk the planned loops; resolves when the last one has ended (its final frame stays drawn until clear()): true, or false if
+   * the loop would not play and the walk was given up on (its end is drawn all the same).
+   */
+  run(r: WalkRun): Promise<boolean> {
     const rate = this.walk.rate ?? 1;
     const { start, end, loops, pxPerSec } = r.plan;
     const dir = Math.sign(end - start) || 1;
@@ -70,8 +93,8 @@ export class Walker {
     return this.play(own || this.video, rate, true, loops, r, dir, x, () => end, own ? false : r.mirror, r.onFirstFrame);
   }
 
-  /** Play a clip once (arrive, depart), its frame following the clip's glide track. */
-  playClip(r: ClipRun): Promise<void> {
+  /** Play a clip once (arrive, depart), its frame following the clip's glide track. False if it would not play, as run(). */
+  playClip(r: ClipRun): Promise<boolean> {
     const g = r.glide ?? [0];
     const at = (f: number) => {
       const i = Math.max(0, Math.min(g.length - 1, Math.floor(f)));
@@ -93,37 +116,51 @@ export class Walker {
   /**
    * The shared engine: play `v` (`loops` times if looping) and draw it at `x(media seconds so far)`. Media seconds =
    * (display seconds + offset) x rate; each presented frame gives a reading of the offset, which jitters, so the offset follows
-   * the readings slowly and the frame never moves against `dir`.
+   * the readings slowly and the frame never moves against `dir`. Only presented frames and 'ended' move it on, so if the clip
+   * will not load, will not play, or is not over by twice its length plus STALL_SLACK_MS, it is given up on (false).
    */
-  private play(v: FrameVideo, rate: number, looping: boolean, loops: number, f: Frame, dir: number,
-               x: (media: number) => number, endX: () => number, mirror: boolean, onFirstFrame?: () => void): Promise<void> {
+  private async play(v: FrameVideo, rate: number, looping: boolean, loops: number, f: Frame, dir: number,
+                     x: (media: number) => number, endX: () => number, mirror: boolean, onFirstFrame?: () => void): Promise<boolean> {
     const token = ++this.token;
+    if (!await this.loaded(v) || token !== this.token) return false;
     this.prepareCanvas();
     v.loop = looping;
     v.playbackRate = rate;
     v.currentTime = 0;
     let loop = 0;
     let lastMedia = -1;
+    let frames = 0;
     let offset: number | null = null;
     let lastX: number | null = null;
     let done = false;
     return new Promise(resolve => {
-      const finish = () => {
+      const finish = (played: boolean) => {
         if (done) return;
         done = true;
-        v.pause();
-        this.draw(v, endX(), f, mirror);
-        resolve();
+        clearTimeout(watchdog);
+        if (token === this.token) {
+          v.pause();
+          this.draw(v, endX(), f, mirror);
+        }
+        resolve(played);
       };
+      const giveUp = (why: string) => {
+        if (done) return;
+        this.onWarn(`走路片段 ${clipName(v)} ${why}（播了 ${frames} 格，停在 ${v.currentTime.toFixed(2)} 秒，readyState ${v.readyState}，`
+          + `${v.paused ? '暫停' : '播放'}中），不等了`);
+        finish(false);
+      };
+      const watchdog = setTimeout(() => giveUp('沒有播完'), ((loops * v.duration) / rate) * 2000 + STALL_SLACK_MS);
       const onFrame = (now: number, meta: FrameMeta) => {
         if (token !== this.token || done) return;
+        frames++;
         if (meta.mediaTime < lastMedia - 0.05) loop++;          // the video wrapped round: the next loop starts
         lastMedia = meta.mediaTime;
         const reading = (loop * (v.duration || 1) + meta.mediaTime) / rate - now / 1000;
         if (offset === null) { offset = reading; onFirstFrame?.(); }
         else offset += (reading - offset) * 0.1;
         // after the last loop, this frame is the loop's first one again: the pose the next clip starts from
-        if (looping && loop >= loops) { finish(); return; }
+        if (looping && loop >= loops) { finish(true); return; }
         v.requestVideoFrameCallback(onFrame);
       };
       const onDisplay = (now: number) => {
@@ -137,10 +174,30 @@ export class Walker {
         }
         requestAnimationFrame(onDisplay);
       };
-      if (!looping) v.addEventListener('ended', () => { if (token === this.token) finish(); }, { once: true });
+      if (!looping) v.addEventListener('ended', () => { if (token === this.token) finish(true); }, { once: true });
       v.requestVideoFrameCallback(onFrame);
       requestAnimationFrame(onDisplay);
-      void v.play();
+      v.play().catch((e: unknown) => giveUp(`播不了（${e instanceof Error ? e.name : String(e)}）`));
+    });
+  }
+
+  /** Wait until `v` knows its length: false if it fails to load, or still does not know it after METADATA_WAIT_MS. */
+  private loaded(v: FrameVideo): Promise<boolean> {
+    if (v.readyState >= 1 && v.duration) return Promise.resolve(true);
+    return new Promise(resolve => {
+      const timer = setTimeout(() => settle(false, `${METADATA_WAIT_MS / 1000} 秒內沒載入`), METADATA_WAIT_MS);
+      const onLoaded = () => settle(true);
+      const onError = () => settle(false, `載入失敗（錯誤 ${v.error?.code ?? '?'}）`);
+      const settle = (ok: boolean, why?: string) => {
+        clearTimeout(timer);
+        v.removeEventListener('loadedmetadata', onLoaded);
+        v.removeEventListener('error', onError);
+        if (why) this.onWarn(`走路片段 ${clipName(v)} ${why}（readyState ${v.readyState}，networkState ${v.networkState}），不走了`);
+        resolve(ok);
+      };
+      v.addEventListener('loadedmetadata', onLoaded);
+      v.addEventListener('error', onError);
+      if (v.error) onError();          // it failed before anyone was listening
     });
   }
 
