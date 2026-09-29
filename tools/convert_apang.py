@@ -33,7 +33,8 @@ STILLS = {'lie': 'lie.png', 'loaf': 'loaf.png', 'sit': 'sit.png', 'sleep': 'slee
 WALK_STILLS = {'right': 'walk_right_loop_start.png', 'left': 'walk_left_loop_start.png'}
 # brief poses that are one clip from a pose back to it: (the pose they start and end in, their clip)
 ACTIONS = {'knead': ('lie', 'knead_lie'), 'lickpaw': ('lie', 'lickpaw'), 'lick': ('sit', 'lick')}
-JOIN_FADE = 0.12                # seconds; the player's own cross-fade between clips (src/pet/player.ts CROSSFADE_S)
+FACE = 3.6                      # the portrait's width in eye distances
+JOIN_FADE = 0.12               # seconds; the player's own cross-fade between clips (src/pet/player.ts CROSSFADE_S)
 RAMP = 12                       # frames over which arrive / depart ease into and out of the loop's pace
 
 
@@ -55,22 +56,31 @@ def eased_glide(track: list, at_start: bool, loop_speed: float) -> list:
 
 
 def portrait(still: Path, dst: Path) -> None:
-    """The head, centred on the face. 小昭's portrait centres on the cat's highest band, but lying loafed 阿胖's back rises about as
-    high as his ears, which pulled that crop onto his back: centre between the amber eyes instead, from just above the ear tips."""
+    """The face, filling the panel's round avatar. 小昭's portrait centres on the cat's highest band, but lying loafed 阿胖's back
+    rises about as high as his ears, which pulled that crop onto his back. So: centred between the amber eyes, a little below them
+    (the nose) and a little right of them, FACE eye-distances across - the whole face inside the circle, only the ear tips may reach past it (owner:
+    bigger, centred, the face not cut)."""
     png = subprocess.run([FF, '-v', 'error', '-i', str(still), '-vf', key_filter(still), '-f', 'image2pipe', '-vcodec', 'png', '-'],
                          capture_output=True, check=True).stdout
     img = Image.open(io.BytesIO(png)).convert('RGBA')
     a = np.asarray(img).astype(np.int16)
     r, g, b, al = a[..., 0], a[..., 1], a[..., 2], a[..., 3]
     amber = (al > 128) & (r > 150) & (g > 70) & (g < 200) & (b < 110) & (r - b > 90) & (r - g > 25)
-    lab, n = ndimage.label(ndimage.binary_opening(amber))
-    eyes = sorted(((lab == i).sum(), i) for i in range(1, n + 1))[-2:]
+    # a relaxed eye's amber can come in two pieces either side of the pupil: join near pieces first, then take the two biggest
+    # blobs that are well apart
+    lab, n = ndimage.label(ndimage.binary_dilation(ndimage.binary_opening(amber), iterations=4))
+    blobs = sorted(((lab == i).sum(), i, np.nonzero(lab == i)[1].mean()) for i in range(1, n + 1))[::-1]
+    first = blobs[0]
+    second = next(b for b in blobs[1:] if abs(b[2] - first[2]) > 30)
+    eyes = [first[:2], second[:2]]
+    centres = [first[2], second[2]]
     ys, xs = np.nonzero(np.isin(lab, [i for _, i in eyes]))
-    cx = xs.mean()
-    head = al[:, int(cx - 120):int(cx + 120)] > 128                   # the head's columns: its top is the ear tips
-    top = np.nonzero(head.any(1))[0].min()
-    size = 1.25 * (ys.mean() - top) + 120                            # ear tips to eyes, then the muzzle and chin: framed like 小昭's
-    box = (int(cx - size / 2), int(top - 12), int(cx + size / 2), int(top - 12 + size))
+    cx, cy = xs.mean(), ys.mean()
+    eye_gap = abs(centres[0] - centres[1])
+    size = FACE * eye_gap
+    cy += 0.3 * eye_gap
+    cx += 0.12 * eye_gap                  # loafed he looks a little to the left: his face reaches further right
+    box = (int(cx - size / 2), int(cy - size / 2), int(cx + size / 2), int(cy + size / 2))
     # resize premultiplied, so the transparent stage colour does not bleed into the edge
     img.convert('RGBa').crop(box).resize((256, 256), Image.LANCZOS).convert('RGBA').save(dst)
 

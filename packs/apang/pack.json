@@ -806,7 +806,7 @@
   "toLeft": "fight_left",
   "toRight": "fight_right",
   "left": 0.169,
-  "right": 0.959
+  "right": 0.963
  },
  "hd": {
   "idle_lie": "hd/idle_lie.webm",
