@@ -94,7 +94,8 @@ def build_pack(geo: dict, walk: dict, fight: tuple) -> dict:
     fade = lambda a, b: {'from': a, 'to': b, 'fade': JOIN_FADE}
     return {
         'schemaVersion': 1, 'id': 'apang', 'order': 2, 'name': '阿胖', 'personality': '膽小但很親人、喜歡撒嬌', 'portrait': 'portrait.png',
-        'frame': {'aspect': round(16 / 9, 4), 'displayHeight': 440},
+        # 5.4 kg to 小昭's 4.7 (owner): he is drawn 5% bigger than her (about the cube root of their weights)
+        'frame': {'aspect': round(16 / 9, 4), 'displayHeight': round(440 * 1.05)},
         'start': 'lie',
         'poses': {
             # the paws-out lying pose: where walking in ends and every other clip meets; never a rest of its own
