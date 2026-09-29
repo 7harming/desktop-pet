@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { breakOpen, breakPage, controllerCall, launch, petPage, readLog, stallWalking } from './helpers';
+import { breakOpen, breakPage, controllerCall, launch, petPage, readLog, stallClips, stallWalking } from './helpers';
 
 test('a break walks the cats off, shows the big cat with a countdown, then walks them back in', async () => {
   const { app } = await launch({ DESKTOP_PET_BREAK_SECONDS: '2' });
@@ -49,6 +49,20 @@ test('a break whose cat will not walk still shows it lying there, and still ends
   const log = readLog(userDir);
   expect(log).toContain('[休息] testcat 走進來的影片卡住了');
   expect(log).toContain('[休息] testcat 走出去的影片卡住了');
+  await app.close();
+});
+
+test('a break whose lying clips will not start has the cat try one after another, from its very first, and can be skipped', async () => {
+  const { app, userDir } = await launch({ DESKTOP_PET_BREAK_SECONDS: '60' });
+  await petPage(app);
+  await stallClips(app, ['idle_rest', 'idle_rest2'], 'play');
+  await controllerCall(app, c => { void c.startBreak(); });
+  const brk = await breakPage(app);
+  // its first idle stalls while it is still settling in; each next one stalls too, and is given up on in turn
+  const stalls = () => readLog(userDir).split(/\[休息\] testcat：片段 idle_rest2? 沒有開始播/).length - 1;
+  await expect.poll(stalls, { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
+  await brk.locator('#skip').click();
+  await expect.poll(() => breakOpen(app), { timeout: 30_000 }).toBe(false);
   await app.close();
 });
 

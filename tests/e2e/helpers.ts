@@ -84,6 +84,30 @@ export async function stallWalking(app: ElectronApplication, how: 'load' | 'play
   }, how);
 }
 
+/**
+ * From now on, the cats' clips `clips` stall in windows that open: with `load` they never load, with `play` they load but never
+ * start, with `end` they start but stop moving before their end (no 'ended'), as if their decoder had stopped.
+ */
+export async function stallClips(app: ElectronApplication, clips: string[], how: 'load' | 'play' | 'end'): Promise<void> {
+  await app.context().addInitScript(([clips, how]) => {
+    const proto = HTMLMediaElement.prototype;
+    const stalls = (v: HTMLMediaElement) => clips.includes(v.dataset.clip ?? '');
+    if (how === 'load') {
+      const src = Object.getOwnPropertyDescriptor(proto, 'src')!;
+      Object.defineProperty(proto, 'src', {
+        ...src,
+        set(this: HTMLMediaElement, url: string) { if (!stalls(this)) src.set!.call(this, url); },
+      });
+    } else {
+      const play = proto.play;
+      proto.play = function (this: HTMLMediaElement) {
+        if (!stalls(this)) return play.call(this);
+        return how === 'play' ? new Promise<void>(() => {}) : play.call(this).then(() => { this.playbackRate = 0; });
+      };
+    }
+  }, [clips, how] as const);
+}
+
 /** Everything the app has logged so far. */
 export function readLog(userDir: string): string {
   const dir = join(userDir, 'logs');

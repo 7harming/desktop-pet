@@ -90,6 +90,11 @@ api.onInit((init: BreakInit) => {
       void player.play(engine.next());
     };
     player.onError = () => { if (phase !== 'leaving') { phase = 'leaving'; finish(); } };
+    // a clip that stalled is over all the same - its first idle too, which onEnded (waiting for 'resting') would leave frozen
+    player.onStall = (clip, why) => {
+      api.log('warn', `${pack.id}：片段 ${clip} ${why}，不等了`);
+      if (phase === 'arriving') void player.play(engine.next()); else player.onEnded();
+    };
 
     const arrive = async () => {
       if (!walk) { phase = 'resting'; void player.play(engine.start()); return; }

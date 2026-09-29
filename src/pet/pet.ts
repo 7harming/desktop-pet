@@ -54,6 +54,8 @@ api.onInit((init: PetInit) => {
     advance();
   };
   player.onError = clip => { api.log('warn', `片段 ${clip} 播放失敗，改走別的路`); engine.markBroken(clip); advance(); };
+  // a clip that stalled is taken as over, but not as broken: it may only have been slow, and plays again another time
+  player.onStall = (clip, why) => { api.log('warn', `片段 ${clip} ${why}，不等了`); player.onEnded(); };
 
   api.onCommand(key => {
     if (mode !== 'live') return;
