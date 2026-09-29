@@ -30,7 +30,8 @@ api.onInit((init: BreakInit) => {
   const engine = new BehaviorEngine(pack, Math.random);
   engine.auto = false;                   // it just lies there, with its idles
   const player = new Player($('layer'), pack, init.packUrl);
-  const walker = walk ? new Walker(area, new URL(pack.clips[walk.loop].file, init.packUrl).href, walk) : null;
+  const walker = walk ? new Walker(area, new URL(pack.clips[walk.loop].file, init.packUrl).href, walk,
+    walk.leftward ? new URL(pack.clips[walk.leftward.loop].file, init.packUrl).href : undefined) : null;
   const loops = (plan: WalkPlan, mirror: boolean, onFirstFrame?: () => void) =>
     walker!.run({ plan, frameW, frameH, ground: start.ground, mirror, onFirstFrame });
   if (init.debug) (window as unknown as Record<string, unknown>).__break = { engine, player, walker };
@@ -47,7 +48,7 @@ api.onInit((init: BreakInit) => {
     // depart takes over from the lying cat's own clip, then the mirrored loop walks it off
     await walker!.playClip({ url: clipUrl(walk.depart), base: restX, glide: walk.departGlide, frameW, frameH, ground: start.ground,
       onFirstFrame: () => { cat.style.visibility = 'hidden'; } });
-    await loops(planWalkOut(walk, frameW, restX + departGlidePx(walk, frameW), await walker!.duration()), true);
+    await loops(planWalkOut(walk, frameW, restX + departGlidePx(walk, frameW), await walker!.duration(true)), true);
     finish();
   };
   player.onStepStart = () => player.keep(engine.upcomingClips());

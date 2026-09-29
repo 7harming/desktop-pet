@@ -73,5 +73,7 @@ describe('validatePack', () => {
   it('checks the walking clips', () => {
     const p = makePack(); p.walk!.arrive = 'nope';
     expect(validatePack(p, allFiles)).toContain('walk 用到未定義的片段：nope');
+    p.walk!.arrive = 'walk_arrive'; p.walk!.leftward = { loop: 'nope2', centerX: 0.5, width: 0.3, speed: 0.5 };
+    expect(validatePack(p, allFiles)).toContain('walk 用到未定義的片段：nope2');
   });
 });

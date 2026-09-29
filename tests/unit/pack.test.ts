@@ -86,6 +86,13 @@ describe('parsePack', () => {
     expect(e).toContain('pounce 的 autoChance 要在 0 到 1 之間');
   });
 
+  it('checks the optional left walk', () => {
+    const p: any = makePack(); p.walk.leftward = { loop: 'walk_loop', centerX: 1.2, width: 0.3 };
+    const e = parsePack(p).errors;
+    expect(e).toContain('walk.leftward 的 centerX 要在 0 到 1 之間');
+    expect(e).toContain('walk.leftward 的 speed 要是正數');
+  });
+
   it('allows a pack without walking', () => {
     const p: any = makePack(); delete p.walk;
     expect(parsePack(p).errors).toEqual([]);

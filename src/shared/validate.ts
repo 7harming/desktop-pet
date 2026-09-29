@@ -26,7 +26,10 @@ export function validatePack(pack: Pack, fileExists: (relPath: string) => boolea
     }
   }
 
-  if (pack.walk) for (const c of [pack.walk.loop, pack.walk.arrive, pack.walk.depart]) needClip(c, 'walk');
+  if (pack.walk) {
+    for (const c of [pack.walk.loop, pack.walk.arrive, pack.walk.depart]) needClip(c, 'walk');
+    if (pack.walk.leftward) needClip(pack.walk.leftward.loop, 'walk');
+  }
 
   const start = pack.poses[pack.start];
   if (!start) { errors.push(`起始姿勢不存在：${pack.start}`); graphOk = false; }

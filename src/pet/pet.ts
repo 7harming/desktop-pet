@@ -154,7 +154,8 @@ api.onInit((init: PetInit) => {
 
   // walking in and out: the loop is drawn on the strip by the walker; arrive and depart are ordinary clips at the resting spot
   const walk = pack.walk;
-  const walker = walk ? new Walker(stage, new URL(pack.clips[walk.loop].file, init.packUrl).href, walk) : null;
+  const walker = walk ? new Walker(stage, new URL(pack.clips[walk.loop].file, init.packUrl).href, walk,
+    walk.leftward ? new URL(pack.clips[walk.leftward.loop].file, init.packUrl).href : undefined) : null;
   if (debug && walker) {
     const drawn: number[] = [];                // from the very first frame: a test that hooks in later can miss the start
     walker.onDraw = x => drawn.push(x);
@@ -202,7 +203,7 @@ api.onInit((init: PetInit) => {
     // depart takes over from the cat's own clip (both show it lying there), then the mirrored loop walks it off
     await walker!.playClip({ url: clipUrl(walk!.depart), base: frameX, glide: walk!.departGlide, frameW: W, frameH: window.innerHeight,
       ground: g0, onFirstFrame: () => { cat.style.visibility = 'hidden'; } });
-    await walkLoops(planWalkOut(walk!, W, frameX + departGlidePx(walk!, W), await walker!.duration()), true);
+    await walkLoops(planWalkOut(walk!, W, frameX + departGlidePx(walk!, W), await walker!.duration(true)), true);
     walker!.clear();
     api.exited();
   };

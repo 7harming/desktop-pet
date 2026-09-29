@@ -11,7 +11,7 @@ interface Frame { frameW: number; frameH: number; ground: number }
 
 export interface WalkRun extends Frame {
   plan: WalkPlan;
-  mirror: boolean;       // walking left: the loop drawn flipped
+  mirror: boolean;       // walking left: the pack's own left loop if it has one (walk.leftward), else the loop drawn flipped
   onFirstFrame?: () => void;
 }
 
@@ -33,20 +33,23 @@ export class Walker {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly video: FrameVideo;
+  private readonly leftVideo: FrameVideo | null;
   private readonly sources = new Map<string, FrameVideo>();
   private token = 0;
 
-  constructor(private readonly parent: HTMLElement, url: string, private readonly walk: WalkDef) {
+  /** `leftUrl`: the pack's own left-walking loop (walk.leftward), if it has one. */
+  constructor(private readonly parent: HTMLElement, url: string, private readonly walk: WalkDef, leftUrl?: string) {
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'walk';
     parent.prepend(this.canvas);          // under the cat's own clips, so a clip that takes over simply covers the last drawn frame
     this.ctx = this.canvas.getContext('2d')!;
     this.video = this.source(url, true);
+    this.leftVideo = leftUrl ? this.source(leftUrl, true) : null;
   }
 
-  /** How long one loop lasts (at playback rate 1). */
-  duration(): Promise<number> {
-    const v = this.video;
+  /** How long one loop lasts (at playback rate 1): the right loop, or with `left` the one walking left uses. */
+  duration(left = false): Promise<number> {
+    const v = left && this.leftVideo ? this.leftVideo : this.video;
     if (v.readyState >= 1 && v.duration) return Promise.resolve(v.duration);
     return new Promise(resolve => v.addEventListener('loadedmetadata', () => resolve(v.duration), { once: true }));
   }
@@ -63,7 +66,8 @@ export class Walker {
       const p = start + dir * pxPerSec * (media / rate);
       return dir > 0 ? Math.min(p, end) : Math.max(p, end);
     };
-    return this.play(this.video, rate, true, loops, r, dir, x, () => end, r.mirror, r.onFirstFrame);
+    const own = r.mirror && this.leftVideo;              // walking left with its own loop: drawn as it is
+    return this.play(own || this.video, rate, true, loops, r, dir, x, () => end, own ? false : r.mirror, r.onFirstFrame);
   }
 
   /** Play a clip once (arrive, depart), its frame following the clip's glide track. */
@@ -167,7 +171,8 @@ export class Walker {
     this.onDraw(origin);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     // a soft shadow under the walking cat
-    const cx = origin + (mirror ? 1 - w.centerX : w.centerX) * W;
+    const centre = v === this.leftVideo ? w.leftward!.centerX : mirror ? 1 - w.centerX : w.centerX;
+    const cx = origin + centre * W;
     ctx.fillStyle = 'rgba(0, 0, 0, .18)';
     ctx.beginPath();
     ctx.ellipse(cx, f.ground * H - 1, H * 0.25, 6, 0, 0, Math.PI * 2);

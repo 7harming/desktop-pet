@@ -39,6 +39,11 @@ export interface WalkDef {
   rate?: number;
   arriveGlide?: number[];
   departGlide?: number[];
+  /**
+   * A cat whose two sides differ can not walk left as the right walk mirrored: its own left-walking loop, drawn as it is. Its cat
+   * is centred at `centerX`, `width` wide; `speed` as above. `depart` then ends as this loop's first frame.
+   */
+  leftward?: { loop: ClipId; centerX: number; width: number; speed: number };
 }
 
 /**

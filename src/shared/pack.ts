@@ -89,6 +89,17 @@ export function parsePack(raw: unknown): ParseResult {
         if (g !== undefined && (!Array.isArray(g) || !g.length || !g.every(isNum))) err(`walk 的 ${k} 要是數字的陣列`);
       }
       if (walk.rate !== undefined && (!isNum(walk.rate) || walk.rate <= 0)) err('walk 的 rate 要是正數');
+      const lw = walk.leftward;
+      if (lw !== undefined) {
+        if (!isObj(lw)) err('walk.leftward 要是一個物件');
+        else {
+          if (!isStr(lw.loop)) err('walk.leftward 缺少 loop');
+          for (const k of ['centerX', 'width'] as const) {
+            if (!isNum(lw[k]) || (lw[k] as number) < 0 || (lw[k] as number) > 1) err(`walk.leftward 的 ${k} 要在 0 到 1 之間`);
+          }
+          if (!isNum(lw.speed) || lw.speed <= 0) err('walk.leftward 的 speed 要是正數');
+        }
+      }
     }
   }
 
