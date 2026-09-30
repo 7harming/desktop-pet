@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { calmPetPage, controllerCall, launch, petPage } from './helpers';
+import { calmPetPage, controllerCall, failClips, launch, petPage, readLog } from './helpers';
 
 test('a reminder bubble asks, and snoozing pushes the timer 10 minutes', async () => {
   const { app } = await launch();
@@ -38,6 +38,24 @@ test('the water reminder sends the cat to its reminder pose and back', async () 
   await expect(page.locator('.bubble.reminder')).toContainText('喝水。');
   await expect.poll(() => page.evaluate(k => (window as any).__pet.history.slice(k).join(','), n), { timeout: 30_000 })
     .toMatch(/^rest_to_sit,idle_sit,(idle_sit,)*sit_to_rest,idle_rest/);
+  await app.close();
+});
+
+test('a reminder pose whose one way back fails is left all the same: the cat dissolves back into its start pose', async () => {
+  // 小昭 held her stretch for good once stretch_exit had failed
+  const { app, userDir } = await launch();
+  await petPage(app, 'testcat');
+  await failClips(app, ['sit_to_rest']);
+  await controllerCall(app, c => { c.setReminders({ notify: false }); c.hidePet('testcat'); c.showPet('testcat2'); });
+  const page = await calmPetPage(app, 'testcat2');   // auto off: only the visit itself brings it back
+  const n = await page.evaluate(() => (window as any).__pet.history.length);
+  await controllerCall(app, c => c.testReminder());
+  await expect.poll(() => page.evaluate(k => (window as any).__pet.history.slice(k).join(','), n), { timeout: 30_000 })
+    .toMatch(/^rest_to_sit,(idle_sit,)*idle_rest2?(,|$)/);
+  expect(await page.evaluate(() => (window as any).__pet.engine.currentStep)).toMatchObject({ from: 'rest', to: 'rest' });
+  const log = readLog(userDir);
+  expect(log).toContain('[testcat2] 片段 sit_to_rest 播放失敗（錯誤碼');
+  expect(log).toContain('[testcat2] 姿勢 sit 的出路都壞了，直接淡回 rest');
   await app.close();
 });
 

@@ -14,6 +14,8 @@ const firstFrame = (v: HTMLVideoElement) => Promise.race([
   new Promise<void>(r => (v as FrameVideo).requestVideoFrameCallback(() => r())),
   sleep(250),
 ]);
+/** What the browser says went wrong with `v`'s clip. */
+const mediaError = (v: HTMLVideoElement) => (v.error ? `錯誤碼 ${v.error.code}${v.error.message ? `：${v.error.message}` : ''}` : '沒有錯誤碼');
 const seeked = (v: HTMLVideoElement) => (v.readyState >= 2 && !v.seeking ? Promise.resolve()
   : Promise.race([new Promise<void>(r => v.addEventListener('seeked', () => r(), { once: true })), sleep(300)]));
 /** How long `v` may still take to play to its end at `rate` before it counts as stalled. */
@@ -26,7 +28,7 @@ interface Current { step: Step; video: HTMLVideoElement; state: 'starting' | 'pl
 export class Player {
   onStepStart: (step: Step) => void = () => {};
   onEnded: () => void = () => {};
-  onError: (clip: string) => void = () => {};
+  onError: (clip: string, why: string) => void = () => {};
   /**
    * The current clip stalled - it did not start within START_WAIT_MS, or is not over by twice its length plus STALL_SLACK_MS - and
    * was given up on: what comes next is up to the listener, as after onEnded. Not an error: the clip may only have been slow.
@@ -53,7 +55,7 @@ export class Player {
       v.addEventListener('error', () => {
         if (!v.hasAttribute('src')) return;
         if (this.current?.video === v) this.finish(this.current);
-        this.onError(id);
+        this.onError(id, mediaError(v));
       });
       layer.appendChild(v);
       this.videos.set(id, v);
@@ -113,11 +115,11 @@ export class Player {
     if (this.paused) return;           // resume() starts it
     // a clip can stall with no error at all - never start, or never end: give it a while, then move on without it
     this.arm(token, START_WAIT_MS, '沒有開始播');
-    try { await v.play(); } catch {
+    try { await v.play(); } catch (e) {
       // pause() cut it short: resume() starts it again; or its 'error' event has already told
       if (token !== this.token || this.paused || c.state === 'over') return;
       this.finish(c);
-      this.onError(step.clip);
+      this.onError(step.clip, e instanceof Error ? `${e.name}：${e.message}` : String(e));
       return;
     }
     if (token !== this.token) return;

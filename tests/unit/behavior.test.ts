@@ -149,6 +149,37 @@ describe('BehaviorEngine', () => {
     expect(e.next()).toMatchObject({ from: 'rest', to: 'rest' });
   });
 
+  it('dissolves back into its start pose from a brief visit whose one way back has broken', () => {
+    // 小昭's stretch: stretch_exit had failed once, and every stretch after that held on for good
+    const p = makePack(); p.poses.sit.brief = true;
+    const e = new BehaviorEngine(p, constRng(0.99)); e.auto = false; e.start();
+    const stranded: string[] = [];
+    e.onStranded = pose => stranded.push(pose);
+    e.markBroken('sit_to_rest');
+    expect(e.visit('sit')).toBe(true);
+    expect(e.next().clip).toBe('rest_to_sit');
+    expect(e.next().clip).toBe('idle_sit');
+    expect(e.next()).toMatchObject({ from: 'rest', to: 'rest', fadeIn: 0.5 });
+    expect(e.next()).toMatchObject({ from: 'rest', to: 'rest', fadeIn: 0 });
+    expect(stranded).toEqual(['sit']);
+  });
+
+  it('keeps the way back of a visit when told to go somewhere it cannot get to', () => {
+    const p = makePack(); p.poses.sit.brief = true;
+    const e = new BehaviorEngine(p, constRng(0.99)); e.auto = false; e.start();
+    e.markBroken('sit_to_rest');
+    e.visit('sit'); e.next(); e.next();                  // holding the brief pose, no way out of it
+    expect(e.command('perch')).toBe(false);
+    expect(e.next()).toMatchObject({ from: 'rest', to: 'rest', fadeIn: 0.5 });
+  });
+
+  it('dissolves back into its start pose in auto mode when every way on has broken', () => {
+    const e = new BehaviorEngine(makePack(), constRng(0.99)); e.start();
+    expect(e.next().clip).toBe('rest_to_sit');
+    e.markBroken('sit_to_rest');                         // sit has no way on now: rather than sit there for good
+    expect(e.next()).toMatchObject({ from: 'rest', to: 'rest', fadeIn: 0.5 });
+  });
+
   it('interjects a pounce while resting, then carries on', () => {
     const e = new BehaviorEngine(makePack(), constRng(0)); e.start();
     expect(e.interject('pounce_right', 'rest')).toEqual({ clip: 'pounce_right', from: 'rest', to: 'rest', rate: 1, fadeIn: 0 });

@@ -53,7 +53,13 @@ api.onInit((init: PetInit) => {
     }
     advance();
   };
-  player.onError = clip => { api.log('warn', `片段 ${clip} 播放失敗，改走別的路`); engine.markBroken(clip); advance(); };
+  // a clip that fails while it only loads for later is just avoided: the one playing plays on
+  player.onError = (clip, why) => {
+    api.log('warn', `片段 ${clip} 播放失敗（${why}），改走別的路`);
+    engine.markBroken(clip);
+    if (player.step?.clip === clip) advance();
+  };
+  engine.onStranded = pose => api.log('warn', `姿勢 ${pose} 的出路都壞了，直接淡回 ${pack.start}`);
   // a clip that stalled is taken as over, but not as broken: it may only have been slow, and plays again another time
   player.onStall = (clip, why) => { api.log('warn', `片段 ${clip} ${why}，不等了`); player.onEnded(); };
 

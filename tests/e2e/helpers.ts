@@ -108,6 +108,17 @@ export async function stallClips(app: ElectronApplication, clips: string[], how:
   }, [clips, how] as const);
 }
 
+/** From now on, the cats' clips `clips` fail in windows that open: the browser cannot decode them and says so. */
+export async function failClips(app: ElectronApplication, clips: string[]): Promise<void> {
+  await app.context().addInitScript(clips => {
+    const src = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src')!;
+    Object.defineProperty(HTMLMediaElement.prototype, 'src', {
+      ...src,
+      set(this: HTMLMediaElement, url: string) { src.set!.call(this, clips.includes(this.dataset.clip ?? '') ? 'data:video/webm;base64,AAAA' : url); },
+    });
+  }, clips);
+}
+
 /** Everything the app has logged so far. */
 export function readLog(userDir: string): string {
   const dir = join(userDir, 'logs');

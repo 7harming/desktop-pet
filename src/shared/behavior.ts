@@ -8,10 +8,14 @@ export type Clock = () => number;
 const DEFAULT_STAY = 0.6;
 /** With a dwell set, each rest lasts the dwell give or take this share of it (picked when the rest begins). */
 const DWELL_JITTER = 0.15;
+/** How long it takes to dissolve into its start pose when every clip that would take it anywhere has broken. */
+const DISSOLVE_S = 0.5;
 
 /** Decides which clip plays next. The player calls next() exactly when the current clip ends. */
 export class BehaviorEngine {
   auto = true;
+  /** It was stuck in `pose` - every clip out of it had broken - and dissolves into its start pose instead. */
+  onStranded: (pose: PoseId) => void = () => {};
   private queue: Step[] = [];
   private current: Step | null = null;
   private readonly broken = new Set<ClipId>();
@@ -48,8 +52,8 @@ export class BehaviorEngine {
       const { back } = this.visiting;
       this.visiting = null;
       this.commanded = null;
-      if (this.plan(back)) return this.take(this.queue.shift()!);
-      return this.take(this.idleOf(pose, 0));
+      if (this.plan(back) || this.plan(this.pack.start)) return this.take(this.queue.shift()!);
+      return this.dissolveHome(pose);
     }
     const mayStay = !this.allowed || this.allowed.has(pose) || pose === this.commanded;
     if (!this.auto || (mayStay && this.restsOn(def))) return this.take(this.autoPounce(pose) ?? this.idleOf(pose, 0));
@@ -58,6 +62,7 @@ export class BehaviorEngine {
       if (this.pack.poses[target].brief) this.visiting = { pose: target, back: pose };
       return this.take(this.queue.shift()!);
     }
+    if (!findPath(this.pack.edges, pose, this.pack.start, this.broken)) return this.dissolveHome(pose);
     return this.take(this.idleOf(pose, 0));
   }
 
@@ -175,6 +180,7 @@ export class BehaviorEngine {
   private pickRest(ms: number): number { return ms * (1 - DWELL_JITTER + 2 * DWELL_JITTER * this.rng()); }
 
   private go(target: PoseId): boolean {
+    if (!findPath(this.pack.edges, this.endPose, target, this.broken)) return false;   // no way there: it carries on as it was
     this.queue = [];
     this.commanded = target;
     this.visiting = null;
@@ -187,6 +193,15 @@ export class BehaviorEngine {
     const { steps, pendingFade } = pathToSteps(this.pack, path);
     this.queue.push(...steps, this.idleOf(target, pendingFade));
     return true;
+  }
+
+  /** Stuck in `pose` for good otherwise: dissolve into the start pose, as a prop's pose does. */
+  private dissolveHome(pose: PoseId): Step {
+    this.queue = [];
+    this.visiting = null;
+    this.commanded = null;
+    this.onStranded(pose);
+    return this.take(this.idleOf(this.pack.start, DISSOLVE_S));
   }
 
   private idleOf(pose: PoseId, fadeIn: number): Step {
