@@ -15,6 +15,8 @@ export interface PetEvents {
   log(id: string, level: LogLevel, message: string): void;
   fightState(id: string, state: FightState): void;
   woke(id: string): void;
+  head(id: string, head: { x: number; y: number }, settled: boolean): void;
+  wheel(id: string, up: boolean): void;
 }
 
 /**
@@ -76,6 +78,8 @@ export class PetWindow {
       case 'pet:log': this.events.log(this.id, args[0] as LogLevel, String(args[1])); break;
       case 'pet:fight-state': this.events.fightState(this.id, args[0] as FightState); break;
       case 'pet:woke': this.events.woke(this.id); break;
+      case 'pet:head': this.events.head(this.id, { x: Number(args[0]), y: Number(args[1]) }, !!args[2]); break;
+      case 'pet:wheel': this.events.wheel(this.id, !!args[0]); break;
     }
   }
 

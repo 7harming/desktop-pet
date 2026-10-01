@@ -13,6 +13,10 @@ export interface InteractionDeps {
   restY: number;              // window top when standing on the taskbar
   getFrameX(): number;        // where the cat's frame sits inside the strip window
   setFrameX(x: number): void;
+  /** The wheel turned over the cat (up: towards the user). */
+  onWheel(up: boolean): void;
+  /** The strip moved to `winY` while dragged or falling (`dragging`), or has landed. */
+  onMoved(winY: number, dragging: boolean): void;
 }
 
 const DRAG_THRESHOLD = 6;
@@ -38,6 +42,7 @@ export class Interactions {
     window.addEventListener('mousedown', e => this.onDown(e));
     window.addEventListener('mouseup', () => this.onUp());
     window.addEventListener('contextmenu', e => { e.preventDefault(); if (d.hitTest(e.clientX, e.clientY)) d.api.openMenu(); });
+    window.addEventListener('wheel', e => { if (e.deltaY && d.hitTest(e.clientX, e.clientY)) d.onWheel(e.deltaY < 0); }, { passive: true });
   }
 
   setRestY(y: number): void { this.restY = y; }
@@ -63,6 +68,7 @@ export class Interactions {
       this.d.setFrameX(this.press.frameX + (e.screenX - this.press.x));
       this.winY = this.press.winY + (e.screenY - this.press.y);
       this.d.api.moveWindow(this.winY);
+      this.d.onMoved(this.winY, true);
       return;
     }
     if (!this.press) this.setInteractive(this.d.hitTest(e.clientX, e.clientY));
@@ -111,6 +117,7 @@ export class Interactions {
       vy += GRAVITY * dt;
       this.winY = Math.min(this.restY, this.winY + vy * dt);
       this.d.api.moveWindow(this.winY);
+      this.d.onMoved(this.winY, this.winY < this.restY);
       if (this.winY < this.restY) { requestAnimationFrame(tick); return; }
       this.d.wrap.animate([{ transform: 'scale(1.05, .95)' }, { transform: 'none' }], { duration: 350 });
       this.d.api.dragEnded(this.d.getFrameX());

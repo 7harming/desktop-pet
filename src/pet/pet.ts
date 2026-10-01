@@ -43,8 +43,10 @@ api.onInit((init: PetInit) => {
   let away = init.away;       // the user has left the computer: sleep, and hold still
   let slept = false;          // it went to sleep because the user left, so it gets up when they are back
   let waking = false;         // getting up because the user is back: it tells main once it rests awake
-  // auto mode holds off while it fights and while the user is away
-  const applyAuto = () => { engine.auto = userAuto && !fight && !away; };
+  let attending = false;      // sitting up for a reminder that is due, until it is answered
+  let moving = false;         // dragged or falling: cards wait for it to land
+  // auto mode holds off while it fights, while the user is away, and while it looks at them for a reminder
+  const applyAuto = () => { engine.auto = userAuto && !fight && !away && !attending; };
   const debug = init.debug ? { id: pack.id, history, engine, player, get mode() { return mode; } } : null;
   if (debug) (window as unknown as Record<string, unknown>).__pet = debug;
 
@@ -59,6 +61,7 @@ api.onInit((init: PetInit) => {
     const f = pack.fight;
     if (fight && !fight.ready && f && step.from === f.pose && step.to === f.pose) { fight.ready = true; api.fightState('ready'); }
     if (waking && step.from === step.to && !isAsleep(pack, step.to)) { waking = false; api.woke(); }
+    reportHead();
   };
   player.onEnded = () => {
     if (fight?.clip) {                // the fight is over: back to its own ways, with a word about it
@@ -106,7 +109,10 @@ api.onInit((init: PetInit) => {
   };
   api.onFightReady(({ side, manual }) => {
     const f = pack.fight;
-    if (fight || !f || mode !== 'live' || busy || away || (!manual && !userAuto) || isAsleep(pack, engine.endPose)) { api.fightState('no'); return; }
+    if (fight || !f || mode !== 'live' || busy || away || attending || (!manual && !userAuto) || isAsleep(pack, engine.endPose)) {
+      api.fightState('no');
+      return;
+    }
     fight = { side, ready: false, clip: null, timer: setTimeout(() => { endFight(); api.fightState('no'); }, 20_000) };
     applyAuto();
     if (engine.restingIn(f.pose)) { fight.ready = true; api.fightState('ready'); }
@@ -135,7 +141,13 @@ api.onInit((init: PetInit) => {
   let frameX = init.frameX;
   const setFrameX = (x: number) => { frameX = x; cat.style.left = `${x}px`; };
   setFrameX(frameX);
-  api.onFrameX(setFrameX);
+  /** Tell main where the head is (screen px) and whether the cat stands still; `winY`: the strip's top while it moves. */
+  const reportHead = (winY = window.screenY) => {
+    const step = player.step;
+    const pose = pack.poses[step ? step.to : pack.start];
+    api.reportHead(window.screenX + frameX + pose.centerX * frameW(), winY + (g0 - pose.head) * window.innerHeight, mode === 'live' && !moving);
+  };
+  api.onFrameX(x => { setFrameX(x); reportHead(); });
 
   const bubbles = new Bubbles(stage, () => ({
     x: frameX + poseValueAt(pack, player.step, player.progress, 'centerX') * frameW(),
@@ -186,8 +198,19 @@ api.onInit((init: PetInit) => {
     },
     onDragStart: () => bubbles.say(pickLine(pack.lines.drag, Math.random), 1600),
     onNoDrag: () => bubbles.say(pickLine(pack.lines.noDrag, Math.random)),
+    onWheel: up => api.wheel(up),
+    onMoved: (winY, dragging) => { moving = dragging; reportHead(winY); },
   });
-  api.onRestY(y => interactions.setRestY(y));
+  api.onRestY(y => { interactions.setRestY(y); requestAnimationFrame(() => reportHead()); });
+  // a reminder is due: it sits up and looks at the user until it is answered, then lies down again
+  api.onAttend(on => {
+    if (on === attending) return;
+    attending = on;
+    applyAuto();
+    if (mode !== 'live' || fight || away) return;
+    if (on) { if (pack.alert) engine.command(pack.alert); }
+    else engine.command(pack.start);
+  });
   api.onSay(what => {
     if (mode !== 'live') return;
     const lines = what === 'back' ? pack.lines.back : pack.lines.time?.[what];
@@ -283,6 +306,7 @@ api.onInit((init: PetInit) => {
     walker!.clear();
     // only now: leaving any earlier would start depart on the walker, and the clear above would stop it
     mode = 'live'; busy = false;
+    reportHead();
     if (exitWanted) { leave(); return; }
     greet(300);
     settle();

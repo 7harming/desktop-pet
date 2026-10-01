@@ -32,5 +32,8 @@ const api: PetApi = {
   log: (level, message) => ipcRenderer.send('pet:log', level, message),
   fightState: state => ipcRenderer.send('pet:fight-state', state),
   woke: () => ipcRenderer.send('pet:woke'),
+  onAttend: cb => listen('pet:attend', cb),
+  reportHead: (x, y, settled) => ipcRenderer.send('pet:head', x, y, settled),
+  wheel: up => ipcRenderer.send('pet:wheel', up),
 };
 contextBridge.exposeInMainWorld('petApi', api);

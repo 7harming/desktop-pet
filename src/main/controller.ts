@@ -23,7 +23,7 @@ import { SettingsStore } from './settings-store';
 import { TrayController } from './tray';
 
 const PET_CHANNELS = ['pet:ready', 'pet:set-interactive', 'pet:move', 'pet:drag-end', 'pet:menu', 'pet:status', 'pet:reminder-result', 'pet:log', 'pet:exited',
-  'pet:fight-state', 'pet:woke'];
+  'pet:fight-state', 'pet:woke', 'pet:head', 'pet:wheel'];
 /** Walking off can mean first getting out of the box, then getting up and crossing the screen; never wait longer than this. */
 const EXIT_TIMEOUT_MS = 45_000;
 /** Passed by the login item, so a start at login can tell itself from being opened by hand. */
@@ -585,6 +585,8 @@ export class AppController {
       log: (id, level, message) => this.log[level](`[${id}] ${message}`),
       fightState: (id, state) => this.onFightState(id, state),
       woke: id => this.onWoke(id),
+      head: () => {},
+      wheel: () => {},
     };
   }
 

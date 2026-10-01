@@ -55,6 +55,12 @@ export interface PetApi {
   fightState(state: FightState): void;
   /** It has sat up (or was up) after the user came back. */
   woke(): void;
+  /** A reminder is due (true): sit up and look at the user until it is answered (false). */
+  onAttend(cb: (on: boolean) => void): void;
+  /** Where the head is on screen (px), and whether the cat stands still there (not walking in, not dragged): cards go above it. */
+  reportHead(x: number, y: number, settled: boolean): void;
+  /** The wheel turned over the cat: up brings its card, down puts it away. */
+  wheel(up: boolean): void;
 }
 
 export interface PanelPet {
