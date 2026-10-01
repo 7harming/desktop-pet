@@ -14,6 +14,7 @@ export interface PetEvents {
   exited(id: string): void;
   log(id: string, level: LogLevel, message: string): void;
   fightState(id: string, state: FightState): void;
+  woke(id: string): void;
 }
 
 /**
@@ -74,6 +75,7 @@ export class PetWindow {
       case 'pet:reminder-result': this.events.reminderResult(this.id, args[0] as ReminderType, args[1] as ReminderResult); break;
       case 'pet:log': this.events.log(this.id, args[0] as LogLevel, String(args[1])); break;
       case 'pet:fight-state': this.events.fightState(this.id, args[0] as FightState); break;
+      case 'pet:woke': this.events.woke(this.id); break;
     }
   }
 

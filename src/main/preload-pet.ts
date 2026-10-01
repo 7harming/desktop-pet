@@ -18,6 +18,9 @@ const api: PetApi = {
   onFightReady: cb => listen('pet:fight-ready', cb),
   onFightGo: cb => listen('pet:fight-go', cb),
   onFightCancel: cb => listen('pet:fight-cancel', cb),
+  onAway: cb => listen('pet:away', cb),
+  onSay: cb => listen('pet:say', cb),
+  onDayPart: cb => listen('pet:day-part', cb),
   ready: () => ipcRenderer.send('pet:ready'),
   setInteractive: interactive => ipcRenderer.send('pet:set-interactive', interactive),
   moveWindow: y => ipcRenderer.send('pet:move', y),
@@ -28,5 +31,6 @@ const api: PetApi = {
   reminderResult: (type, result) => ipcRenderer.send('pet:reminder-result', type, result),
   log: (level, message) => ipcRenderer.send('pet:log', level, message),
   fightState: state => ipcRenderer.send('pet:fight-state', state),
+  woke: () => ipcRenderer.send('pet:woke'),
 };
 contextBridge.exposeInMainWorld('petApi', api);

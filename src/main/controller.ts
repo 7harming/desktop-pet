@@ -1,13 +1,15 @@
 import { app, ipcMain, Menu, Notification, powerMonitor, screen, type WebContents } from 'electron';
 import { join } from 'node:path';
 import { actionKey, pounceSide } from '../shared/actions';
+import { AwayWatch } from '../shared/away';
 import { closestPair } from '../shared/fight';
 import type { FightState, PanelAction, PanelState } from '../shared/ipc';
 import { reminderLine } from '../shared/lines';
 import { findFreeCenter } from '../shared/placement';
 import { ReminderScheduler } from '../shared/reminders';
-import { ACTION_INTERVALS, DEFAULT_X, MAX_SCALE, MIN_SCALE, type Settings } from '../shared/settings';
-import type { Pack, ReminderType } from '../shared/types';
+import { ACTION_INTERVALS, AWAY_CHOICES, DEFAULT_X, MAX_SCALE, MIN_SCALE, type Settings } from '../shared/settings';
+import { clockEvents, dayPart, helloDay, helloEvent, type DayPart } from '../shared/time-events';
+import type { Pack, ReminderType, TimeEvent } from '../shared/types';
 import { APP_ORIGIN } from './app-protocol';
 import { BreakWindow } from './break-window';
 import type { Logger } from './logger';
@@ -21,7 +23,7 @@ import { SettingsStore } from './settings-store';
 import { TrayController } from './tray';
 
 const PET_CHANNELS = ['pet:ready', 'pet:set-interactive', 'pet:move', 'pet:drag-end', 'pet:menu', 'pet:status', 'pet:reminder-result', 'pet:log', 'pet:exited',
-  'pet:fight-state'];
+  'pet:fight-state', 'pet:woke'];
 /** Walking off can mean first getting out of the box, then getting up and crossing the screen; never wait longer than this. */
 const EXIT_TIMEOUT_MS = 45_000;
 /** Passed by the login item, so a start at login can tell itself from being opened by hand. */
@@ -37,6 +39,8 @@ const commandItems = (pack: Pack) => pack.commands.map(c => ({ label: c.label, p
 const BREAK_SECONDS = Number(process.env.DESKTOP_PET_BREAK_SECONDS) || 30;
 const MAX_CRASH_RESTARTS = 3;
 const REMINDER_TICK_MS = 15_000;
+/** How often to look whether the user has left the computer or come back. */
+const AWAY_TICK_MS = 2_000;
 /** Play-fights by themselves: looked for this often, started with this chance when two cats are close, at most once per gap. */
 const FIGHT_TICK_MS = 20_000;
 const FIGHT_CHANCE = 0.25;
@@ -73,6 +77,16 @@ export class AppController {
   protected readonly panel: PanelWindow;
   private tray: TrayController | null = null;
   scheduler!: ReminderScheduler;
+  private readonly awayWatch: AwayWatch;
+  /**
+   * How long the computer has had no key or mouse input, in seconds. Tests set DESKTOP_PET_FAKE_IDLE (the machine running them
+   * sits idle, which would send every cat to sleep) and replace this when they want the user away.
+   */
+  idleSeconds = () => (process.env.DESKTOP_PET_FAKE_IDLE ? Number(process.env.DESKTOP_PET_FAKE_IDLE) : powerMonitor.getSystemIdleTime());
+  private part: DayPart = dayPart(new Date());
+  private lastTick = new Date();
+  /** The day the cats last said good morning (days start at 5:00). */
+  private helloDay: string | null = null;
 
   constructor(protected readonly paths: AppPaths, readonly log: Logger, readonly debug: boolean) {
     this.packs = loadPacks(paths.packsDir);
@@ -84,6 +98,7 @@ export class AppController {
     const loaded = this.store.load(this.validPacks().map(p => p.id));
     this.settings = loaded.settings;
     this.warning = loaded.warning;
+    this.awayWatch = new AwayWatch(this.settings.awayMinutes);
     for (const ch of PET_CHANNELS) ipcMain.on(ch, (e, ...args) => this.petFor(e.sender)?.handle(ch, args));
     this.panel = new PanelWindow(paths.uiDir);
     ipcMain.handle('panel:get-state', () => this.panelState());
@@ -104,13 +119,17 @@ export class AppController {
       const firstId = this.settings.petOrder[0];
       if (firstId) this.settings.pets[firstId].visible = true;
     }
-    for (const id of this.settings.petOrder) if (this.settings.pets[id]?.visible) this.showPet(id);
+    // the first cat out greets for the time of day (good morning), once a day
+    const hello = this.takeHello(new Date());
+    this.settings.petOrder.filter(id => this.settings.pets[id]?.visible).forEach((id, i) => this.showPet(id, true, i === 0 ? hello : null));
     this.saveSoon();
     const r = this.settings.reminders;
     this.scheduler = new ReminderScheduler({ water: r.water, stretch: r.stretch, eyes: r.eyes }, Date.now());
     if (r.pausedUntil && r.pausedUntil > Date.now()) this.scheduler.pause(r.pausedUntil);
-    setInterval(() => this.tickReminders(), REMINDER_TICK_MS);
+    setInterval(() => this.tick(), REMINDER_TICK_MS);
+    setInterval(() => this.checkAway(), AWAY_TICK_MS);
     setInterval(() => {
+      if (this.awayWatch.away) return;
       if (this.settings.fightAuto && Date.now() - this.lastFight > FIGHT_GAP_MS && Math.random() < FIGHT_CHANCE) this.startFight(false);
     }, FIGHT_TICK_MS);
     const pauseAll = (paused: boolean) => { for (const p of this.pets.values()) p.send('pet:pause', paused); };
@@ -128,8 +147,8 @@ export class AppController {
     if (process.env.DESKTOP_PET_METRICS === '1') setInterval(() => this.logMetrics(), 60_000);
   }
 
-  /** `enter`: walk in from the left edge (app start, showing it again) rather than appear in place. */
-  showPet(id: string, enter = true): void {
+  /** `enter`: walk in from the left edge (app start, showing it again) rather than appear in place. `hello`: greet with this. */
+  showPet(id: string, enter = true, hello: TimeEvent | null = null): void {
     const pack = this.packOf(id);
     if (!pack) return;
     this.leaving.get(id)?.finish();           // shown again while walking off: that one goes at once
@@ -150,7 +169,7 @@ export class AppController {
     ps.visible = true;
     const pet = new PetWindow(pack, this.restBounds(id), wa,
       { auto: ps.auto, actions: ps.actions, interval: this.settings.actionInterval, restY: restY(pack, ps.scale, wa), debug: this.debug,
-        enter: enter && !!pack.walk }, this.petEvents(), this.paths.uiDir);
+        enter: enter && !!pack.walk, away: this.awayWatch.away, dayPart: this.part, hello }, this.petEvents(), this.paths.uiDir);
     this.pets.set(id, pet);
     this.saveSoon();
     this.changed();
@@ -211,6 +230,7 @@ export class AppController {
       actionInterval: this.settings.actionInterval,
       fightAuto: this.settings.fightAuto,
       canFight: this.validPacks().filter(p => p.pack.fight).length >= 2,
+      awayMinutes: this.settings.awayMinutes,
       notice: this.notice && this.notice.until > Date.now() ? this.notice.text : null,
       version: app.getVersion(),
       warning: this.warning,
@@ -232,6 +252,12 @@ export class AppController {
       case 'autoStart': this.setAutoStart(a.on); break;
       case 'actionInterval': this.setActionInterval(a.seconds); break;
       case 'fightAuto': this.settings.fightAuto = a.on; this.saveSoon(); break;
+      case 'awayMinutes':
+        if (!AWAY_CHOICES.includes(a.minutes)) break;
+        this.settings.awayMinutes = a.minutes;
+        this.awayWatch.setMinutes(a.minutes);
+        this.saveSoon();
+        break;
       case 'fight': {
         const why = this.startFight(true);
         this.notice = why ? { text: why, until: Date.now() + NOTICE_MS } : null;
@@ -417,14 +443,63 @@ export class AppController {
     else this.scheduler.done(t, Date.now());
   }
 
-  private tickReminders(): void {
+  tick(): void {
     const now = Date.now();
     if (this.settings.reminders.pausedUntil && now >= this.settings.reminders.pausedUntil) {
       this.settings.reminders.pausedUntil = null;
       this.saveSoon();
       this.changed();
     }
+    this.tickClock(new Date(now));
+    if (this.awayWatch.away) return;        // the reminders wait: they start counting again when the user is back
     for (const t of this.scheduler.due(now)) this.deliver(t);
+  }
+
+  /** What the time of day brings: a line now and then (lunch, bedtime, ...), and sleepier cats after lunch and late at night. */
+  private tickClock(now: Date): void {
+    const events = clockEvents(this.lastTick, now);
+    this.lastTick = now;
+    if (!this.awayWatch.away && !this.breaking) for (const e of events) this.sayFromOne(e);
+    const part = dayPart(now);
+    if (part === this.part) return;
+    this.part = part;
+    for (const pet of this.pets.values()) {
+      pet.updateInit({ dayPart: part });
+      pet.send('pet:day-part', part);
+    }
+  }
+
+  /** The user left the computer, or is back: the cats go to sleep, or wake up and one of them says hello. */
+  checkAway(): void {
+    const change = this.awayWatch.update(this.idleSeconds());
+    if (!change) return;
+    const away = change === 'away';
+    this.log.info(away ? '離開電腦：貓咪去睡覺' : '回到電腦');
+    for (const pet of this.pets.values()) {
+      pet.updateInit({ away });
+      pet.send('pet:away', away);
+    }
+    if (away) { this.endFight(); return; }
+    this.scheduler.resetAll(Date.now());
+    this.sayFromOne(this.takeHello(new Date()) ?? 'back');
+  }
+
+  /** The greeting for the day's first hello, if it is the first and the time is right (see helloEvent). */
+  private takeHello(now: Date): TimeEvent | null {
+    const day = helloDay(now);
+    if (day === this.helloDay) return null;
+    const hello = helloEvent(now);
+    if (hello) this.helloDay = day;
+    return hello;
+  }
+
+  /** One of the cats on the desktop says it (only one, so they do not both say the same). */
+  private sayFromOne(what: TimeEvent | 'back'): void {
+    const ids = this.settings.petOrder.filter(id => this.onScreen(id));
+    if (!ids.length) return;
+    const id = ids[Math.floor(Math.random() * ids.length)];
+    this.pets.get(id)!.send('pet:say', what);
+    this.log.info(`說：${what}（${id}）`);
   }
 
   /**
@@ -509,8 +584,12 @@ export class AppController {
       exited: id => this.leaving.get(id)?.finish(),
       log: (id, level, message) => this.log[level](`[${id}] ${message}`),
       fightState: (id, state) => this.onFightState(id, state),
+      woke: id => this.onWoke(id),
     };
   }
+
+  /** A cat has sat up after the user came back. */
+  protected onWoke(id: string): void { this.log.info(`[${id}] 醒了`); }
 
   protected onPetMenu(id: string): void {
     const pet = this.pets.get(id);

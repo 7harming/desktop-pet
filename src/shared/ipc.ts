@@ -52,6 +52,8 @@ export interface PetApi {
   reminderResult(type: ReminderType, result: ReminderResult): void;
   log(level: LogLevel, message: string): void;
   fightState(state: FightState): void;
+  /** It has sat up (or was up) after the user came back. */
+  woke(): void;
 }
 
 export interface PanelPet {

@@ -1,6 +1,6 @@
 import { pounceSide } from '../shared/actions';
 import type { PanelAction, PanelPet, PanelState } from '../shared/ipc';
-import { ACTION_INTERVALS, MAX_SCALE, MIN_SCALE } from '../shared/settings';
+import { ACTION_INTERVALS, AWAY_CHOICES, MAX_SCALE, MIN_SCALE } from '../shared/settings';
 
 const api = window.panelApi;
 const $ = (id: string) => document.getElementById(id)!;
@@ -109,9 +109,13 @@ function settingsTab(): HTMLElement[] {
   const interval = el('select', { className: 'action-interval' });
   for (const s of ACTION_INTERVALS) interval.append(el('option', { value: String(s), textContent: `約 ${s} 秒`, selected: state.actionInterval === s }));
   interval.addEventListener('change', () => act({ kind: 'actionInterval', seconds: Number(interval.value) }));
+  const away = el('select', { className: 'away-minutes' });
+  for (const m of AWAY_CHOICES) away.append(el('option', { value: String(m), textContent: m ? `${m} 分鐘` : '關閉', selected: state.awayMinutes === m }));
+  away.addEventListener('change', () => act({ kind: 'awayMinutes', minutes: Number(away.value) }));
   return [el('div', { className: 'card' },
     el('div', { className: 'line' }, el('label', {}, autostart, '開機自動啟動')),
     el('div', { className: 'line' }, el('span', {}, '自動行動時，多久換一個動作'), interval),
+    el('div', { className: 'line' }, el('span', {}, '離開電腦多久，貓咪就去睡覺（提醒也先暫停）'), away),
     el('div', { className: 'line' }, el('span', {}, '貓咪跑到奇怪的地方時'), reset),
     el('div', { className: 'line' }, el('span', {}, '版本'), `v${state.version}`))];
 }

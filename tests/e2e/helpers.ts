@@ -6,7 +6,8 @@ import { join, resolve } from 'node:path';
 export async function launch(extraEnv: Record<string, string> = {}, userDir = mkdtempSync(join(tmpdir(), 'dpet-e2e-')), extraArgs: string[] = []) {
   const app = await electron.launch({
     args: ['.', ...extraArgs],
-    env: { ...process.env, DESKTOP_PET_PACKS: resolve('tests/fixtures/packs'), DESKTOP_PET_USERDATA: userDir, DESKTOP_PET_DEBUG: '1', ...extraEnv },
+    env: { ...process.env, DESKTOP_PET_PACKS: resolve('tests/fixtures/packs'), DESKTOP_PET_USERDATA: userDir, DESKTOP_PET_DEBUG: '1',
+      DESKTOP_PET_FAKE_IDLE: '0', ...extraEnv },
   });
   return { app, userDir };
 }

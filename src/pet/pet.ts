@@ -2,9 +2,10 @@ import { pounceSide } from '../shared/actions';
 import { BehaviorEngine } from '../shared/behavior';
 import { fightClip } from '../shared/fight';
 import type { PetInit } from '../shared/ipc';
+import type { DayPart } from '../shared/time-events';
 import type { PounceSide } from '../shared/types';
 import { clickLine, commandLine, pickLine, reminderLine } from '../shared/lines';
-import { isAsleep, poseValueAt, showsShadow } from '../shared/pose-geometry';
+import { isAsleep, poseValueAt, showsShadow, sleepPoses } from '../shared/pose-geometry';
 import { arriveGlidePx, departGlidePx, planWalkIn, planWalkOut, type WalkPlan } from '../shared/walk-plan';
 import { Bubbles } from './bubble';
 import { Interactions } from './interactions';
@@ -16,20 +17,34 @@ const layer = document.getElementById('layer')!;
 const shadow = document.getElementById('shadow')!;
 const cat = document.getElementById('cat')!;
 const stage = document.getElementById('stage')!;
+/** After lunch and late at night auto mode picks asleep poses this many times as often, and rests this many times as long. */
+const SLEEPY: Record<DayPart, number> = { day: 1, nap: 3, night: 3 };
+const SLOW: Record<DayPart, number> = { day: 1, nap: 1, night: 2 };
+/** A line for the time of day stays up longer than a passing one, to be noticed. */
+const SAY_MS = 5_000;
 
 api.onInit((init: PetInit) => {
   const { pack } = init;
   const engine = new BehaviorEngine(pack, Math.random);
-  engine.auto = init.auto;
+  engine.auto = init.auto && !init.away;
   engine.setAllowed(init.actions);
-  engine.setDwell(init.interval);
+  let interval = init.interval;
+  let part = init.dayPart;
+  const applyPart = () => { engine.setSleepiness(SLEEPY[part]); engine.setDwell(interval * SLOW[part]); };
+  applyPart();
   const player = new Player(layer, pack, init.packUrl);
   const history: string[] = [];
   // entering: walking in; live: its normal life; leaving: heading back to the start pose; gone: getting up and walking off
   let mode: 'entering' | 'live' | 'leaving' | 'gone' = 'live';
   let exitWanted = false;   // told to leave while still walking in
   // a play-fight with the cat next to it: `ready` once resting in the fight pose, `clip` once fighting
-  let fight: { side: PounceSide; wasAuto: boolean; ready: boolean; clip: string | null; timer: ReturnType<typeof setTimeout> } | null = null;
+  let fight: { side: PounceSide; ready: boolean; clip: string | null; timer: ReturnType<typeof setTimeout> } | null = null;
+  let userAuto = init.auto;   // auto mode as the menu and the panel set it
+  let away = init.away;       // the user has left the computer: sleep, and hold still
+  let slept = false;          // it went to sleep because the user left, so it gets up when they are back
+  let waking = false;         // getting up because the user is back: it tells main once it rests awake
+  // auto mode holds off while it fights and while the user is away
+  const applyAuto = () => { engine.auto = userAuto && !fight && !away; };
   const debug = init.debug ? { id: pack.id, history, engine, player, get mode() { return mode; } } : null;
   if (debug) (window as unknown as Record<string, unknown>).__pet = debug;
 
@@ -43,6 +58,7 @@ api.onInit((init: PetInit) => {
     player.keep(engine.upcomingClips());
     const f = pack.fight;
     if (fight && !fight.ready && f && step.from === f.pose && step.to === f.pose) { fight.ready = true; api.fightState('ready'); }
+    if (waking && step.from === step.to && !isAsleep(pack, step.to)) { waking = false; api.woke(); }
   };
   player.onEnded = () => {
     if (fight?.clip) {                // the fight is over: back to its own ways, with a word about it
@@ -77,21 +93,22 @@ api.onInit((init: PetInit) => {
     const line = commandLine(pack, key);
     if (line) bubbles.say(line);
   });
-  api.onSetAuto(on => { if (fight) fight.wasAuto = on; else engine.auto = on; });
+  api.onSetAuto(on => { userAuto = on; applyAuto(); });
 
   // Both cats must start the fight together: each gets to its fight pose and holds still there (auto off) until main, having heard
   // `ready` from both, says go.
   const endFight = () => {
     if (!fight) return;
     clearTimeout(fight.timer);
-    engine.auto = fight.wasAuto;
     fight = null;
+    applyAuto();
+    settle();
   };
   api.onFightReady(({ side, manual }) => {
     const f = pack.fight;
-    if (fight || !f || mode !== 'live' || busy || (!manual && !engine.auto) || isAsleep(pack, engine.endPose)) { api.fightState('no'); return; }
-    fight = { side, wasAuto: engine.auto, ready: false, clip: null, timer: setTimeout(() => { endFight(); api.fightState('no'); }, 20_000) };
-    engine.auto = false;
+    if (fight || !f || mode !== 'live' || busy || away || (!manual && !userAuto) || isAsleep(pack, engine.endPose)) { api.fightState('no'); return; }
+    fight = { side, ready: false, clip: null, timer: setTimeout(() => { endFight(); api.fightState('no'); }, 20_000) };
+    applyAuto();
     if (engine.restingIn(f.pose)) { fight.ready = true; api.fightState('ready'); }
     else if (!engine.command(f.pose)) { endFight(); api.fightState('no'); }
   });
@@ -106,7 +123,8 @@ api.onInit((init: PetInit) => {
   });
   api.onFightCancel(endFight);
   api.onSetActions(actions => engine.setAllowed(actions));
-  api.onSetInterval(seconds => engine.setDwell(seconds));
+  api.onSetInterval(seconds => { interval = seconds; applyPart(); });
+  api.onDayPart(p => { part = p; applyPart(); });
   api.onPause(paused => { if (paused) player.pause(); else player.resume(); });
 
   const g0 = pack.poses[pack.start].ground;
@@ -170,6 +188,29 @@ api.onInit((init: PetInit) => {
     onNoDrag: () => bubbles.say(pickLine(pack.lines.noDrag, Math.random)),
   });
   api.onRestY(y => interactions.setRestY(y));
+  api.onSay(what => {
+    if (mode !== 'live') return;
+    const lines = what === 'back' ? pack.lines.back : pack.lines.time?.[what];
+    if (lines) bubbles.say(pickLine(lines, Math.random), SAY_MS);
+  });
+
+  // the user left: it goes to sleep in one of its sleeping poses (unless asleep already) and stays there; back, it sits up again
+  // if it went to sleep for that, and says so once it is up
+  const settle = () => {
+    if (!away || mode !== 'live' || fight || isAsleep(pack, engine.endPose)) return;
+    const poses = sleepPoses(pack);
+    const pose = poses[Math.floor(Math.random() * poses.length)];
+    if (pose && engine.command(pose)) slept = true;
+  };
+  api.onAway(a => {
+    away = a;
+    applyAuto();
+    if (a) { settle(); return; }
+    if (slept && mode === 'live' && !fight && isAsleep(pack, engine.endPose) && engine.command(pack.alert ?? pack.start)) waking = true;
+    else api.woke();
+    slept = false;
+  });
+
   const DONE_LABEL = { water: '喝好了', stretch: '動好了', eyes: '休息好了' } as const;
   api.onReminder(type => {
     // a reminder pose (drinking from the bowl): go there for a while, then back to what it was doing
@@ -217,7 +258,8 @@ api.onInit((init: PetInit) => {
   }
   const walkLoops = (plan: WalkPlan, mirror: boolean, onFirstFrame?: () => void) =>
     walker!.run({ plan, frameW: frameW(), frameH: window.innerHeight, ground: g0, mirror, onFirstFrame });
-  const greet = (ms: number) => setTimeout(() => { if (mode === 'live') bubbles.say(pickLine(pack.lines.greet, Math.random)); }, ms);
+  const greetLines = (init.hello && pack.lines.time?.[init.hello]) || pack.lines.greet;
+  const greet = (ms: number) => setTimeout(() => { if (mode === 'live') bubbles.say(pickLine(greetLines, Math.random), init.hello ? SAY_MS : undefined); }, ms);
 
   const clipUrl = (clip: string) => new URL(pack.clips[clip].file, init.packUrl).href;
 
@@ -241,7 +283,9 @@ api.onInit((init: PetInit) => {
     walker!.clear();
     // only now: leaving any earlier would start depart on the walker, and the clear above would stop it
     mode = 'live'; busy = false;
-    if (exitWanted) leave(); else greet(300);
+    if (exitWanted) { leave(); return; }
+    greet(300);
+    settle();
   };
 
   /** Head back to the start pose (or go at once if resting there), get up and walk off the left edge. */
@@ -274,7 +318,7 @@ api.onInit((init: PetInit) => {
 
   requestAnimationFrame(frame);
   if (init.enter && walk) void walkIn();
-  else { void player.play(engine.start()); greet(800); }
+  else { void player.play(engine.start()); greet(800); settle(); }
 });
 
 api.ready();
