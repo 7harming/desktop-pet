@@ -13,6 +13,12 @@ describe('normalizeSettings', () => {
     expect(settings.fightAuto).toBe(true);
     expect(normalizeSettings({ fightAuto: false }, ['a']).settings.fightAuto).toBe(false);
   });
+  it('counts the user away after 5 minutes unless told otherwise', () => {
+    expect(normalizeSettings(undefined, ['a']).settings.awayMinutes).toBe(5);
+    expect(normalizeSettings({ awayMinutes: 0 }, ['a']).settings.awayMinutes).toBe(0);
+    expect(normalizeSettings({ awayMinutes: 10 }, ['a']).settings.awayMinutes).toBe(10);
+    expect(normalizeSettings({ awayMinutes: 7 }, ['a']).settings.awayMinutes).toBe(5);
+  });
   it('keeps a saved action interval that is one of the choices', () => {
     expect(normalizeSettings({ actionInterval: 60 }, ['a']).settings.actionInterval).toBe(60);
     expect(normalizeSettings({ actionInterval: 45 }, ['a']).settings.actionInterval).toBe(30);

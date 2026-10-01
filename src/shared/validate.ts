@@ -70,5 +70,10 @@ export function validatePack(pack: Pack, fileExists: (relPath: string) => boolea
     if (!p) errors.push(`提醒 ${type} 指到不存在的姿勢：${pose}`);
     else if (p.transient) errors.push(`提醒 ${type} 不能指到過渡姿勢：${pose}`);
   }
+  if (pack.alert !== undefined) {
+    const p = pack.poses[pack.alert];
+    if (!p) errors.push(`alert 指到不存在的姿勢：${pack.alert}`);
+    else if (p.transient || p.brief || p.asleep) errors.push(`alert 要是清醒、可以停留的姿勢：${pack.alert}`);
+  }
   return errors;
 }

@@ -1,4 +1,5 @@
-import type { Pack, PoseId, PounceSide, ReminderType } from './types';
+import type { DayPart } from './time-events';
+import type { Pack, PoseId, PounceSide, ReminderType, TimeEvent } from './types';
 
 /**
  * A play-fight, pet to main: `ready` resting in its fight pose (holding there), `no` it can not now (asleep, walking, ...), `done`
@@ -12,6 +13,9 @@ export interface FightCall { side: PounceSide; manual: boolean }
 export interface PetInit {
   pack: Pack; packUrl: string; frameX: number; auto: boolean; actions: PoseId[] | null; interval: number; restY: number; debug: boolean;
   enter: boolean;   // walk in from the left edge (when the pack can walk)
+  away: boolean;    // the user is away from the computer: the cat sleeps
+  dayPart: DayPart;
+  hello: TimeEvent | null;   // greet with this (good morning) rather than an ordinary greeting
 }
 export type ReminderResult = 'done' | 'snooze';
 export type LogLevel = 'info' | 'warn' | 'error';
@@ -32,6 +36,11 @@ export interface PetApi {
   onFightReady(cb: (call: FightCall) => void): void;
   onFightGo(cb: () => void): void;
   onFightCancel(cb: () => void): void;
+  /** The user has left the computer (true), or is back (false). */
+  onAway(cb: (away: boolean) => void): void;
+  /** Say a line: one for the time of day, or `back` (the user is back at the computer). */
+  onSay(cb: (what: TimeEvent | 'back') => void): void;
+  onDayPart(cb: (part: DayPart) => void): void;
   ready(): void;
   setInteractive(interactive: boolean): void;
   /** Lift or lower the strip window (a drag moves the cat sideways inside it). */
@@ -57,6 +66,7 @@ export interface PanelState {
   /** Two cats close together play-fight now and then; `canFight`: at least two packs can. `notice`: why a fight did not start. */
   fightAuto: boolean;
   canFight: boolean;
+  awayMinutes: number;
   notice: string | null;
   version: string;
   warning: string | null;
@@ -69,6 +79,7 @@ export type PanelAction =
   | { kind: 'autoStart'; on: boolean }
   | { kind: 'actionInterval'; seconds: number }
   | { kind: 'fightAuto'; on: boolean }
+  | { kind: 'awayMinutes'; minutes: number }
   | { kind: 'fight' }
   | { kind: 'resetPositions' }
   | { kind: 'testBreak' };

@@ -11,6 +11,8 @@ export interface Settings {
   autoStart: boolean;
   actionInterval: number;
   fightAuto: boolean;
+  /** No key or mouse for this many minutes counts as away: the cats go to sleep and the reminders wait. 0: never. */
+  awayMinutes: number;
   pets: Record<string, PetSettings>;
   petOrder: string[];
   reminders: ReminderSettings;
@@ -18,6 +20,7 @@ export interface Settings {
 
 export const REMINDER_CHOICES = [0, 30, 45, 60, 90];
 export const ACTION_INTERVALS = [15, 30, 60];
+export const AWAY_CHOICES = [0, 3, 5, 10];
 export const SIZE_PRESETS = { s: 0.5, m: 1, l: 1.3 } as const;
 /** A new cat rests near the bottom-right corner (pulled in as far as its props need). */
 export const DEFAULT_X = 0.85;
@@ -30,7 +33,7 @@ const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFi
 
 export function defaultSettings(): Settings {
   return {
-    version: 1, firstRunDone: false, autoStart: true, actionInterval: 30, fightAuto: true, pets: {}, petOrder: [],
+    version: 1, firstRunDone: false, autoStart: true, actionInterval: 30, fightAuto: true, awayMinutes: 5, pets: {}, petOrder: [],
     reminders: { water: 45, stretch: 60, eyes: 0, notify: true, pausedUntil: null },
   };
 }
@@ -51,6 +54,7 @@ export function normalizeSettings(raw: unknown, packIds: string[]): { settings: 
     autoStart: typeof r.autoStart === 'boolean' ? r.autoStart : d.autoStart,
     actionInterval: finite(r.actionInterval) && ACTION_INTERVALS.includes(r.actionInterval) ? r.actionInterval : d.actionInterval,
     fightAuto: typeof r.fightAuto === 'boolean' ? r.fightAuto : d.fightAuto,
+    awayMinutes: finite(r.awayMinutes) && AWAY_CHOICES.includes(r.awayMinutes) ? r.awayMinutes : d.awayMinutes,
     pets: {},
     petOrder: order,
     reminders: normalizeReminders(r.reminders, d.reminders),

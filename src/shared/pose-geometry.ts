@@ -22,3 +22,8 @@ export function showsShadow(pack: Pack, step: Step | null): boolean {
 export function isAsleep(pack: Pack, pose: PoseId): boolean {
   return !!pack.poses[pose].asleep;
 }
+
+/** The poses it may go to sleep in when the user is away: asleep, and neither a passing pose nor one it only visits. */
+export function sleepPoses(pack: Pack): PoseId[] {
+  return Object.entries(pack.poses).filter(([, p]) => p.asleep && !p.transient && !p.brief).map(([id]) => id);
+}

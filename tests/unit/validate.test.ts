@@ -8,6 +8,14 @@ describe('validatePack', () => {
   it('passes the test pack', () => {
     expect(validatePack(makePack(), allFiles)).toEqual([]);
   });
+  it('needs alert to be a pose it can stay awake in', () => {
+    const p = makePack(); p.alert = 'nowhere';
+    expect(validatePack(p, allFiles)).toContain('alert 指到不存在的姿勢：nowhere');
+    p.alert = 'perch';   // asleep
+    expect(validatePack(p, allFiles)).toContain('alert 要是清醒、可以停留的姿勢：perch');
+    p.alert = 'sit';
+    expect(validatePack(p, allFiles)).toEqual([]);
+  });
   it('reports missing files', () => {
     const e = validatePack(makePack(), f => f !== 'clips/go_perch.webm' && f !== 'portrait.png');
     expect(e).toContain('找不到頭像檔：portrait.png');

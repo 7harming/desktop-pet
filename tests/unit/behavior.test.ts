@@ -180,6 +180,15 @@ describe('BehaviorEngine', () => {
     expect(e.next()).toMatchObject({ from: 'rest', to: 'rest', fadeIn: 0.5 });
   });
 
+  it('picks asleep poses more often when sleepy', () => {
+    // rng 0.8 leaves rest (>= 0.7); targets perch(2, asleep) + sit(1): 0.8*3 = 2.4 lands on sit, but 0.8*(2*3+1) = 5.6 on perch
+    const awake = new BehaviorEngine(makePack(), constRng(0.8)); awake.start();
+    expect(awake.next().clip).toBe('rest_to_sit');
+    const sleepy = new BehaviorEngine(makePack(), constRng(0.8)); sleepy.start();
+    sleepy.setSleepiness(3);
+    expect(sleepy.next().clip).toBe('go_perch');
+  });
+
   it('interjects a pounce while resting, then carries on', () => {
     const e = new BehaviorEngine(makePack(), constRng(0)); e.start();
     expect(e.interject('pounce_right', 'rest')).toEqual({ clip: 'pounce_right', from: 'rest', to: 'rest', rate: 1, fadeIn: 0 });

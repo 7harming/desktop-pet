@@ -84,6 +84,27 @@ describe('parsePack', () => {
     expect(e).toHaveLength(3);
   });
 
+  it('checks the optional lines for coming back and for the clock', () => {
+    const ok: any = makePack(); ok.lines.back = ['回來了']; ok.lines.time = { lunch: ['吃飯'], bedtime: ['睡覺'] };
+    expect(parsePack(ok).errors).toEqual([]);
+    const p: any = makePack(); p.lines.back = 'x'; p.lines.time = { lunch: [], teatime: ['喝茶'] };
+    const e = parsePack(p).errors;
+    expect(e).toContain('lines.back 要是至少一句台詞的陣列');
+    expect(e).toContain('lines.time.lunch 要是至少一句台詞的陣列');
+    expect(e).toContain('lines.time 沒有 teatime 這種時間');
+    expect(e).toHaveLength(3);
+  });
+
+  it('checks the optional card and alert', () => {
+    const ok: any = makePack(); ok.card = 'memo'; ok.alert = 'sit';
+    expect(parsePack(ok).errors).toEqual([]);
+    const p: any = makePack(); p.card = 'diary'; p.alert = 3;
+    const e = parsePack(p).errors;
+    expect(e).toContain('card 要是 memo 或 todo');
+    expect(e).toContain('alert 要是姿勢名稱');
+    expect(e).toHaveLength(2);
+  });
+
   it('checks pounce commands', () => {
     const p: any = makePack();
     p.commands.push({ label: '亂撲', pounce: 'up' }, { label: '兩個都有', pose: 'sit', pounce: 'left' }, { label: '都沒有' });

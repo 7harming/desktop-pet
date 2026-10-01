@@ -68,6 +68,10 @@ export type LineSet = string[];
 export interface PoseLines { default: LineSet; [pose: string]: LineSet }
 export interface ReminderLines { default: string; [pose: string]: string }
 export type ReminderType = 'water' | 'stretch' | 'eyes';
+/** The card a cat holds over its head: 小昭 the reminders (`todo`), 阿胖 the memo (`memo`). */
+export type CardKind = 'memo' | 'todo';
+/** What the clock has the cats say (see time-events): the day's first hello, lunch, the end of the working day, Friday evening, bedtime. */
+export type TimeEvent = 'morning' | 'weekend' | 'lunch' | 'offWork' | 'friday' | 'bedtime';
 
 export interface PackLines {
   greet: LineSet;
@@ -78,6 +82,9 @@ export interface PackLines {
   reminders: Record<ReminderType, ReminderLines>;
   /** Said once a play-fight is over. */
   fight?: LineSet;
+  /** Said on waking up when the user is back at the computer. */
+  back?: LineSet;
+  time?: Partial<Record<TimeEvent, LineSet>>;
 }
 
 /** A menu / panel command: go to a pose, or pounce to one side. Exactly one of the two. */
@@ -106,4 +113,8 @@ export interface Pack {
   reminderPoses?: Partial<Record<ReminderType, PoseId>>;
   pounce?: PounceDef;
   fight?: FightDef;
+  /** The pose it sits up in to look at the user: woken when they are back, or with a reminder that is due. */
+  alert?: PoseId;
+  /** The card this cat holds (see the cards spec). */
+  card?: CardKind;
 }

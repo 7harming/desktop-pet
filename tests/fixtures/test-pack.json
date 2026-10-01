@@ -183,7 +183,15 @@
     },
     "fight": [
       "哼。"
-    ]
+    ],
+    "back": [
+      "回來了。"
+    ],
+    "time": {
+      "lunch": [
+        "吃飯。"
+      ]
+    }
   },
   "clickHeart": true,
   "commands": [
@@ -293,5 +301,6 @@
     "toRight": "fight_right",
     "left": 0.1875,
     "right": 0.5
-  }
+  },
+  "alert": "sit"
 }

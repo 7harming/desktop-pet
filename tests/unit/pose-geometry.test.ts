@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { poseValueAt, showsShadow, isAsleep, smooth } from '../../src/shared/pose-geometry';
+import { poseValueAt, showsShadow, isAsleep, sleepPoses, smooth } from '../../src/shared/pose-geometry';
 import { makePack } from './fixtures';
 
 const pack = makePack();
@@ -22,5 +22,11 @@ describe('pose geometry', () => {
   it('knows asleep poses', () => {
     expect(isAsleep(pack, 'perch')).toBe(true);
     expect(isAsleep(pack, 'rest')).toBe(false);
+  });
+  it('lists the poses it can sleep in: asleep, neither passing nor visited', () => {
+    const p = makePack();
+    expect(sleepPoses(p)).toEqual(['perch']);
+    p.poses.sit.asleep = true; p.poses.sit.brief = true;
+    expect(sleepPoses(p)).toEqual(['perch']);
   });
 });

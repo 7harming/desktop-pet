@@ -1,6 +1,7 @@
-import type { Pack, ReminderType } from './types';
+import type { Pack, ReminderType, TimeEvent } from './types';
 
 export const REMINDER_TYPES: ReminderType[] = ['water', 'stretch', 'eyes'];
+const TIME_EVENTS: TimeEvent[] = ['morning', 'weekend', 'lunch', 'offWork', 'friday', 'bedtime'];
 
 export interface ParseResult { pack: Pack | null; errors: string[] }
 
@@ -144,7 +145,17 @@ export function parsePack(raw: unknown): ParseResult {
     }
   }
   if (isObj(lines) && lines.fight !== undefined && !isStrArr(lines.fight)) err('lines.fight 要是至少一句台詞的陣列');
+  if (isObj(lines) && lines.back !== undefined && !isStrArr(lines.back)) err('lines.back 要是至少一句台詞的陣列');
+  if (isObj(lines) && lines.time !== undefined) {
+    if (!isObj(lines.time)) err('lines.time 要是一個物件');
+    else for (const [k, v] of Object.entries(lines.time)) {
+      if (!TIME_EVENTS.includes(k as TimeEvent)) err(`lines.time 沒有 ${k} 這種時間`);
+      else if (!isStrArr(v)) err(`lines.time.${k} 要是至少一句台詞的陣列`);
+    }
+  }
 
+  if (raw.alert !== undefined && !isStr(raw.alert)) err('alert 要是姿勢名稱');
+  if (raw.card !== undefined && raw.card !== 'memo' && raw.card !== 'todo') err('card 要是 memo 或 todo');
   if (typeof raw.clickHeart !== 'boolean') err('clickHeart 要是 true 或 false');
   if (!Array.isArray(raw.commands)) err('缺少 commands');
   else raw.commands.forEach((c, i) => {

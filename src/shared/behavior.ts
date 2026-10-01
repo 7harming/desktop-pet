@@ -26,6 +26,7 @@ export class BehaviorEngine {
   private dwellMs: number | null = null;   // auto mode rests about this long in a pose before moving on; null: a `stay` roll per idle
   private restSince = 0;                   // when it began resting in the pose it is in
   private restFor = 0;                     // how long it means to rest there this time
+  private sleepiness = 1;                  // auto mode picks asleep poses this many times as often
 
   constructor(private readonly pack: Pack, private readonly rng: Rng, private readonly now: Clock = Date.now) {}
 
@@ -129,6 +130,9 @@ export class BehaviorEngine {
     this.dwellMs = ms;
   }
 
+  /** Auto mode picks asleep poses `k` times as often as their weight says (after lunch, late at night). */
+  setSleepiness(k: number): void { this.sleepiness = k; }
+
   markBroken(clip: ClipId): void {
     this.broken.add(clip);
     this.queue = [];
@@ -217,10 +221,11 @@ export class BehaviorEngine {
       .filter(([id, p]) => id !== pose && !p.transient && (p.autoWeight ?? 1) > 0 && (!this.allowed || this.allowed.has(id)))
       .filter(([id]) => findPath(this.pack.edges, pose, id, this.broken) !== null);
     if (!candidates.length) return null;
-    const total = candidates.reduce((s, [, p]) => s + (p.autoWeight ?? 1), 0);
+    const weight = (p: PoseDef) => (p.autoWeight ?? 1) * (p.asleep ? this.sleepiness : 1);
+    const total = candidates.reduce((s, [, p]) => s + weight(p), 0);
     let r = this.rng() * total;
     for (const [id, p] of candidates) {
-      r -= p.autoWeight ?? 1;
+      r -= weight(p);
       if (r < 0) return id;
     }
     return candidates[candidates.length - 1][0];
