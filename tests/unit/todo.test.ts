@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { dayStart, dropOldDone, dueTodos, isDone, markDone, markUndone, newTodo, nextAt, occurrence, snooze, sortTodos, timeText, type Todo } from '../../src/shared/todo';
+import { dayStart, dropOldDone, dueTodos, isDone, markDone, markFired, markUndone, newTodo, nextAt, occurrence, sortTodos, timeText, type Todo } from '../../src/shared/todo';
 
 // 2026-10-05 is a Monday; the 10th a Saturday
 const at = (day: number, h: number, m = 0, s = 0) => new Date(2026, 9, day, h, m, s).getTime();
@@ -38,11 +38,13 @@ describe('dueTodos', () => {
     expect(dueTodos([once], at(5, 15, 0, 10), new Set(['o']))).toEqual([]);   // already showing
   });
 
-  it('does not bring up what was answered: done, or put off until its ten minutes are up', () => {
+  it('brings a reminder up once: not again whether it was ticked or not', () => {
     expect(dueTodos([markDone(once, at(5, 15, 1))], at(5, 15, 2))).toEqual([]);
-    const later = snooze(once, at(5, 15, 1));
-    expect(dueTodos([later], at(5, 15, 10))).toEqual([]);
-    expect(dueTodos([later], at(5, 15, 11))).toEqual([{ id: 'o', missed: false }]);
+    expect(dueTodos([markFired(once, at(5, 15, 0, 10))], at(5, 18, 0))).toEqual([]);
+    const daily = markFired(newTodo('d', '吃藥', 9, 0, 'daily', at(5, 6, 0)), at(5, 9, 0, 10));
+    expect(dueTodos([daily], at(5, 23, 0))).toEqual([]);
+    expect(isDone(daily, at(5, 23, 0))).toBe(false);                                   // still to tick
+    expect(dueTodos([daily], at(6, 9, 0, 5))).toEqual([{ id: 'd', missed: false }]);   // tomorrow's is a new one
   });
 
   it('lets a new daily reminder whose time has gone today wait for tomorrow', () => {

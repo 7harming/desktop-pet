@@ -6,7 +6,7 @@ import type { CardAction, CardState, TodoView } from '../shared/ipc';
 import type { Notes } from '../shared/notes';
 import type { CardSettings } from '../shared/settings';
 import { crossedMinute } from '../shared/time-events';
-import { dropOldDone, dueTodos, isDone, markDone, markUndone, MINUTES, newTodo, snooze, sortTodos, timeText, type DueTodo, type Repeat, type Todo } from '../shared/todo';
+import { dropOldDone, dueTodos, isDone, markDone, markFired, markUndone, MINUTES, newTodo, sortTodos, timeText, type DueTodo, type Repeat, type Todo } from '../shared/todo';
 import type { CardKind, Pack } from '../shared/types';
 
 export const CARD_KINDS: CardKind[] = ['todo', 'memo'];
@@ -17,7 +17,7 @@ const RANK: Record<Mode, number> = { auto: 0, hand: 1, due: 2 };
 const COALESCE_MS = 30_000;
 /** A card that popped up by itself goes after this long untouched (DESKTOP_PET_CARD_SECONDS: tests). */
 const AUTO_CLOSE_MS = (Number(process.env.DESKTOP_PET_CARD_SECONDS) || 30) * 1000;
-/** Once every reminder that was due is answered, the card goes after this long. */
+/** Once every reminder that was due is ticked, the card goes after this long. */
 const ANSWERED_CLOSE_MS = 3_000;
 /** Back at the computer: wait at most this long for the cat to sit up before its card pops. */
 const WOKE_WAIT_MS = 8_000;
@@ -43,7 +43,7 @@ interface OpenCard { card: CardWindow; petId: string; mode: Mode; hot: boolean; 
 /** The two cards (小昭's reminders, 阿胖's memo) over the cats' heads, the reminders' timing, and the cards popping up by themselves. */
 export class CardController {
   notes: Notes;
-  /** Reminders that came up and wait for an answer, each with whether it was missed. */
+  /** Reminders that came up and are not ticked yet, each with whether it was missed: the card marks them. */
   readonly pending = new Map<string, boolean>();
   readonly open = new Map<CardKind, OpenCard>();
   readonly heads = new Map<string, { x: number; y: number; settled: boolean }>();
@@ -215,8 +215,12 @@ export class CardController {
     if (!w.kinds.length) { clearTimeout(w.timer); this.wokeWait = null; }
   }
 
+  /** Reminders came up: once only, ticked or not (the card marks them until they are), with a notification and the cat sitting up. */
   private deliver(due: DueTodo[]): void {
+    const now = Date.now();
     for (const d of due) this.pending.set(d.id, d.missed);
+    this.notes.todos = this.notes.todos.map(t => (this.pending.has(t.id) ? markFired(t, now) : t));
+    this.save();
     const lines = due.map(d => {
       const t = this.notes.todos.find(x => x.id === d.id)!;
       return `${d.missed ? '（錯過）' : ''}${timeText(t)} ${t.text}`;
@@ -260,16 +264,12 @@ export class CardController {
         this.notes.todos = this.notes.todos.filter(t => t.id !== a.id);
         this.answered(a.id);
         break;
-      case 'answer':
-        update(a.id, t => (a.how === 'done' ? markDone(t, now) : snooze(t, now)));
-        this.answered(a.id);
-        break;
     }
     this.save();
     this.push('todo');
   }
 
-  /** A reminder that was due is answered (or gone): once none is left, the cat goes back to its ways and the card goes soon. */
+  /** A reminder that was due is ticked (or gone): once none is left, the cat goes back to its ways and the card goes soon. */
   private answered(id: string): void {
     if (!this.pending.delete(id) || this.pending.size) return;
     this.endAttend();
@@ -289,7 +289,7 @@ export class CardController {
     this.arm(kind);
   }
 
-  /** A card that popped up by itself goes after a while untouched; a due one once every reminder is answered; one opened by hand stays. */
+  /** A card that popped up by itself goes after a while untouched; a due one once every reminder is ticked; one opened by hand stays. */
   private arm(kind: CardKind): void {
     const o = this.open.get(kind);
     if (!o) return;

@@ -34,7 +34,7 @@ test('the memo is typed on the card over its own cat and kept in notes.json', as
   await app.close();
 });
 
-test('a reminder added on the card, and one that falls due: the cat sits up, 完成 ticks it, the card goes', async () => {
+test('a reminder added on the card, and one that falls due: the cat sits up, ticking it puts the card away', async () => {
   const userDir = cardUserDir();
   const { app } = await launch({ DESKTOP_PET_PACKS: cardPacks() }, userDir);
   const page = await calmPetPage(app);
@@ -52,12 +52,17 @@ test('a reminder added on the card, and one that falls due: the cat sits up, 完
   // a one-off that fell due a second ago
   await controllerCall(app, c => {
     const now = Date.now();
-    c.cards.notes.todos.push({ id: 'due1', text: '開會', hour: 15, minute: 0, repeat: 'once', at: now - 1000, doneDay: null, firedAt: null, snoozeUntil: null });
+    c.cards.notes.todos.push({ id: 'due1', text: '開會', hour: 15, minute: 0, repeat: 'once', at: now - 1000, doneDay: null, firedAt: null });
     c.cards.tick(now);
   });
   await expect(card.locator('li.due .text')).toHaveText('開會');
+  await expect(card.locator('li.due button')).toHaveCount(1);   // just its delete: ticking it is the answer
+  // it came up once: it is marked so, and does not come up again even if left unticked
+  await expect.poll(() => readNotes(userDir)?.todos?.find((t: any) => t.id === 'due1')?.firedAt, { timeout: 5_000 }).toBeGreaterThan(0);
+  await controllerCall(app, c => c.cards.tick(Date.now() + 60_000));
+  expect(readLog(userDir).split('提醒事項到了').length - 1).toBe(1);
   await expect.poll(() => page.evaluate(() => (window as any).__pet.engine.endPose), { timeout: 20_000 }).toBe('sit');
-  await card.locator('li.due button.answer.done').click();
+  await card.locator('li.due input[type=checkbox]').click();   // (not check(): ticked, it is no longer li.due)
   await expect(card.locator('li.done .text')).toHaveText('開會');
   await controllerCall(app, c => c.cards.setHot('todo', false));   // the pointer leaves the card
   await expect.poll(() => isOpen(app, 'todo'), { timeout: 10_000 }).toBe(false);

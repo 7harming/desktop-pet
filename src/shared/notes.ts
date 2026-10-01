@@ -26,6 +26,5 @@ function normalizeTodo(raw: unknown): Todo | null {
     id, text, hour: hour as number, minute: minute as number, repeat: repeat as Repeat, at: repeat === 'once' ? at : null,
     doneDay: typeof raw.doneDay === 'string' ? raw.doneDay : null,
     firedAt: finite(raw.firedAt) ? raw.firedAt : null,
-    snoozeUntil: finite(raw.snoozeUntil) ? raw.snoozeUntil : null,
   };
 }

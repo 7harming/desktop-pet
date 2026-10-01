@@ -116,8 +116,7 @@ export type CardAction =
   | { kind: 'add'; text: string; hour: number; minute: number; repeat: Repeat }
   | { kind: 'toggle'; id: string; done: boolean }
   | { kind: 'edit'; id: string; text: string }
-  | { kind: 'delete'; id: string }
-  | { kind: 'answer'; id: string; how: 'done' | 'snooze' };
+  | { kind: 'delete'; id: string };
 export interface CardApi {
   onState(cb: (s: CardState) => void): void;
   /** Opened by hand: put the cursor in the memo, or in the new reminder's box. */

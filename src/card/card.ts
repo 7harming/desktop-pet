@@ -101,14 +101,6 @@ function item(t: TodoView): HTMLLIElement {
   const del = el('button', { className: 'del', textContent: '🗑', title: '刪除' });
   del.addEventListener('click', () => act({ kind: 'delete', id: t.id }));
   li.append(del);
-  if (t.due) {
-    const answer = (label: string, how: 'done' | 'snooze') => {
-      const b = el('button', { className: `answer ${how}`, textContent: label });
-      b.addEventListener('click', () => act({ kind: 'answer', id: t.id, how }));
-      return b;
-    };
-    li.append(el('div', { className: 'due-actions' }, answer('完成', 'done'), answer('10 分鐘後', 'snooze')));
-  }
   return li;
 }
 
