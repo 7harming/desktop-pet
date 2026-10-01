@@ -19,7 +19,8 @@ describe('ToyInterest', () => {
   it('watches a feather moving near it, swats one in reach, and tires once it stops', () => {
     const t = make();
     expect(t.update(head, { x: 750, y: 300 }, 400, 0)).toEqual({ do: 'watch' });     // 270 px off: noticed
-    expect(t.update(head, { x: 750, y: 300 }, 400, 100)).toBeNull();                 // still watching, out of reach
+    // still out of reach: it keeps saying watch, so a cat that was busy when it first noticed takes it up once it is free
+    expect(t.update(head, { x: 750, y: 300 }, 400, 100)).toEqual({ do: 'watch' });
     expect(t.update(head, { x: 520, y: 280 }, 400, 200)).toEqual({ do: 'swat', dir: 'up' });
     expect(t.update(head, { x: 520, y: 280 }, 0, 300)).toBeNull();                   // stopped: no swat
     expect(t.update(head, { x: 520, y: 280 }, 0, 5199)).toBeNull();

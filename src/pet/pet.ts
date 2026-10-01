@@ -3,7 +3,7 @@ import { BehaviorEngine } from '../shared/behavior';
 import { fightClip } from '../shared/fight';
 import type { PetInit } from '../shared/ipc';
 import type { DayPart } from '../shared/time-events';
-import type { PounceSide } from '../shared/types';
+import type { PounceSide, ToyDef } from '../shared/types';
 import { clickLine, commandLine, pickLine, reminderLine } from '../shared/lines';
 import { isAsleep, poseValueAt, showsShadow, sleepPoses } from '../shared/pose-geometry';
 import { arriveGlidePx, departGlidePx, planWalkIn, planWalkOut, type WalkPlan } from '../shared/walk-plan';
@@ -22,6 +22,8 @@ const SLEEPY: Record<DayPart, number> = { day: 1, nap: 3, night: 3 };
 const SLOW: Record<DayPart, number> = { day: 1, nap: 1, night: 2 };
 /** A line for the time of day stays up longer than a passing one, to be noticed. */
 const SAY_MS = 5_000;
+/** A swat at the wand in a new direction may cut in on the last one once this much of it has played (its paws come down). */
+const SWAT_CUT_IN = 0.5;
 /** A card sits right on a sitting cat's ear tips; over a lying one it keeps this little gap (px). */
 const CARD_GAP_LYING = 8;
 
@@ -48,7 +50,6 @@ api.onInit((init: PetInit) => {
   let attending = false;      // sitting up for a reminder that is due, until it is answered
   let moving = false;         // dragged or falling: cards wait for it to land
   let toying = false;         // watching the wand's feather, swatting it when it comes near
-  let swatReady = 0;          // not before this (performance.now()): a breath between two swats
   const swats = new Set(Object.values(pack.toy?.swats ?? {}));
   // auto mode holds off while it fights, while the user is away, while it looks at them for a reminder, and while it plays
   const applyAuto = () => { engine.auto = userAuto && !fight && !away && !attending && !toying; };
@@ -69,7 +70,6 @@ api.onInit((init: PetInit) => {
     reportHead();
   };
   player.onEnded = () => {
-    if (player.step && swats.has(player.step.clip)) swatReady = performance.now() + 400;
     if (fight?.clip) {                // the fight is over: back to its own ways, with a word about it
       const line = pack.lines.fight ? pickLine(pack.lines.fight, Math.random) : null;
       endFight();
@@ -213,17 +213,23 @@ api.onInit((init: PetInit) => {
   api.onRestY(y => { interactions.setRestY(y); requestAnimationFrame(() => reportHead()); });
   // the wand: a feather moving near it - it sits up and watches; in reach - it swats towards it (each swat a little faster or slower
   // than the last, so repeats look less alike); still a while - it tires and goes back to its ways
+  const watch = (toy: ToyDef) => {
+    if (toying || mode !== 'live' || away || attending || fight || moving) return;
+    toying = true;
+    applyAuto();
+    if (!engine.restingIn(toy.pose)) engine.command(toy.pose);
+  };
   api.onToy(m => {
     const toy = pack.toy;
     if (!toy) return;
-    if (m.do === 'watch') {
-      if (toying || mode !== 'live' || away || attending || fight || moving) return;
-      toying = true;
-      applyAuto();
-      if (!engine.restingIn(toy.pose)) engine.command(toy.pose);
-    } else if (m.do === 'swat') {
-      if (!toying || performance.now() < swatReady) return;
-      const step = engine.interject(toy.swats[m.dir], toy.pose);
+    if (m.do === 'watch') watch(toy);
+    else if (m.do === 'swat') {
+      if (!toying) { watch(toy); return; }    // it was busy when the feather came: it takes it up now
+      // a new direction cuts in as the last swat's paws come down; the same one again waits for it to end
+      const clip = toy.swats[m.dir];
+      const s = player.step;
+      const cutIn = !!s && swats.has(s.clip) && s.clip !== clip && player.progress >= SWAT_CUT_IN;
+      const step = engine.interject(clip, toy.pose, cutIn);
       if (step) void player.play({ ...step, rate: step.rate * (0.9 + Math.random() * 0.2) });
     } else if (toying) {
       toying = false;

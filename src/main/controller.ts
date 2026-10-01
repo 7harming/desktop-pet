@@ -359,6 +359,8 @@ export class AppController {
    */
   startFight(manual: boolean): string | null {
     if (this.fight || this.breaking || this.quitting) return '牠們正在忙，等一下再試。';
+    // with the wand out they play with it: not a play-fight of their own just then (it kept them from the wand in 0.7.0)
+    if (!manual && this.toys.out) return '逗貓棒拿出來時，牠們不會自己打鬧。';
     const spots = this.settings.petOrder.filter(id => this.onScreen(id)).flatMap(id => {
       const pet = this.pets.get(id)!;
       const f = pet.pack.fight;

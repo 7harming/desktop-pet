@@ -61,3 +61,39 @@ test('the wand is dragged by its stick, the feather swings, and putting it away 
   await expect.poll(() => endPose(page), { timeout: 20_000 }).toBe('rest');
   await app.close();
 });
+
+test('a cat busy when the feather first moves by still plays once it is free, though the feather never stopped', async () => {
+  // seen in 0.7.0: the cats began a play-fight just as the wand came out; with the feather kept moving they never took to it
+  const { app } = await launch();
+  const page = await calmPetPage(app);
+  await expect.poll(() => controllerCall(app, c => !!c.cards.heads.get('testcat')?.settled)).toBe(true);
+  await controllerCall(app, c => c.toggleToy('testcat'));
+  await toyPage(app);
+  await controllerCall(app, c => c.pets.get('testcat').send('pet:attend', true));    // busy: sitting up for a reminder
+  await expect.poll(() => endPose(page), { timeout: 20_000 }).toBe('sit');
+  // from now on the feather keeps moving by its head, 15 times a second, as the wand's window says it
+  await app.evaluate(() => {
+    const c = (globalThis as any).__controller;
+    c.pump = setInterval(() => { const h = c.cards.heads.get('testcat'); if (h) c.toys.feather({ x: h.x + 120, y: h.y - 120 }, 400); }, 66);
+  });
+  await page.waitForTimeout(500);                                                       // it notices it, busy
+  await controllerCall(app, c => c.pets.get('testcat').send('pet:attend', false));   // free again
+  // with the feather moving all along, it takes to it: it sits (up again) and swats
+  await expect.poll(() => history(page), { timeout: 20_000 }).toMatch(/swat_/);
+  await app.close();
+});
+
+test('a swat in a new direction cuts in as the last one ends; the cats do not start a play-fight while the wand is out', async () => {
+  const { app } = await launch();
+  const page = await calmPetPage(app);
+  await expect.poll(() => controllerCall(app, c => !!c.cards.heads.get('testcat')?.settled)).toBe(true);
+  await controllerCall(app, c => c.toggleToy('testcat'));
+  await toyPage(app);
+  await expect.poll(async () => { await feather(app, 120, -120, 400); return endPose(page); }, { timeout: 20_000 }).toBe('sit');
+  await expect.poll(async () => { await feather(app, 10, -100, 400); return history(page); }, { timeout: 20_000 }).toMatch(/swat_up$/);
+  // the feather swings to its left: the next swat comes before the first has gone back to sitting
+  await expect.poll(async () => { await feather(app, -110, 0, 400); return history(page); }, { timeout: 20_000 }).toMatch(/swat_up,swat_left/);
+  await controllerCall(app, c => c.showPet('testcat2'));
+  expect(await controllerCall(app, c => c.startFight(false))).toContain('逗貓棒');
+  await app.close();
+});

@@ -19,7 +19,9 @@ export type ToyMove = { do: 'watch' } | { do: 'swat'; dir: SwatDir } | { do: 'bo
 
 /**
  * How one cat takes the wand: it starts watching when the feather moves within `notice` of its head, swats it while it moves
- * within `reach`, and tires once it has not moved within notice for `boredMs`. The caller passes the time in.
+ * within `reach`, and tires once it has not moved within notice for `boredMs`. While the feather moves near it says `watch` or
+ * `swat` again every time, so a cat that was busy when it first came by (a play-fight) takes it up as soon as it is free. The
+ * caller passes the time in.
  */
 export class ToyInterest {
   private watching = false;
@@ -40,8 +42,9 @@ export class ToyInterest {
       this.watching = false;
       return { do: 'bored' };
     }
-    const dir = moving && dist <= this.o.reach ? swatDir(head, feather) : null;
-    return dir ? { do: 'swat', dir } : null;
+    if (!moving || dist > this.o.notice) return null;
+    const dir = dist <= this.o.reach ? swatDir(head, feather) : null;
+    return dir ? { do: 'swat', dir } : { do: 'watch' };
   }
 
   /** The wand was put away, or the cat went: it stops watching; true if it was. */
