@@ -1,6 +1,7 @@
 import { pounceSide } from '../shared/actions';
 import type { PanelAction, PanelPet, PanelState } from '../shared/ipc';
-import { ACTION_INTERVALS, AWAY_CHOICES, MAX_SCALE, MIN_SCALE } from '../shared/settings';
+import { ACTION_INTERVALS, AWAY_CHOICES, MAX_SCALE, MIN_SCALE, type CardSettings } from '../shared/settings';
+import { MINUTES } from '../shared/todo';
 
 const api = window.panelApi;
 const $ = (id: string) => document.getElementById(id)!;
@@ -17,7 +18,7 @@ const act = async (a: PanelAction) => { state = await api.act(a); render(true); 
 for (const b of document.querySelectorAll<HTMLButtonElement>('.tab')) {
   b.addEventListener('click', () => {
     for (const t of document.querySelectorAll('.tab')) t.classList.toggle('active', t === b);
-    for (const id of ['pets', 'reminders', 'settings']) $(`tab-${id}`).hidden = id !== b.dataset.tab;
+    for (const id of ['pets', 'reminders', 'cards', 'settings']) $(`tab-${id}`).hidden = id !== b.dataset.tab;
   });
 }
 
@@ -101,6 +102,41 @@ function remindersTab(): HTMLElement[] {
   return [el('div', { className: 'card' }, ...rows)];
 }
 
+const TRIGGERS: ['start' | 'resume' | 'unlock' | 'back', string][] =
+  [['start', '開啟打工貓貓時'], ['resume', '電腦從睡眠或休眠醒來'], ['unlock', '解除螢幕鎖定'], ['back', '離開電腦後回來']];
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/** Each card: when it pops up by itself, and a button to open it now. */
+function cardsTab(): HTMLElement[] {
+  if (!state.cards.length) return [el('div', { className: 'card sub' }, '目前的貓咪都沒有拿卡片。')];
+  return state.cards.map(c => {
+    const patch = (p: Partial<CardSettings>) => act({ kind: 'cards', card: c.kind, patch: p });
+    const boxes = TRIGGERS.map(([key, label]) => {
+      const box = el('input', { type: 'checkbox', checked: c.settings[key] });
+      box.dataset.trigger = key;
+      box.addEventListener('change', () => patch({ [key]: box.checked }));
+      return el('label', {}, box, label);
+    });
+    const daily = c.settings.daily;
+    const on = el('input', { type: 'checkbox', className: 'daily-on', checked: daily !== null });
+    const hour = el('select', { className: 'daily-hour', disabled: daily === null });
+    for (let h = 0; h < 24; h++) hour.append(el('option', { value: String(h), textContent: pad(h), selected: Math.floor((daily ?? 540) / 60) === h }));
+    const minute = el('select', { className: 'daily-minute', disabled: daily === null });
+    for (const m of MINUTES) minute.append(el('option', { value: String(m), textContent: pad(m), selected: (daily ?? 540) % 60 === m }));
+    const setDaily = () => patch({ daily: on.checked ? Number(hour.value) * 60 + Number(minute.value) : null });
+    for (const x of [on, hour, minute]) x.addEventListener('change', setDaily);
+    const open = el('button', { className: 'plain open-card', textContent: '現在打開' });
+    open.addEventListener('click', () => act({ kind: 'openCard', card: c.kind }));
+    const card = el('div', { className: 'card' },
+      el('div', { className: 'line' }, el('span', { className: 'name' }, c.title), open),
+      el('div', { className: 'sub' }, '自動跳出來的時機：'),
+      el('div', { className: 'row' }, ...boxes),
+      el('div', { className: 'line' }, el('label', {}, on, '每天'), el('span', {}, hour, '：', minute)));
+    card.dataset.card = c.kind;
+    return card;
+  });
+}
+
 function settingsTab(): HTMLElement[] {
   const autostart = el('input', { type: 'checkbox', className: 'autostart', checked: state.autoStart });
   autostart.addEventListener('change', () => act({ kind: 'autoStart', on: autostart.checked }));
@@ -152,6 +188,7 @@ function render(rebuild = false): void {
   $('tab-pets').replaceChildren(...state.pets.map(petCard), ...(state.canFight ? [fightCard()] : []),
     el('div', { className: 'card sub' }, '之後做好的貓咪會出現在這裡'));
   $('tab-reminders').replaceChildren(...remindersTab());
+  $('tab-cards').replaceChildren(...cardsTab());
   $('tab-settings').replaceChildren(...settingsTab());
 }
 

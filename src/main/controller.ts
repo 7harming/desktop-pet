@@ -7,13 +7,15 @@ import type { FightState, PanelAction, PanelState } from '../shared/ipc';
 import { reminderLine } from '../shared/lines';
 import { findFreeCenter } from '../shared/placement';
 import { ReminderScheduler } from '../shared/reminders';
-import { ACTION_INTERVALS, AWAY_CHOICES, DEFAULT_X, MAX_SCALE, MIN_SCALE, type Settings } from '../shared/settings';
+import { ACTION_INTERVALS, AWAY_CHOICES, DEFAULT_X, MAX_SCALE, MIN_SCALE, normalizeCardSettings, type Settings } from '../shared/settings';
 import { clockEvents, dayPart, helloDay, helloEvent, type DayPart } from '../shared/time-events';
 import type { Pack, ReminderType, TimeEvent } from '../shared/types';
 import { APP_ORIGIN } from './app-protocol';
 import { BreakWindow } from './break-window';
+import { CardController } from './cards';
 import type { Logger } from './logger';
 import { petMenuTemplate, trayMenuTemplate } from './menus';
+import { NotesStore } from './notes-store';
 import { loadPacks, type LoadedPack } from './pack-loader';
 import { PanelWindow } from './panel-window';
 import { bodyWidth, extentOf, restY, windowBounds, windowSize, xRatioFromBounds, type Bounds, type WorkArea } from './pet-geometry';
@@ -78,6 +80,8 @@ export class AppController {
   private tray: TrayController | null = null;
   scheduler!: ReminderScheduler;
   private readonly awayWatch: AwayWatch;
+  /** 小昭's reminders and 阿胖's memo, shown over the cats' heads. */
+  readonly cards: CardController;
   /**
    * How long the computer has had no key or mouse input, in seconds. Tests set DESKTOP_PET_FAKE_IDLE (the machine running them
    * sits idle, which would send every cat to sleep) and replace this when they want the user away.
@@ -99,6 +103,22 @@ export class AppController {
     this.settings = loaded.settings;
     this.warning = loaded.warning;
     this.awayWatch = new AwayWatch(this.settings.awayMinutes);
+    this.cards = new CardController({
+      onScreen: () => this.settings.petOrder.filter(id => this.onScreen(id)),
+      packOf: id => this.packOf(id),
+      ownerOf: kind => this.validPacks().find(p => p.pack.card === kind)?.id ?? null,
+      workArea: () => this.workArea(),
+      away: () => this.awayWatch.away,
+      settings: () => this.settings.cards,
+      attend: (id, on) => this.pets.get(id)?.send('pet:attend', on),
+      notify: (body, onClick) => {
+        if (!Notification.isSupported()) return;
+        const n = new Notification({ title: '打工貓貓', body });
+        n.on('click', onClick);
+        n.show();
+      },
+      log,
+    }, new NotesStore(paths.notesFile, log), paths.uiDir);
     for (const ch of PET_CHANNELS) ipcMain.on(ch, (e, ...args) => this.petFor(e.sender)?.handle(ch, args));
     this.panel = new PanelWindow(paths.uiDir);
     ipcMain.handle('panel:get-state', () => this.panelState());
@@ -122,6 +142,7 @@ export class AppController {
     // the first cat out greets for the time of day (good morning), once a day
     const hello = this.takeHello(new Date());
     this.settings.petOrder.filter(id => this.settings.pets[id]?.visible).forEach((id, i) => this.showPet(id, true, i === 0 ? hello : null));
+    this.cards.popFor('start');   // they show once their cats are home
     this.saveSoon();
     const r = this.settings.reminders;
     this.scheduler = new ReminderScheduler({ water: r.water, stretch: r.stretch, eyes: r.eyes }, Date.now());
@@ -135,8 +156,8 @@ export class AppController {
     const pauseAll = (paused: boolean) => { for (const p of this.pets.values()) p.send('pet:pause', paused); };
     powerMonitor.on('suspend', () => pauseAll(true));
     powerMonitor.on('lock-screen', () => pauseAll(true));
-    powerMonitor.on('resume', () => { pauseAll(false); this.scheduler.resetAll(Date.now()); });
-    powerMonitor.on('unlock-screen', () => { pauseAll(false); this.scheduler.resetAll(Date.now()); });
+    powerMonitor.on('resume', () => { pauseAll(false); this.scheduler.resetAll(Date.now()); this.cards.popFor('resume'); });
+    powerMonitor.on('unlock-screen', () => { pauseAll(false); this.scheduler.resetAll(Date.now()); this.cards.popFor('unlock'); });
     if (!this.settings.firstRunDone) {
       this.openPanel();
       this.settings.firstRunDone = true;
@@ -188,7 +209,7 @@ export class AppController {
   }
 
   saveSoon(): void { this.store.saveSoon(this.settings); }
-  flush(): void { this.store.flush(this.settings); }
+  flush(): void { this.store.flush(this.settings); this.cards.flush(); }
 
   protected changed(): void {
     this.tray?.refresh();
@@ -231,6 +252,7 @@ export class AppController {
       fightAuto: this.settings.fightAuto,
       canFight: this.validPacks().filter(p => p.pack.fight).length >= 2,
       awayMinutes: this.settings.awayMinutes,
+      cards: this.cards.menuItems().map(({ kind }) => ({ kind, title: this.cards.title(kind), settings: this.settings.cards[kind] })),
       notice: this.notice && this.notice.until > Date.now() ? this.notice.text : null,
       version: app.getVersion(),
       warning: this.warning,
@@ -258,6 +280,11 @@ export class AppController {
         this.awayWatch.setMinutes(a.minutes);
         this.saveSoon();
         break;
+      case 'cards':
+        this.settings.cards[a.card] = normalizeCardSettings({ ...this.settings.cards[a.card], ...a.patch }, this.settings.cards[a.card]);
+        this.saveSoon();
+        break;
+      case 'openCard': this.cards.show(a.card, null, 'hand'); break;
       case 'fight': {
         const why = this.startFight(true);
         this.notice = why ? { text: why, until: Date.now() + NOTICE_MS } : null;
@@ -279,6 +306,7 @@ export class AppController {
   walkOff(id: string): Promise<void> {
     const pet = this.pets.get(id);
     if (!pet) return Promise.resolve();
+    this.cards.petGone(id);
     const going = this.leaving.get(id);
     if (going) return going.done;
     let finish = () => {};
@@ -301,7 +329,7 @@ export class AppController {
   resetAllPositions(): void {
     for (const ps of Object.values(this.settings.pets)) ps.x = null;
     const visible = [...this.pets.keys()];
-    for (const id of visible) this.pets.get(id)?.close();
+    for (const id of visible) { this.cards.petGone(id); this.pets.get(id)?.close(); }
     this.pets.clear();
     for (const id of this.settings.petOrder) if (visible.includes(id)) this.showPet(id, false);
   }
@@ -445,6 +473,7 @@ export class AppController {
 
   tick(): void {
     const now = Date.now();
+    this.cards.tick(now);
     if (this.settings.reminders.pausedUntil && now >= this.settings.reminders.pausedUntil) {
       this.settings.reminders.pausedUntil = null;
       this.saveSoon();
@@ -482,6 +511,7 @@ export class AppController {
     if (away) { this.endFight(); return; }
     this.scheduler.resetAll(Date.now());
     this.sayFromOne(this.takeHello(new Date()) ?? 'back');
+    this.cards.back();
   }
 
   /** The greeting for the day's first hello, if it is the first and the time is right (see helloEvent). */
@@ -585,19 +615,23 @@ export class AppController {
       log: (id, level, message) => this.log[level](`[${id}] ${message}`),
       fightState: (id, state) => this.onFightState(id, state),
       woke: id => this.onWoke(id),
-      head: () => {},
-      wheel: () => {},
+      head: (id, head, settled) => this.cards.head(id, head, settled),
+      wheel: (id, up) => this.cards.wheel(id, up),
     };
   }
 
   /** A cat has sat up after the user came back. */
-  protected onWoke(id: string): void { this.log.info(`[${id}] 醒了`); }
+  protected onWoke(id: string): void {
+    this.log.info(`[${id}] 醒了`);
+    this.cards.woke(id);
+  }
 
   protected onPetMenu(id: string): void {
     const pet = this.pets.get(id);
     const ps = this.settings.pets[id];
     if (!pet || !ps) return;
-    Menu.buildFromTemplate(petMenuTemplate({ commands: commandItems(pet.pack), auto: ps.auto, scale: ps.scale }, {
+    Menu.buildFromTemplate(petMenuTemplate({ commands: commandItems(pet.pack), auto: ps.auto, scale: ps.scale, cards: this.cards.menuItems() }, {
+      openCard: kind => { this.cards.show(kind, id, 'hand'); },
       command: pose => this.command(id, pose),
       setAuto: on => this.setAuto(id, on),
       setScale: s => this.setScale(id, s),
@@ -697,6 +731,7 @@ export class AppController {
     const n = (this.crashes.get(id) ?? 0) + 1;
     this.crashes.set(id, n);
     this.log.error(`貓咪視窗 ${id} 當掉了（第 ${n} 次）`);
+    this.cards.petGone(id);
     this.pets.get(id)?.close();
     this.pets.delete(id);
     if (n <= MAX_CRASH_RESTARTS) this.showPet(id, false);

@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { petMenuTemplate, trayMenuTemplate } from '../../src/main/menus';
 
-const handlers = () => ({ command: vi.fn(), setAuto: vi.fn(), setScale: vi.fn(), resetPosition: vi.fn(), hide: vi.fn() });
+const handlers = () => ({ command: vi.fn(), setAuto: vi.fn(), setScale: vi.fn(), resetPosition: vi.fn(), hide: vi.fn(), openCard: vi.fn() });
 
 describe('petMenuTemplate', () => {
   it('lists the commands, then auto, size, reset and hide', () => {
     const h = handlers();
-    const t = petMenuTemplate({ commands: [{ label: '休息', pose: 'rest' }, { label: '上台子', pose: 'perch' }], auto: true, scale: 1 }, h);
+    const t = petMenuTemplate({ commands: [{ label: '休息', pose: 'rest' }, { label: '上台子', pose: 'perch' }], auto: true, scale: 1, cards: [] }, h);
     const putBack = process.platform === 'darwin' ? '放回 Dock 上方' : '放回工作列';   // the Mac has a Dock, not a taskbar
     expect(t.map(i => i.label ?? i.type)).toEqual(['休息', '上台子', 'separator', '自動行動', '大小', putBack, '先收起來']);
     expect(t[3]).toMatchObject({ type: 'checkbox', checked: true });
@@ -18,6 +18,14 @@ describe('petMenuTemplate', () => {
     expect(h.setScale).toHaveBeenCalledWith(1.3);
     expect(h.resetPosition).toHaveBeenCalled();
     expect(h.hide).toHaveBeenCalled();
+  });
+  it('offers the cards after the commands', () => {
+    const h = handlers();
+    const t = petMenuTemplate({ commands: [{ label: '休息', pose: 'rest' }], auto: false, scale: 1,
+      cards: [{ kind: 'todo', label: '提醒事項' }, { kind: 'memo', label: '備忘錄' }] }, h);
+    expect(t.slice(0, 5).map(i => i.label ?? i.type)).toEqual(['休息', 'separator', '提醒事項', '備忘錄', 'separator']);
+    (t[3] as any).click();
+    expect(h.openCard).toHaveBeenCalledWith('memo');
   });
 });
 

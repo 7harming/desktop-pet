@@ -1,23 +1,30 @@
 import type { MenuItemConstructorOptions } from 'electron';
 import { SIZE_PRESETS } from '../shared/settings';
+import type { CardKind } from '../shared/types';
 
 export const SIZE_ITEMS: [string, number][] = [['小', SIZE_PRESETS.s], ['中', SIZE_PRESETS.m], ['大', SIZE_PRESETS.l]];
 const PUT_BACK = process.platform === 'darwin' ? '放回 Dock 上方' : '放回工作列';
 
 /** `commands`: each named by its action key (a pose, or `pounce:left` / `pounce:right`). */
-export interface PetMenuState { commands: { label: string; pose: string }[]; auto: boolean; scale: number }
+export interface PetMenuState {
+  commands: { label: string; pose: string }[]; auto: boolean; scale: number;
+  /** The cards there are (小昭's reminders, 阿胖's memo). */
+  cards: { kind: CardKind; label: string }[];
+}
 export interface PetMenuHandlers {
   command(pose: string): void;
   setAuto(on: boolean): void;
   setScale(scale: number): void;
   resetPosition(): void;
   hide(): void;
+  openCard(kind: CardKind): void;
 }
 
 export function petMenuTemplate(s: PetMenuState, h: PetMenuHandlers): MenuItemConstructorOptions[] {
   return [
     ...s.commands.map(c => ({ label: c.label, click: () => h.command(c.pose) })),
     { type: 'separator' },
+    ...(s.cards.length ? [...s.cards.map(c => ({ label: c.label, click: () => h.openCard(c.kind) })), { type: 'separator' as const }] : []),
     { label: '自動行動', type: 'checkbox', checked: s.auto, click: () => h.setAuto(!s.auto) },
     {
       label: '大小',

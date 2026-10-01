@@ -1,3 +1,4 @@
+import type { CardSettings } from './settings';
 import type { DayPart } from './time-events';
 import type { Repeat } from './todo';
 import type { CardKind, Pack, PoseId, PounceSide, ReminderType, TimeEvent } from './types';
@@ -76,6 +77,8 @@ export interface PanelState {
   fightAuto: boolean;
   canFight: boolean;
   awayMinutes: number;
+  /** The cards there are: when each pops up by itself. */
+  cards: { kind: CardKind; title: string; settings: CardSettings }[];
   notice: string | null;
   version: string;
   warning: string | null;
@@ -89,6 +92,8 @@ export type PanelAction =
   | { kind: 'actionInterval'; seconds: number }
   | { kind: 'fightAuto'; on: boolean }
   | { kind: 'awayMinutes'; minutes: number }
+  | { kind: 'cards'; card: CardKind; patch: Partial<CardSettings> }
+  | { kind: 'openCard'; card: CardKind }
   | { kind: 'fight' }
   | { kind: 'resetPositions' }
   | { kind: 'testBreak' };
