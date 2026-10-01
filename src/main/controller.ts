@@ -13,8 +13,9 @@ import type { Pack, ReminderType, TimeEvent } from '../shared/types';
 import { APP_ORIGIN } from './app-protocol';
 import { BreakWindow } from './break-window';
 import { CardController } from './cards';
+import { ToyController } from './toys';
 import type { Logger } from './logger';
-import { petMenuTemplate, trayMenuTemplate } from './menus';
+import { petMenuTemplate, trayMenuTemplate, type ToyState } from './menus';
 import { NotesStore } from './notes-store';
 import { loadPacks, type LoadedPack } from './pack-loader';
 import { PanelWindow } from './panel-window';
@@ -82,6 +83,8 @@ export class AppController {
   private readonly awayWatch: AwayWatch;
   /** 小昭's reminders and 阿胖's memo, shown over the cats' heads. */
   readonly cards: CardController;
+  /** The cat wand, and the cats' interest in it. */
+  readonly toys: ToyController;
   /**
    * How long the computer has had no key or mouse input, in seconds. Tests set DESKTOP_PET_FAKE_IDLE (the machine running them
    * sits idle, which would send every cat to sleep) and replace this when they want the user away.
@@ -120,6 +123,15 @@ export class AppController {
       cardsAt: cards => { for (const pet of this.pets.values()) pet.send('pet:cards-at', cards); },
       log,
     }, new NotesStore(paths.notesFile, log), paths.uiDir);
+    this.toys = new ToyController({
+      onScreen: () => this.settings.petOrder.filter(id => this.onScreen(id)),
+      packOf: id => this.packOf(id),
+      head: id => this.cards.heads.get(id) ?? null,
+      frameHeight: id => this.pets.get(id)?.frame.height ?? 300,
+      workArea: () => this.workArea(),
+      send: (id, move) => this.pets.get(id)?.send('pet:toy', move),
+      changed: () => this.changed(),
+    }, paths.uiDir);
     for (const ch of PET_CHANNELS) ipcMain.on(ch, (e, ...args) => this.petFor(e.sender)?.handle(ch, args));
     this.panel = new PanelWindow(paths.uiDir);
     ipcMain.handle('panel:get-state', () => this.panelState());
@@ -254,6 +266,7 @@ export class AppController {
       canFight: this.validPacks().filter(p => p.pack.fight).length >= 2,
       awayMinutes: this.settings.awayMinutes,
       cards: this.cards.menuItems().map(({ kind }) => ({ kind, title: this.cards.title(kind), settings: this.settings.cards[kind] })),
+      toy: { available: this.hasToy(), out: this.toys.out },
       notice: this.notice && this.notice.until > Date.now() ? this.notice.text : null,
       version: app.getVersion(),
       warning: this.warning,
@@ -286,6 +299,7 @@ export class AppController {
         this.saveSoon();
         break;
       case 'openCard': this.cards.show(a.card, null, 'hand'); break;
+      case 'toy': if (a.out !== this.toys.out) this.toggleToy(null); break;
       case 'fight': {
         const why = this.startFight(true);
         this.notice = why ? { text: why, until: Date.now() + NOTICE_MS } : null;
@@ -308,6 +322,7 @@ export class AppController {
     const pet = this.pets.get(id);
     if (!pet) return Promise.resolve();
     this.cards.petGone(id);
+    this.toys.petGone(id);
     const going = this.leaving.get(id);
     if (going) return going.done;
     let finish = () => {};
@@ -330,7 +345,7 @@ export class AppController {
   resetAllPositions(): void {
     for (const ps of Object.values(this.settings.pets)) ps.x = null;
     const visible = [...this.pets.keys()];
-    for (const id of visible) { this.cards.petGone(id); this.pets.get(id)?.close(); }
+    for (const id of visible) { this.cards.petGone(id); this.toys.petGone(id); this.pets.get(id)?.close(); }
     this.pets.clear();
     for (const id of this.settings.petOrder) if (visible.includes(id)) this.showPet(id, false);
   }
@@ -407,6 +422,7 @@ export class AppController {
     if (this.quitting) return;
     this.quitting = true;
     this.endBreak?.();
+    this.toys.putAway();
     await Promise.all([...this.pets.keys()].map(id => this.walkOff(id)));
     app.quit();
   }
@@ -588,7 +604,7 @@ export class AppController {
   private trayMenu() {
     return trayMenuTemplate(
       this.validPacks().map(p => ({ id: p.id, name: p.pack.name, visible: this.onScreen(p.id) })),
-      { now: Date.now(), pausedUntil: this.settings.reminders.pausedUntil, autoStart: this.settings.autoStart },
+      { now: Date.now(), pausedUntil: this.settings.reminders.pausedUntil, autoStart: this.settings.autoStart, toy: this.toyState() },
       {
         openPanel: () => this.openPanel(),
         togglePet: id => (this.onScreen(id) ? this.hidePet(id) : this.showPet(id)),
@@ -596,6 +612,7 @@ export class AppController {
         pauseReminders: () => this.pauseReminders(),
         resumeReminders: () => this.resumeReminders(),
         setAutoStart: on => this.setAutoStart(on),
+        toggleToy: () => this.toggleToy(null),
         quit: () => void this.quit(),
       });
   }
@@ -621,6 +638,18 @@ export class AppController {
     };
   }
 
+  /** Some cat can play with the wand. */
+  hasToy(): boolean { return this.validPacks().some(p => p.pack.toy); }
+
+  private toyState(): ToyState { return this.hasToy() ? (this.toys.out ? 'out' : 'in') : null; }
+
+  /** Take the wand out (by the cat `near`, else by the first cat out) or put it away. */
+  toggleToy(near: string | null): void {
+    if (this.toys.out) { this.toys.putAway(); this.log.info('收起逗貓棒'); return; }
+    this.toys.takeOut(near ?? this.settings.petOrder.find(id => this.onScreen(id)) ?? null);
+    this.log.info('拿出逗貓棒');
+  }
+
   /** A cat has sat up after the user came back. */
   protected onWoke(id: string): void {
     this.log.info(`[${id}] 醒了`);
@@ -631,8 +660,10 @@ export class AppController {
     const pet = this.pets.get(id);
     const ps = this.settings.pets[id];
     if (!pet || !ps) return;
-    Menu.buildFromTemplate(petMenuTemplate({ commands: commandItems(pet.pack), auto: ps.auto, scale: ps.scale, cards: this.cards.menuItems() }, {
+    Menu.buildFromTemplate(petMenuTemplate({ commands: commandItems(pet.pack), auto: ps.auto, scale: ps.scale, cards: this.cards.menuItems(),
+      toy: this.toyState() }, {
       openCard: kind => { this.cards.show(kind, id, 'hand'); },
+      toggleToy: () => this.toggleToy(id),
       command: pose => this.command(id, pose),
       setAuto: on => this.setAuto(id, on),
       setScale: s => this.setScale(id, s),
@@ -733,6 +764,7 @@ export class AppController {
     this.crashes.set(id, n);
     this.log.error(`貓咪視窗 ${id} 當掉了（第 ${n} 次）`);
     this.cards.petGone(id);
+    this.toys.petGone(id);
     this.pets.get(id)?.close();
     this.pets.delete(id);
     if (n <= MAX_CRASH_RESTARTS) this.showPet(id, false);

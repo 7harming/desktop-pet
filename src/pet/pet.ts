@@ -47,8 +47,11 @@ api.onInit((init: PetInit) => {
   let waking = false;         // getting up because the user is back: it tells main once it rests awake
   let attending = false;      // sitting up for a reminder that is due, until it is answered
   let moving = false;         // dragged or falling: cards wait for it to land
-  // auto mode holds off while it fights, while the user is away, and while it looks at them for a reminder
-  const applyAuto = () => { engine.auto = userAuto && !fight && !away && !attending; };
+  let toying = false;         // watching the wand's feather, swatting it when it comes near
+  let swatReady = 0;          // not before this (performance.now()): a breath between two swats
+  const swats = new Set(Object.values(pack.toy?.swats ?? {}));
+  // auto mode holds off while it fights, while the user is away, while it looks at them for a reminder, and while it plays
+  const applyAuto = () => { engine.auto = userAuto && !fight && !away && !attending && !toying; };
   const debug = init.debug ? { id: pack.id, history, engine, player, get mode() { return mode; } } : null;
   if (debug) (window as unknown as Record<string, unknown>).__pet = debug;
 
@@ -66,6 +69,7 @@ api.onInit((init: PetInit) => {
     reportHead();
   };
   player.onEnded = () => {
+    if (player.step && swats.has(player.step.clip)) swatReady = performance.now() + 400;
     if (fight?.clip) {                // the fight is over: back to its own ways, with a word about it
       const line = pack.lines.fight ? pickLine(pack.lines.fight, Math.random) : null;
       endFight();
@@ -111,7 +115,7 @@ api.onInit((init: PetInit) => {
   };
   api.onFightReady(({ side, manual }) => {
     const f = pack.fight;
-    if (fight || !f || mode !== 'live' || busy || away || attending || (!manual && !userAuto) || isAsleep(pack, engine.endPose)) {
+    if (fight || !f || mode !== 'live' || busy || away || attending || toying || (!manual && !userAuto) || isAsleep(pack, engine.endPose)) {
       api.fightState('no');
       return;
     }
@@ -207,6 +211,27 @@ api.onInit((init: PetInit) => {
     onMoved: (winY, dragging) => { moving = dragging; reportHead(winY); },
   });
   api.onRestY(y => { interactions.setRestY(y); requestAnimationFrame(() => reportHead()); });
+  // the wand: a feather moving near it - it sits up and watches; in reach - it swats towards it (each swat a little faster or slower
+  // than the last, so repeats look less alike); still a while - it tires and goes back to its ways
+  api.onToy(m => {
+    const toy = pack.toy;
+    if (!toy) return;
+    if (m.do === 'watch') {
+      if (toying || mode !== 'live' || away || attending || fight || moving) return;
+      toying = true;
+      applyAuto();
+      if (!engine.restingIn(toy.pose)) engine.command(toy.pose);
+    } else if (m.do === 'swat') {
+      if (!toying || performance.now() < swatReady) return;
+      const step = engine.interject(toy.swats[m.dir], toy.pose);
+      if (step) void player.play({ ...step, rate: step.rate * (0.9 + Math.random() * 0.2) });
+    } else if (toying) {
+      toying = false;
+      applyAuto();
+      if (mode === 'live' && !fight && !away && !attending) engine.command(pack.start);
+    }
+  });
+
   // a reminder is due: it sits up and looks at the user until it is answered, then lies down again
   api.onAttend(on => {
     if (on === attending) return;

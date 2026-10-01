@@ -168,6 +168,14 @@ function fightCard(): HTMLElement {
   return card;
 }
 
+/** The cat wand: take it out or put it away. */
+function toyCard(): HTMLElement {
+  const b = el('button', { className: 'cmd toy', textContent: state.toy.out ? '收起逗貓棒' : '拿出逗貓棒' });
+  b.addEventListener('click', () => act({ kind: 'toy', out: !state.toy.out }));
+  return el('div', { className: 'card' },
+    el('div', { className: 'line' }, el('span', {}, '逗貓棒：拖著羽毛在貓咪頭旁邊晃，牠們會坐起來用前手撲'), b));
+}
+
 /**
  * Builds the tabs from the state; when only a cat's status changed, just writes it into its card (rebuilding the tabs
  * under the pointer loses clicks and drags). `rebuild`: after an action, so every control shows what was really kept.
@@ -185,7 +193,7 @@ function render(rebuild = false): void {
     return;
   }
   built = key;
-  $('tab-pets').replaceChildren(...state.pets.map(petCard), ...(state.canFight ? [fightCard()] : []),
+  $('tab-pets').replaceChildren(...state.pets.map(petCard), ...(state.canFight ? [fightCard()] : []), ...(state.toy.available ? [toyCard()] : []),
     el('div', { className: 'card sub' }, '之後做好的貓咪會出現在這裡'));
   $('tab-reminders').replaceChildren(...remindersTab());
   $('tab-cards').replaceChildren(...cardsTab());

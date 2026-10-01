@@ -1,5 +1,6 @@
 import type { CardSettings } from './settings';
 import type { DayPart } from './time-events';
+import type { ToyMove } from './toy';
 import type { Repeat } from './todo';
 import type { CardKind, Pack, PoseId, PounceSide, ReminderType, TimeEvent } from './types';
 
@@ -63,6 +64,8 @@ export interface PetApi {
    * stands still there (not walking in, not dragged).
    */
   reportHead(x: number, y: number, settled: boolean): void;
+  /** The wand: start watching the feather (sit up), swat it towards a side, or tire of it. */
+  onToy(cb: (move: ToyMove) => void): void;
   /** Where the cards stand now (screen px): speech bubbles go beside them, not under them. */
   onCardsAt(cb: (cards: { x: number; y: number; width: number; height: number }[]) => void): void;
   /** The wheel turned over the cat: up brings its card, down puts it away. */
@@ -82,6 +85,8 @@ export interface PanelState {
   fightAuto: boolean;
   canFight: boolean;
   awayMinutes: number;
+  /** The cat wand: whether any cat can play with it, and whether it is out. */
+  toy: { available: boolean; out: boolean };
   /** The cards there are: when each pops up by itself. */
   cards: { kind: CardKind; title: string; settings: CardSettings }[];
   notice: string | null;
@@ -99,6 +104,7 @@ export type PanelAction =
   | { kind: 'awayMinutes'; minutes: number }
   | { kind: 'cards'; card: CardKind; patch: Partial<CardSettings> }
   | { kind: 'openCard'; card: CardKind }
+  | { kind: 'toy'; out: boolean }
   | { kind: 'fight' }
   | { kind: 'resetPositions' }
   | { kind: 'testBreak' };
