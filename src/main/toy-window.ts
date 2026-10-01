@@ -2,9 +2,10 @@ import { BrowserWindow } from 'electron';
 import { join } from 'node:path';
 import { APP_ORIGIN } from './app-protocol';
 import type { Bounds, WorkArea } from './pet-geometry';
+import { TOY_BASE, TOY_SCALE } from '../shared/toy';
 
 /** The wand's window: the stick, the string and the feather swinging on it all stay inside. */
-export const TOY_SIZE = { width: 240, height: 280 };
+export const TOY_SIZE = { width: Math.round(TOY_BASE.width * TOY_SCALE), height: Math.round(TOY_BASE.height * TOY_SCALE) };
 
 export interface ToyEvents { feather(p: { x: number; y: number }, speed: number): void }
 

@@ -47,9 +47,10 @@ test('the wand is dragged by its stick, the feather swings, and putting it away 
     c.toys.feather = (p: unknown, speed: number, now?: number) => { c.fastest = Math.max(c.fastest, speed); feather(p, speed, now); };
   });
   const before = await controllerCall(app, c => c.toys.window.placed);
-  await toy.mouse.move(161, 58);                  // on the stick, half-way between the handle and its tip
+  const k = await toy.evaluate(() => innerWidth / 240);   // the wand is drawn smaller than designed (240 wide)
+  await toy.mouse.move(161 * k, 58 * k);          // on the stick, half-way between the handle and its tip
   await toy.mouse.down();
-  for (let i = 1; i <= 10; i++) await toy.mouse.move(161 - i * 12, 58 + i * 4);
+  for (let i = 1; i <= 10; i++) await toy.mouse.move(161 * k - i * 12, 58 * k + i * 4);
   await toy.mouse.up();
   await expect.poll(() => controllerCall(app, c => c.toys.window.placed.x)).toBeLessThan(before.x - 60);
   await expect.poll(() => controllerCall(app, c => c.fastest), { timeout: 5_000 }).toBeGreaterThan(120);

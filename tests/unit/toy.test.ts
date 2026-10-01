@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { swatDir, ToyInterest } from '../../src/shared/toy';
+import { swatDir, swatRate, ToyInterest } from '../../src/shared/toy';
 
 const head = { x: 500, y: 400 };
 describe('swatDir', () => {
@@ -11,6 +11,14 @@ describe('swatDir', () => {
     expect(swatDir(head, { x: 440, y: 320 })).toBe('upLeft');
     expect(swatDir(head, { x: 380, y: 410 })).toBe('left');
     expect(swatDir(head, { x: 500, y: 520 })).toBeNull();          // straight below: under its chin
+  });
+});
+
+describe('swatRate', () => {
+  it('plays each swat up to a fifth faster or slower, so no two look alike', () => {
+    expect(swatRate(() => 0)).toBeCloseTo(0.8);
+    expect(swatRate(() => 0.5)).toBeCloseTo(1);
+    expect(swatRate(() => 0.9999)).toBeLessThan(1.2);
   });
 });
 

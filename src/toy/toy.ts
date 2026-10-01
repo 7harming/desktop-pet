@@ -1,19 +1,23 @@
+import { TOY_BASE, TOY_SCALE } from '../shared/toy';
+
 const api = window.toyApi;
 const canvas = document.getElementById('wand') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
-const W = canvas.width;
-const H = canvas.height;
+// drawn at TOY_SCALE of the design (240 x 280): every length below is a designed one times K
+const K = TOY_SCALE;
+const W = (canvas.width = Math.round(TOY_BASE.width * K));
+const H = (canvas.height = Math.round(TOY_BASE.height * K));
 
 type P = { x: number; y: number };
 /** In the window: where the stick is held, and its tip, where the string hangs from. */
-const HANDLE: P = { x: 204, y: 20 };
-const TIP: P = { x: 118, y: 96 };
-const STRING = 110;
-const GRAVITY = 1800;        // px/s²
+const HANDLE: P = { x: 204 * K, y: 20 * K };
+const TIP: P = { x: 118 * K, y: 96 * K };
+const STRING = 110 * K;
+const GRAVITY = 1800 * K;    // px/s²: scaled with the string, so it swings at the same pace whatever its size
 const DAMPING = 2.2;         // 1/s: a swing dies down in a few seconds
-const FEATHER = 54;          // each feather's length
-const FEATHER_R = 24;        // the feather catches the mouse within this of its middle
-const STICK_REACH = 9;
+const FEATHER = 54 * K;      // each feather's length
+const FEATHER_R = 24 * K;    // the feather catches the mouse within this of its middle
+const STICK_REACH = Math.max(6, 9 * K);
 const STRING_REACH = 5;
 /** How often main hears where the feather is. */
 const REPORT_MS = 66;
@@ -68,20 +72,22 @@ function step(dt: number): void {
   speed = speed * 0.7 + (Math.hypot(knot.x - before.x, knot.y - before.y) / dt) * 0.3;
 }
 
+/** One feather hanging down from the knot, drawn at its designed size (54 long) scaled by K. */
 function feather(color: string, degrees: number): void {
   ctx.save();
   ctx.rotate((degrees * Math.PI) / 180);
+  ctx.scale(K, K);
   ctx.fillStyle = color;
   ctx.beginPath();
   ctx.moveTo(0, 2);
-  ctx.bezierCurveTo(-11, 14, -10, FEATHER - 14, 0, FEATHER);
-  ctx.bezierCurveTo(10, FEATHER - 14, 11, 14, 0, 2);
+  ctx.bezierCurveTo(-11, 14, -10, 40, 0, 54);
+  ctx.bezierCurveTo(10, 40, 11, 14, 0, 2);
   ctx.fill();
   ctx.strokeStyle = 'rgba(0, 0, 0, 0.22)';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(0, 2);
-  ctx.lineTo(0, FEATHER - 4);
+  ctx.lineTo(0, 50);
   ctx.stroke();
   ctx.restore();
 }
@@ -94,11 +100,11 @@ function draw(): void {
   ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(TIP.x, TIP.y); ctx.lineTo(k.x, k.y); ctx.stroke();
   ctx.strokeStyle = '#a0703e';
-  ctx.lineWidth = 6;
+  ctx.lineWidth = 6 * K;
   ctx.beginPath(); ctx.moveTo(HANDLE.x, HANDLE.y); ctx.lineTo(TIP.x, TIP.y); ctx.stroke();
   const grip = lerp(HANDLE, TIP, 0.25);
   ctx.strokeStyle = '#6b4423';
-  ctx.lineWidth = 8;
+  ctx.lineWidth = 8 * K;
   ctx.beginPath(); ctx.moveTo(HANDLE.x, HANDLE.y); ctx.lineTo(grip.x, grip.y); ctx.stroke();
   ctx.save();
   ctx.translate(k.x, k.y);
@@ -107,7 +113,7 @@ function draw(): void {
   feather('#378ADD', 24);
   feather('#EF9F27', 0);
   ctx.fillStyle = '#444441';
-  ctx.beginPath(); ctx.arc(0, 1, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(0, 1, 3 * K, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
 

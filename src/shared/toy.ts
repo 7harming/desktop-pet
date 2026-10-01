@@ -1,6 +1,10 @@
 import type { SwatDir } from './types';
 
 type Point = { x: number; y: number };
+/** The wand is drawn at this share of the size it was designed at (owner 2026-10-02: it was too big). */
+export const TOY_SCALE = 0.7;
+/** The size it was designed at: its window, holding the stick and the feather however it swings. */
+export const TOY_BASE = { width: 240, height: 280 };
 /** The feather moves when it goes at least this fast (px/s); slower, the cat takes it for still. */
 export const MIN_SPEED = 120;
 
@@ -14,6 +18,12 @@ export function swatDir(head: Point, feather: Point): SwatDir | null {
   if (deg > 157.5 || deg <= -120) return 'left';
   return null;
 }
+
+/**
+ * How fast to play one swat: up to a fifth faster or slower than made (owner 2026-10-02: a tenth either way did not show), so
+ * repeats are not all the same length.
+ */
+export const swatRate = (rng: () => number): number => 0.8 + rng() * 0.4;
 
 export type ToyMove = { do: 'watch' } | { do: 'swat'; dir: SwatDir } | { do: 'bored' };
 

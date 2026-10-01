@@ -3,6 +3,7 @@ import { BehaviorEngine } from '../shared/behavior';
 import { fightClip } from '../shared/fight';
 import type { PetInit } from '../shared/ipc';
 import type { DayPart } from '../shared/time-events';
+import { swatRate } from '../shared/toy';
 import type { PounceSide, ToyDef } from '../shared/types';
 import { clickLine, commandLine, pickLine, reminderLine } from '../shared/lines';
 import { isAsleep, poseValueAt, showsShadow, sleepPoses } from '../shared/pose-geometry';
@@ -211,8 +212,8 @@ api.onInit((init: PetInit) => {
     onMoved: (winY, dragging) => { moving = dragging; reportHead(winY); },
   });
   api.onRestY(y => { interactions.setRestY(y); requestAnimationFrame(() => reportHead()); });
-  // the wand: a feather moving near it - it sits up and watches; in reach - it swats towards it (each swat a little faster or slower
-  // than the last, so repeats look less alike); still a while - it tires and goes back to its ways
+  // the wand: a feather moving near it - it sits up and watches; in reach - it swats towards it (each swat faster or slower than
+  // the last, so repeats look less alike); still a while - it tires and goes back to its ways
   const watch = (toy: ToyDef) => {
     if (toying || mode !== 'live' || away || attending || fight || moving) return;
     toying = true;
@@ -230,7 +231,7 @@ api.onInit((init: PetInit) => {
       const s = player.step;
       const cutIn = !!s && swats.has(s.clip) && s.clip !== clip && player.progress >= SWAT_CUT_IN;
       const step = engine.interject(clip, toy.pose, cutIn);
-      if (step) void player.play({ ...step, rate: step.rate * (0.9 + Math.random() * 0.2) });
+      if (step) void player.play({ ...step, rate: step.rate * swatRate(Math.random) });
     } else if (toying) {
       toying = false;
       applyAuto();
