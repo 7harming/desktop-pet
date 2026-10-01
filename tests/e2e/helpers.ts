@@ -1,5 +1,5 @@
 import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test';
-import { mkdtempSync, readdirSync, readFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -118,6 +118,43 @@ export async function failClips(app: ElectronApplication, clips: string[]): Prom
       set(this: HTMLMediaElement, url: string) { src.set!.call(this, clips.includes(this.dataset.clip ?? '') ? 'data:video/webm;base64,AAAA' : url); },
     });
   }, clips);
+}
+
+/** A copy of the test packs in which testcat holds the reminders and testcat2 the memo. */
+export function cardPacks(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'dpet-cards-'));
+  cpSync(resolve('tests/fixtures/packs'), dir, { recursive: true });
+  for (const [id, card] of [['testcat', 'todo'], ['testcat2', 'memo']]) {
+    const file = join(dir, id, 'pack.json');
+    writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), card }));
+  }
+  return dir;
+}
+
+/** A user folder whose settings let the cards pop up by themselves only as given (by default never). */
+export function cardUserDir(cards: { memo?: object; todo?: object } = {}): string {
+  const userDir = mkdtempSync(join(tmpdir(), 'dpet-e2e-'));
+  const never = { start: false, resume: false, unlock: false, back: false, daily: null };
+  writeFileSync(join(userDir, 'settings.json'), JSON.stringify({ cards: { memo: { ...never, ...cards.memo }, todo: { ...never, ...cards.todo } } }));
+  return userDir;
+}
+
+/** The window of a card ('memo' or 'todo') once it shows. */
+export async function cardPage(app: ElectronApplication, kind: string): Promise<Page> {
+  let found: Page | undefined;
+  await expect.poll(async () => {
+    for (const w of app.windows()) {
+      if (!w.url().endsWith('/ui/card.html')) continue;
+      if (await w.evaluate(() => document.body.dataset.kind).catch(() => undefined) === kind) { found = w; return true; }
+    }
+    return false;
+  }, { timeout: 20_000 }).toBe(true);
+  return found!;
+}
+
+/** The memo and reminders as kept in notes.json (null before the first save). */
+export function readNotes(userDir: string): any {
+  try { return JSON.parse(readFileSync(join(userDir, 'notes.json'), 'utf8')); } catch { return null; }
 }
 
 /** Everything the app has logged so far. */
