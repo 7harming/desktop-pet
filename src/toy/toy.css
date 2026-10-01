@@ -1,0 +1,4 @@
+html, body { margin: 0; background: transparent; overflow: hidden; user-select: none; }
+canvas { display: block; }
+body.grab { cursor: grab; }
+body.dragging { cursor: grabbing; }

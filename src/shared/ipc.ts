@@ -135,6 +135,16 @@ export interface CardApi {
   close(): void;
 }
 
+/** The cat wand's window. */
+export interface ToyApi {
+  ready(): void;
+  setInteractive(on: boolean): void;
+  /** Move the wand's window so its top-left corner is here (screen px): it is being dragged. */
+  moveTo(x: number, y: number): void;
+  /** Where the feather is on screen (px), and how fast it goes (px/s). */
+  feather(x: number, y: number, speed: number): void;
+}
+
 export interface PanelApi {
   getState(): Promise<PanelState>;
   act(action: PanelAction): Promise<PanelState>;
