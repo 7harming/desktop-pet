@@ -21,13 +21,15 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage
 
-from convert_xiaozhao import FF, HD_SIZE, clip_extent, geometry, key_clip, key_filter
+from convert_xiaozhao import FF, HD_SIZE, SWATS, clip_extent, geometry, key_clip, key_filter, toy_section
 
 CLIPS = ['idle_lie', 'lie_to_sit', 'idle_sit', 'sit_to_lie', 'lick', 'knead_lie', 'lickpaw', 'lie_to_sleep', 'idle_sleep',
          'sleep_to_lie', 'lie_to_side', 'idle_side', 'side_to_lie', 'lie_to_loaf', 'idle_loaf', 'loaf_to_lie',
          'walk_loop', 'walk_left_loop', 'walk_arrive', 'walk_depart', 'fight_left', 'fight_right']
 # play-fighting (spike fight1-6, 2026-09-29): with 小昭 close by he gets up, arches his back facing her, sits and swats, lies down
 FIGHTS = ['fight_left', 'fight_right']
+# the cat wand (spike wand1-2, 2026-10-01); his sitting, swats included, is 6% bigger than it was made (spike af35)
+CLIPS += list(SWATS.values())
 FPS = {'walk_loop': 60, 'walk_left_loop': 60}   # the loops are built at 60 fps (Topaz); the rest stay at 24
 STILLS = {'lie': 'lie.png', 'loaf': 'loaf.png', 'sit': 'sit.png', 'sleep': 'sleep.png', 'side': 'side.png'}
 WALK_STILLS = {'right': 'walk_right_loop_start.png', 'left': 'walk_left_loop_start.png'}
@@ -100,7 +102,7 @@ def walk_section(src: Path, lie: dict) -> dict:
                          'width': round(g['left']['right'] - g['left']['left'], 3), 'speed': left}}
 
 
-def build_pack(geo: dict, walk: dict, fight: tuple) -> dict:
+def build_pack(geo: dict, walk: dict, fight: tuple, toy: dict) -> dict:
     fade = lambda a, b: {'from': a, 'to': b, 'fade': JOIN_FADE}
     return {
         'schemaVersion': 1, 'id': 'apang', 'order': 2, 'name': '阿胖', 'personality': '膽小但很親人、喜歡撒嬌', 'portrait': 'portrait.png',
@@ -153,6 +155,16 @@ def build_pack(geo: dict, walk: dict, fight: tuple) -> dict:
                 'eyes': {'default': '喵～眼睛休息一下。', 'sleep': '……（睡夢中）眼睛休息一下。', 'side': '……（睡夢中）眼睛休息一下。'},
             },
             'fight': ['喵嗚～', '（躲到一邊舔舔毛）', '喵！（我贏了）'],
+            # back at the computer, and the clock (2026-10-01)
+            'back': ['喵～你回來了！', '（揉揉眼睛）喵～回來了？', '（伸懶腰）喵～'],
+            'time': {
+                'morning': ['喵～早安！', '（揉揉眼睛）喵～早。'],
+                'weekend': ['喵？假日還在工作？', '喵～今天放假耶。'],
+                'lunch': ['喵～該吃飯了！', '（肚子咕嚕咕嚕）喵～吃飯時間。'],
+                'offWork': ['喵～還不下班嗎？', '喵～六點了，回家吧。'],
+                'friday': ['喵～週末快到了！', '喵～再撐一下就週末了。'],
+                'bedtime': ['喵～該睡了。', '（打哈欠）喵～好晚了。', '喵～去睡覺啦。'],
+            },
         },
         'clickHeart': True,
         'commands': [{'label': '母雞蹲', 'pose': 'loaf'}, {'label': '坐下', 'pose': 'sit'}, {'label': '睡覺', 'pose': 'sleep'},
@@ -161,6 +173,9 @@ def build_pack(geo: dict, walk: dict, fight: tuple) -> dict:
         'walk': walk,
         'reminderPoses': {'water': 'lick', 'stretch': 'sideStretch'},
         'fight': {'pose': 'lie', 'toLeft': 'fight_left', 'toRight': 'fight_right', 'left': fight[0], 'right': fight[1]},
+        'alert': 'sit',          # he sits up to look at the user (back at the computer, a reminder due)
+        'card': 'memo',          # he holds the memo
+        'toy': toy,
     }
 
 
@@ -199,7 +214,8 @@ def main() -> int:
             key_clip(mp4, webm, size=HD_SIZE, choke=2, fps=FPS.get(c, 24))
             print('keyed hd', c, flush=True)
         hd[c] = f'hd/{c}.webm'
-    pack = build_pack(geo, walk_section(src, geo['lie']), clip_extent([src / 'clips' / f'{c}.mp4' for c in FIGHTS]))
+    pack = build_pack(geo, walk_section(src, geo['lie']), clip_extent([src / 'clips' / f'{c}.mp4' for c in FIGHTS]),
+                      toy_section(src / 'clips'))
     if hd:
         pack['hd'] = hd
     (out / 'pack.json').write_text(json.dumps(pack, ensure_ascii=False, indent=1), encoding='utf-8')

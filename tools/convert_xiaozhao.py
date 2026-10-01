@@ -20,6 +20,9 @@ CLIPS = ['idle_lie', 'idle_lie_groom', 'idle_sit', 'lie_to_sit', 'sit_to_lie', '
          'fight_left', 'fight_right']
 # play-fighting (spike fight1-6, 2026-09-29): with 阿胖 close by she gets up, arches her back facing him, sits and swats, lies down
 FIGHTS = ['fight_left', 'fight_right']
+# the cat wand (spike wand1-2, 2026-10-01): sitting, the cat swats with both front paws towards one of five sides and sits again
+SWATS = {'left': 'swat_left', 'upLeft': 'swat_up_left', 'up': 'swat_up', 'upRight': 'swat_up_right', 'right': 'swat_right'}
+CLIPS += list(SWATS.values())
 # drinking (spike steps 32-35): the bowl fades in beside the lying cat; it walks over, drinks (a seamless loop), walks back
 # stretching (spike steps 36-39): gets up, stretches side-on, holds it (a back-and-forth loop), lies down again
 # pouncing (spike steps 40-41): double-clicked while lying, she pounces to that side and lies down again in her spot
@@ -135,7 +138,13 @@ def portrait(lie: Path, dst: Path) -> None:
     img.convert('RGBa').crop(box).resize((256, 256), Image.LANCZOS).convert('RGBA').save(dst)
 
 
-def build_pack(geo: dict, walk: dict, pounce: tuple, fight: tuple) -> dict:
+def toy_section(clips: Path) -> dict:
+    """The wand: the swats from sitting, and how far they reach."""
+    left, right = clip_extent([clips / f'{c}.mp4' for c in SWATS.values()])
+    return {'pose': 'sit', 'swats': SWATS, 'left': left, 'right': right}
+
+
+def build_pack(geo: dict, walk: dict, pounce: tuple, fight: tuple, toy: dict) -> dict:
     lie = geo['lie']
     return {
         'schemaVersion': 1, 'id': 'xiaozhao', 'order': 1, 'name': '小昭', 'personality': '淡定、愛翻肚、最愛紙箱', 'portrait': 'portrait.png',
@@ -186,6 +195,16 @@ def build_pack(geo: dict, walk: dict, pounce: tuple, fight: tuple) -> dict:
                 'eyes': {'default': '……眼睛休息一下。', 'sleep': '……（睡夢中）眼睛休息一下。', 'boxBelly': '……（睡夢中）眼睛休息一下。'},
             },
             'fight': ['……哼。', '（甩甩尾巴）', '……（假裝沒事）'],
+            # back at the computer, and the clock (2026-10-01)
+            'back': ['……你回來了。', '……（睜開一隻眼）回來了啊。', '……嗯，回來了。'],
+            'time': {
+                'morning': ['……早。', '……早安。今天也要打工。'],
+                'weekend': ['……假日還在工作？', '……今天不是放假嗎。'],
+                'lunch': ['……中午了，去吃飯。', '……該吃飯了。'],
+                'offWork': ['……還不下班？', '……六點了。'],
+                'friday': ['……週末了。', '……再撐一下就週末了。'],
+                'bedtime': ['……該睡了。', '……很晚了，去睡覺。', '……（打哈欠）睡吧。'],
+            },
         },
         'clickHeart': True,
         'commands': [{'label': '趴著', 'pose': 'lie'}, {'label': '坐下', 'pose': 'sit'}, {'label': '睡覺', 'pose': 'sleep'},
@@ -196,6 +215,9 @@ def build_pack(geo: dict, walk: dict, pounce: tuple, fight: tuple) -> dict:
         'pounce': {'pose': 'lie', 'toLeft': 'pounce_left', 'toRight': 'pounce_right', 'left': pounce[0], 'right': pounce[1],
                    'autoChance': 0.08},
         'fight': {'pose': 'lie', 'toLeft': 'fight_left', 'toRight': 'fight_right', 'left': fight[0], 'right': fight[1]},
+        'alert': 'sit',          # she sits up to look at the user (back at the computer, a reminder due)
+        'card': 'todo',          # she holds the reminders
+        'toy': toy,
     }
 
 
@@ -233,7 +255,7 @@ def main() -> int:
     walk = walk_section(src, geo['lie'])
     pounce = clip_extent([src / 'clips' / f'{c}.mp4' for c in POUNCES])
     fight = clip_extent([src / 'clips' / f'{c}.mp4' for c in FIGHTS])
-    pack = build_pack(geo, walk, pounce, fight)
+    pack = build_pack(geo, walk, pounce, fight, toy_section(src / 'clips'))
     if hd:
         pack['hd'] = hd
     (out / 'pack.json').write_text(json.dumps(pack, ensure_ascii=False, indent=1), encoding='utf-8')
