@@ -105,6 +105,13 @@ describe('parsePack', () => {
     expect(e).toHaveLength(2);
   });
 
+  it('checks the optional toy', () => {
+    const p: any = makePack(); p.toy = { pose: 'sit', swats: { left: 'a', up: 3 }, left: 0, right: 2 };
+    const e = parsePack(p).errors;
+    expect(e).toContain('toy.swats 要有 left、upLeft、up、upRight、right 五個方向的片段');
+    expect(e).toContain('toy 的 right 要在 0 到 1 之間');
+  });
+
   it('checks pounce commands', () => {
     const p: any = makePack();
     p.commands.push({ label: '亂撲', pounce: 'up' }, { label: '兩個都有', pose: 'sit', pounce: 'left' }, { label: '都沒有' });

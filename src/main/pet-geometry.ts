@@ -28,6 +28,7 @@ export function extentOf(pack: Pack, poses: string[] | null): Extent {
   if (pack.walk) spans.push([pack.walk.left, pack.walk.right]);
   if (pack.pounce) spans.push([pack.pounce.left, pack.pounce.right]);
   if (pack.fight) spans.push([pack.fight.left, pack.fight.right]);
+  if (pack.toy) spans.push([pack.toy.left, pack.toy.right]);
   return [Math.min(...spans.map(e => e[0])), Math.max(...spans.map(e => e[1]))];
 }
 

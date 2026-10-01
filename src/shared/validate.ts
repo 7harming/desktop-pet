@@ -70,6 +70,12 @@ export function validatePack(pack: Pack, fileExists: (relPath: string) => boolea
     if (!p) errors.push(`提醒 ${type} 指到不存在的姿勢：${pose}`);
     else if (p.transient) errors.push(`提醒 ${type} 不能指到過渡姿勢：${pose}`);
   }
+  if (pack.toy) {
+    const p = pack.poses[pack.toy.pose];
+    if (!p) errors.push(`toy 指到不存在的姿勢：${pack.toy.pose}`);
+    else if (p.transient) errors.push(`toy 不能從過渡姿勢開始：${pack.toy.pose}`);
+    for (const c of Object.values(pack.toy.swats)) needClip(c, 'toy');
+  }
   if (pack.alert !== undefined) {
     const p = pack.poses[pack.alert];
     if (!p) errors.push(`alert 指到不存在的姿勢：${pack.alert}`);

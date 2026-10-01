@@ -1,7 +1,8 @@
-import type { Pack, ReminderType, TimeEvent } from './types';
+import type { Pack, ReminderType, SwatDir, TimeEvent } from './types';
 
 export const REMINDER_TYPES: ReminderType[] = ['water', 'stretch', 'eyes'];
 const TIME_EVENTS: TimeEvent[] = ['morning', 'weekend', 'lunch', 'offWork', 'friday', 'bedtime'];
+export const SWAT_DIRS: SwatDir[] = ['left', 'upLeft', 'up', 'upRight', 'right'];
 
 export interface ParseResult { pack: Pack | null; errors: string[] }
 
@@ -154,6 +155,17 @@ export function parsePack(raw: unknown): ParseResult {
     }
   }
 
+  const toy = raw.toy;
+  if (toy !== undefined) {
+    if (!isObj(toy) || !isStr(toy.pose)) err('toy 缺少 pose');
+    else {
+      const swats = toy.swats;
+      if (!isObj(swats) || !SWAT_DIRS.every(d => isStr(swats[d]))) err('toy.swats 要有 left、upLeft、up、upRight、right 五個方向的片段');
+      for (const k of ['left', 'right'] as const) {
+        if (!isNum(toy[k]) || (toy[k] as number) < 0 || (toy[k] as number) > 1) err(`toy 的 ${k} 要在 0 到 1 之間`);
+      }
+    }
+  }
   if (raw.alert !== undefined && !isStr(raw.alert)) err('alert 要是姿勢名稱');
   if (raw.card !== undefined && raw.card !== 'memo' && raw.card !== 'todo') err('card 要是 memo 或 todo');
   if (typeof raw.clickHeart !== 'boolean') err('clickHeart 要是 true 或 false');

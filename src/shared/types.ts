@@ -68,6 +68,13 @@ export type LineSet = string[];
 export interface PoseLines { default: LineSet; [pose: string]: LineSet }
 export interface ReminderLines { default: string; [pose: string]: string }
 export type ReminderType = 'water' | 'stretch' | 'eyes';
+/** Which way a cat swats at the wand: the five sides of its head. */
+export type SwatDir = 'left' | 'upLeft' | 'up' | 'upRight' | 'right';
+/**
+ * The cat wand: sitting in `pose`, the cat swats with both front paws towards one of five sides; each clip goes from `pose` back
+ * to it. `left` / `right` bound everything they draw, as shares of the frame width.
+ */
+export interface ToyDef { pose: PoseId; swats: Record<SwatDir, ClipId>; left: number; right: number }
 /** The card a cat holds over its head: 小昭 the reminders (`todo`), 阿胖 the memo (`memo`). */
 export type CardKind = 'memo' | 'todo';
 /** What the clock has the cats say (see time-events): the day's first hello, lunch, the end of the working day, Friday evening, bedtime. */
@@ -117,4 +124,5 @@ export interface Pack {
   alert?: PoseId;
   /** The card this cat holds (see the cards spec). */
   card?: CardKind;
+  toy?: ToyDef;
 }

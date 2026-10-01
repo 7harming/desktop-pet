@@ -8,6 +8,13 @@ describe('validatePack', () => {
   it('passes the test pack', () => {
     expect(validatePack(makePack(), allFiles)).toEqual([]);
   });
+  it('checks the toy: a pose to swat from and its clips', () => {
+    const p = makePack();
+    p.toy = { ...p.toy!, pose: 'nowhere' };
+    expect(validatePack(p, allFiles)).toContain('toy 指到不存在的姿勢：nowhere');
+    p.toy = { ...p.toy!, pose: 'sit', swats: { ...p.toy!.swats, up: 'missing' } };
+    expect(validatePack(p, allFiles)).toContain('toy 用到未定義的片段：missing');
+  });
   it('needs alert to be a pose it can stay awake in', () => {
     const p = makePack(); p.alert = 'nowhere';
     expect(validatePack(p, allFiles)).toContain('alert 指到不存在的姿勢：nowhere');

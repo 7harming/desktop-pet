@@ -113,6 +113,21 @@
     },
     "fight_right": {
       "file": "clips/fight_right.webm"
+    },
+    "swat_left": {
+      "file": "clips/swat_left.webm"
+    },
+    "swat_up_left": {
+      "file": "clips/swat_up_left.webm"
+    },
+    "swat_up": {
+      "file": "clips/swat_up.webm"
+    },
+    "swat_up_right": {
+      "file": "clips/swat_up_right.webm"
+    },
+    "swat_right": {
+      "file": "clips/swat_right.webm"
     }
   },
   "edges": [
@@ -302,5 +317,17 @@
     "left": 0.1875,
     "right": 0.5
   },
-  "alert": "sit"
+  "alert": "sit",
+  "toy": {
+    "pose": "sit",
+    "swats": {
+      "left": "swat_left",
+      "upLeft": "swat_up_left",
+      "up": "swat_up",
+      "upRight": "swat_up_right",
+      "right": "swat_right"
+    },
+    "left": 0.1875,
+    "right": 0.5
+  }
 }
