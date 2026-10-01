@@ -19,6 +19,16 @@ describe('normalizeSettings', () => {
     expect(normalizeSettings({ awayMinutes: 10 }, ['a']).settings.awayMinutes).toBe(10);
     expect(normalizeSettings({ awayMinutes: 7 }, ['a']).settings.awayMinutes).toBe(5);
   });
+  it('pops the cards up by themselves at these times unless told otherwise', () => {
+    const { cards } = normalizeSettings(undefined, ['a']).settings;
+    expect(cards.memo).toEqual({ start: true, resume: true, unlock: true, back: true, daily: 540 });
+    expect(cards.todo).toEqual({ start: true, resume: true, unlock: true, back: false, daily: 540 });
+    const raw = { cards: { memo: { start: false, back: 'yes', daily: null }, todo: { daily: 615 } } };
+    const s = normalizeSettings(raw, ['a']).settings.cards;
+    expect(s.memo).toEqual({ start: false, resume: true, unlock: true, back: true, daily: null });
+    expect(s.todo.daily).toBe(540);      // not on the tens
+    expect(normalizeSettings({ cards: { todo: { daily: 1430 } } }, ['a']).settings.cards.todo.daily).toBe(1430);
+  });
   it('keeps a saved action interval that is one of the choices', () => {
     expect(normalizeSettings({ actionInterval: 60 }, ['a']).settings.actionInterval).toBe(60);
     expect(normalizeSettings({ actionInterval: 45 }, ['a']).settings.actionInterval).toBe(30);

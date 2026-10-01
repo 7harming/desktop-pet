@@ -1,6 +1,13 @@
+import type { CardKind } from './types';
+
 /** `actions`: the poses auto mode may use (ticked in the panel); null = all of them. */
 export interface PetSettings { visible: boolean; scale: number; auto: boolean; x: number | null; actions: string[] | null }
 export interface ReminderSettings { water: number; stretch: number; eyes: number; notify: boolean; pausedUntil: number | null }
+/**
+ * When a card pops up by itself: the app starting, the computer waking from sleep, the screen being unlocked, the user back at
+ * the computer, and every day at `daily` (minutes after midnight, on the tens; null: not).
+ */
+export interface CardSettings { start: boolean; resume: boolean; unlock: boolean; back: boolean; daily: number | null }
 /**
  * `actionInterval`: in auto mode every cat rests about this many seconds in a pose before it does something else. `fightAuto`: two
  * cats close together play-fight now and then.
@@ -16,6 +23,7 @@ export interface Settings {
   pets: Record<string, PetSettings>;
   petOrder: string[];
   reminders: ReminderSettings;
+  cards: Record<CardKind, CardSettings>;
 }
 
 export const REMINDER_CHOICES = [0, 30, 45, 60, 90];
@@ -35,6 +43,10 @@ export function defaultSettings(): Settings {
   return {
     version: 1, firstRunDone: false, autoStart: true, actionInterval: 30, fightAuto: true, awayMinutes: 5, pets: {}, petOrder: [],
     reminders: { water: 45, stretch: 60, eyes: 0, notify: true, pausedUntil: null },
+    cards: {
+      memo: { start: true, resume: true, unlock: true, back: true, daily: 9 * 60 },
+      todo: { start: true, resume: true, unlock: true, back: false, daily: 9 * 60 },
+    },
   };
 }
 
@@ -45,6 +57,7 @@ export function normalizeSettings(raw: unknown, packIds: string[]): { settings: 
   const d = defaultSettings();
   const rawPets = isObj(r.pets) ? r.pets : {};
   const fresh = Object.keys(rawPets).length === 0;
+  const rawCards = isObj(r.cards) ? r.cards : {};
   const order = Array.isArray(r.petOrder) ? r.petOrder.filter((x): x is string => typeof x === 'string' && packIds.includes(x)) : [];
   for (const id of packIds) if (!order.includes(id)) order.push(id);
 
@@ -58,6 +71,7 @@ export function normalizeSettings(raw: unknown, packIds: string[]): { settings: 
     pets: {},
     petOrder: order,
     reminders: normalizeReminders(r.reminders, d.reminders),
+    cards: { memo: normalizeCardSettings(rawCards.memo, d.cards.memo), todo: normalizeCardSettings(rawCards.todo, d.cards.todo) },
   };
   order.forEach((id, i) => { settings.pets[id] = normalizePet(rawPets[id], fresh && i === 0); });
   return { settings, warnings };
@@ -72,6 +86,14 @@ function normalizePet(raw: unknown, visibleByDefault: boolean): PetSettings {
     x: finite(r.x) ? clamp(r.x, 0, 1) : null,
     actions: Array.isArray(r.actions) ? r.actions.filter((a): a is string => typeof a === 'string') : null,
   };
+}
+
+export function normalizeCardSettings(raw: unknown, d: CardSettings): CardSettings {
+  const r = isObj(raw) ? raw : {};
+  const flag = (k: 'start' | 'resume' | 'unlock' | 'back') => (typeof r[k] === 'boolean' ? (r[k] as boolean) : d[k]);
+  const daily = r.daily === null ? null
+    : Number.isInteger(r.daily) && (r.daily as number) >= 0 && (r.daily as number) < 24 * 60 && (r.daily as number) % 10 === 0 ? (r.daily as number) : d.daily;
+  return { start: flag('start'), resume: flag('resume'), unlock: flag('unlock'), back: flag('back'), daily };
 }
 
 function normalizeReminders(raw: unknown, d: ReminderSettings): ReminderSettings {
