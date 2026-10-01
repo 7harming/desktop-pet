@@ -13,10 +13,12 @@ const entries = [
   ['src/pet/pet.ts', 'dist/pet.js', browser],
   ['src/panel/panel.ts', 'dist/panel.js', browser],
   ['src/break/break.ts', 'dist/break.js', browser],
+  ['src/main/preload-card.ts', 'dist/preload-card.js', node],
+  ['src/card/card.ts', 'dist/card.js', browser],
   ['src/cli/check-pack.ts', 'dist/check-pack.js', node],
 ];
 await mkdir('dist', { recursive: true });
 await Promise.all(entries.filter(([src]) => existsSync(src)).map(([src, out, opts]) => build({ ...opts, entryPoints: [src], outfile: out })));
-for (const f of ['src/pet/pet.html', 'src/pet/pet.css', 'src/panel/panel.html', 'src/panel/panel.css', 'src/break/break.html', 'src/break/break.css']) {
+for (const f of ['src/pet/pet.html', 'src/pet/pet.css', 'src/panel/panel.html', 'src/panel/panel.css', 'src/break/break.html', 'src/break/break.css', 'src/card/card.html', 'src/card/card.css']) {
   if (existsSync(f)) await cp(f, `dist/${f.split('/').pop()}`);
 }

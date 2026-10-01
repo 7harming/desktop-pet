@@ -53,3 +53,10 @@ export function xRatioFromBounds(b: { x: number; width: number }, pack: Pack, wa
 export function bodyWidth(pack: Pack, scale: number): number {
   return windowSize(pack, scale).width * 0.35;
 }
+
+/** Where a card `width`×`height` goes: centred over the head at `head` (screen px), its bottom `gap` above it, inside the work area. */
+export function cardBounds(head: { x: number; y: number }, width: number, height: number, wa: WorkArea, gap: number): Bounds {
+  const x = Math.round(Math.min(Math.max(head.x - width / 2, wa.x), wa.x + wa.width - width));
+  const y = Math.round(Math.min(Math.max(head.y - gap - height, wa.y), wa.y + wa.height - height));
+  return { x, y, width, height };
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { windowSize, restY, windowBounds, xRatioFromBounds, bodyWidth, extentOf } from '../../src/main/pet-geometry';
+import { windowSize, restY, windowBounds, xRatioFromBounds, bodyWidth, extentOf, cardBounds } from '../../src/main/pet-geometry';
 import { makePack } from './fixtures';
 
 const pack = makePack();                                  // displayHeight 300, aspect 16:9, start centerX 0.34, ground 0.9
@@ -44,5 +44,16 @@ describe('pet geometry', () => {
   });
   it('estimates the body width for placement', () => {
     expect(bodyWidth(pack, 1)).toBeCloseTo(186.55);
+  });
+});
+
+describe('cardBounds', () => {
+  const wa = { x: 0, y: 0, width: 1000, height: 700 };
+  it('centres the card over the head, its bottom a gap above it', () => {
+    expect(cardBounds({ x: 500, y: 400 }, 240, 150, wa, 80)).toEqual({ x: 380, y: 170, width: 240, height: 150 });
+  });
+  it('keeps the card inside the work area', () => {
+    expect(cardBounds({ x: 980, y: 100 }, 240, 150, wa, 80)).toEqual({ x: 760, y: 0, width: 240, height: 150 });
+    expect(cardBounds({ x: 10, y: 400 }, 240, 150, wa, 80).x).toBe(0);
   });
 });

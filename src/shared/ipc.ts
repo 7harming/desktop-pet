@@ -1,5 +1,6 @@
 import type { DayPart } from './time-events';
-import type { Pack, PoseId, PounceSide, ReminderType, TimeEvent } from './types';
+import type { Repeat } from './todo';
+import type { CardKind, Pack, PoseId, PounceSide, ReminderType, TimeEvent } from './types';
 
 /**
  * A play-fight, pet to main: `ready` resting in its fight pose (holding there), `no` it can not now (asleep, walking, ...), `done`
@@ -93,6 +94,30 @@ export interface BreakApi {
   /** The big cat has walked off: close the break. */
   done(): void;
   log(level: LogLevel, message: string): void;
+}
+
+/** A reminder as the card shows it. */
+export interface TodoView { id: string; text: string; time: string; repeat: Repeat; done: boolean; due: boolean; missed: boolean }
+/** What a card shows: the memo's text, or the reminders in the order of the day. */
+export interface CardState { kind: CardKind; title: string; memo: string; todos: TodoView[] }
+export type CardAction =
+  | { kind: 'memo'; text: string }
+  | { kind: 'add'; text: string; hour: number; minute: number; repeat: Repeat }
+  | { kind: 'toggle'; id: string; done: boolean }
+  | { kind: 'edit'; id: string; text: string }
+  | { kind: 'delete'; id: string }
+  | { kind: 'answer'; id: string; how: 'done' | 'snooze' };
+export interface CardApi {
+  onState(cb: (s: CardState) => void): void;
+  /** Opened by hand: put the cursor in the memo, or in the new reminder's box. */
+  onFocus(cb: () => void): void;
+  ready(): void;
+  act(action: CardAction): void;
+  /** The card is this tall (px), ears included: the window fits it. */
+  resize(height: number): void;
+  /** The pointer is over the card or it has the focus: it does not close by itself meanwhile. */
+  hot(on: boolean): void;
+  close(): void;
 }
 
 export interface PanelApi {
