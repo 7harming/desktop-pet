@@ -9,10 +9,10 @@ body { font-family: "Microsoft JhengHei UI", "PingFang TC", sans-serif; font-siz
 .ears i:last-child { right: 16px; }
 header { display: flex; align-items: center; justify-content: space-between; background: var(--fur); color: #fff; border-radius: 11px 11px 0 0; padding: 3px 6px 3px 10px; font-size: 12px; }
 header button { background: none; border: 0; color: #fff; font: inherit; cursor: pointer; padding: 0 2px; }
-#body { padding: 8px 10px 10px; }
+#body { padding: 7px 7px 8px; }
 textarea { display: block; box-sizing: border-box; width: 100%; border: 0; outline: none; resize: none; font: inherit; line-height: 1.6; color: inherit; background: transparent; user-select: text; overflow-y: auto; }
 ul { list-style: none; margin: 0; padding: 0; max-height: 236px; overflow-y: auto; }
-li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 6px; }
+li { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 3px 3px; border-radius: 6px; }
 li.done .text, li.done .time { color: #b4b2a9; text-decoration: line-through; }
 li.due { background: #faeeda; }
 li input[type=checkbox] { accent-color: var(--accent); margin: 0; }
@@ -28,7 +28,7 @@ button.answer { font: inherit; font-size: 12px; padding: 1px 8px; border-radius:
 button.answer.done { border-color: var(--accent); color: #854f0b; }
 .empty { color: #888780; }
 .add { border-top: 1px solid #f1efe8; margin-top: 6px; padding-top: 6px; display: grid; gap: 4px; }
-.add .row { display: flex; gap: 4px; align-items: center; }
-.add select, .add input { font: inherit; font-size: 12px; border: 1px solid #d3d1c7; border-radius: 4px; padding: 1px 3px; background: #fff; color: inherit; }
+.add .row { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+.add select, .add input { font: inherit; font-size: 12px; border: 1px solid #d3d1c7; border-radius: 4px; padding: 1px 1px; background: #fff; color: inherit; }
 .add input { flex: 1; min-width: 0; user-select: text; }
 .add button { background: none; border: 0; color: var(--accent); font-size: 17px; line-height: 1; cursor: pointer; padding: 0 2px; }

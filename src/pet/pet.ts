@@ -22,6 +22,8 @@ const SLEEPY: Record<DayPart, number> = { day: 1, nap: 3, night: 3 };
 const SLOW: Record<DayPart, number> = { day: 1, nap: 1, night: 2 };
 /** A line for the time of day stays up longer than a passing one, to be noticed. */
 const SAY_MS = 5_000;
+/** A card sits right on a sitting cat's ear tips; over a lying one it keeps this little gap (px). */
+const CARD_GAP_LYING = 8;
 
 api.onInit((init: PetInit) => {
   const { pack } = init;
@@ -143,16 +145,19 @@ api.onInit((init: PetInit) => {
   setFrameX(frameX);
   /** Tell main where the head is (screen px) and whether the cat stands still; `winY`: the strip's top while it moves. */
   const reportHead = (winY = window.screenY) => {
-    const step = player.step;
-    const pose = pack.poses[step ? step.to : pack.start];
-    api.reportHead(window.screenX + frameX + pose.centerX * frameW(), winY + (g0 - pose.head) * window.innerHeight, mode === 'live' && !moving);
+    const to = player.step ? player.step.to : pack.start;
+    const pose = pack.poses[to];
+    const gap = to === pack.alert ? 0 : CARD_GAP_LYING;   // a pose's `head` is its ear tips at their highest
+    api.reportHead(window.screenX + frameX + pose.centerX * frameW(), winY + (g0 - pose.head) * window.innerHeight - gap, mode === 'live' && !moving);
   };
   api.onFrameX(x => { setFrameX(x); reportHead(); });
 
+  let cards: { x: number; y: number; width: number; height: number }[] = [];   // where the cards stand (screen px)
+  api.onCardsAt(c => { cards = c; });
   const bubbles = new Bubbles(stage, () => ({
     x: frameX + poseValueAt(pack, player.step, player.progress, 'centerX') * frameW(),
     y: (g0 - poseValueAt(pack, player.step, player.progress, 'head')) * window.innerHeight - 8,
-  }));
+  }), () => cards.map(c => ({ ...c, x: c.x - window.screenX, y: c.y - window.screenY })));
   if (init.debug) Object.assign((window as unknown as Record<string, object>).__pet, { bubbles });
 
   // a click this many probe pixels (~2% of the frame) beside a paw or the tail still picks the cat up

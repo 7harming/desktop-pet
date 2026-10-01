@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { windowSize, restY, windowBounds, xRatioFromBounds, bodyWidth, extentOf, cardBounds } from '../../src/main/pet-geometry';
+import { windowSize, restY, windowBounds, xRatioFromBounds, bodyWidth, extentOf, cardBounds, layoutCards } from '../../src/main/pet-geometry';
 import { makePack } from './fixtures';
 
 const pack = makePack();                                  // displayHeight 300, aspect 16:9, start centerX 0.34, ground 0.9
@@ -49,11 +49,27 @@ describe('pet geometry', () => {
 
 describe('cardBounds', () => {
   const wa = { x: 0, y: 0, width: 1000, height: 700 };
-  it('centres the card over the head, its bottom a gap above it', () => {
-    expect(cardBounds({ x: 500, y: 400 }, 240, 150, wa, 80)).toEqual({ x: 380, y: 170, width: 240, height: 150 });
+  it('centres the card over the head, its bottom on the head', () => {
+    expect(cardBounds({ x: 500, y: 400 }, 186, 150, wa)).toEqual({ x: 407, y: 250, width: 186, height: 150 });
   });
   it('keeps the card inside the work area', () => {
-    expect(cardBounds({ x: 980, y: 100 }, 240, 150, wa, 80)).toEqual({ x: 760, y: 0, width: 240, height: 150 });
-    expect(cardBounds({ x: 10, y: 400 }, 240, 150, wa, 80).x).toBe(0);
+    expect(cardBounds({ x: 980, y: 100 }, 186, 150, wa)).toEqual({ x: 814, y: 0, width: 186, height: 150 });
+    expect(cardBounds({ x: 10, y: 400 }, 186, 150, wa).x).toBe(0);
+  });
+});
+
+describe('layoutCards', () => {
+  const wa = { x: 0, y: 0, width: 1000, height: 700 };
+  const card = (x: number, y = 250, height = 150) => ({ x, y, width: 186, height });
+  it('leaves cards that do not overlap where they are', () => {
+    expect(layoutCards([card(100), card(400)], wa)).toEqual([card(100), card(400)]);
+    expect(layoutCards([card(100, 0), card(150, 400)], wa)).toEqual([card(100, 0), card(150, 400)]);
+  });
+  it('stands two that would overlap side by side, touching, around the middle of the two', () => {
+    expect(layoutCards([card(500), card(400, 280)], wa)).toEqual([card(543), card(357, 280)]);
+    expect(layoutCards([card(400), card(400)], wa)).toEqual([card(307), card(493)]);   // both over the one cat
+  });
+  it('keeps a pair inside the work area', () => {
+    expect(layoutCards([card(814), card(800)], wa)).toEqual([card(814), card(628)]);
   });
 });

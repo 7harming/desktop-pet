@@ -13,10 +13,36 @@ test('scrolling up over a cat brings its card over its head, and scrolling down 
   await page.mouse.wheel(0, -100);
   const card = await cardPage(app, 'todo');
   await expect(card.locator('#title')).toHaveText('測試貓的提醒事項');
-  const [bounds, head] = await controllerCall(app, c => [c.cards.open.get('todo').card.win.getBounds(), c.cards.heads.get('testcat')]);
-  expect(bounds.y + bounds.height).toBeLessThanOrEqual(head.y - 79);
+  // right over the head: its bottom where the cat says (a little above the ear tips, lying), 186 px wide
+  const [bounds, head] = await controllerCall(app, c => [c.cards.open.get('todo').card.placed, c.cards.heads.get('testcat')]);
+  expect(Math.abs(bounds.y + bounds.height - head.y)).toBeLessThanOrEqual(1);
+  expect(bounds.width).toBe(186);
   await page.mouse.wheel(0, 100);
   await expect.poll(() => isOpen(app, 'todo')).toBe(false);
+  await app.close();
+});
+
+test('two cards over one cat stand side by side, touching, and the cat speaks beside them', async () => {
+  const { app } = await launch({ DESKTOP_PET_PACKS: cardPacks() }, cardUserDir());
+  const page = await calmPetPage(app);   // testcat2 (the memo's) is not out: both cards go over testcat
+  await controllerCall(app, c => { c.cards.show('todo', null, 'hand'); c.cards.show('memo', 'testcat', 'hand'); });
+  await cardPage(app, 'todo');
+  await cardPage(app, 'memo');
+  const [a, b] = await controllerCall(app, c => [c.cards.open.get('todo').card.placed, c.cards.open.get('memo').card.placed]);
+  const [l, r] = a.x < b.x ? [a, b] : [b, a];
+  expect(r.x).toBe(l.x + l.width);
+  // a click: the line shows beside the cards, not under them
+  const p = await catPoint(page, 0.35, 0.7);
+  await page.mouse.click(p.x, p.y);
+  await expect(page.locator('.bubble')).toHaveCount(1);
+  const bubble = await page.evaluate(() => {
+    const r = document.querySelector('.bubble')!.getBoundingClientRect();
+    return { x: r.left + window.screenX, y: r.top + window.screenY, width: r.width, height: r.height };
+  });
+  for (const c of [a, b]) {
+    const apart = bubble.x + bubble.width <= c.x + 1 || c.x + c.width <= bubble.x + 1 || bubble.y + bubble.height <= c.y + 1 || c.y + c.height <= bubble.y + 1;
+    expect(apart).toBe(true);
+  }
   await app.close();
 });
 

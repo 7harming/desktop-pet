@@ -35,5 +35,6 @@ const api: PetApi = {
   onAttend: cb => listen('pet:attend', cb),
   reportHead: (x, y, settled) => ipcRenderer.send('pet:head', x, y, settled),
   wheel: up => ipcRenderer.send('pet:wheel', up),
+  onCardsAt: cb => listen('pet:cards-at', cb),
 };
 contextBridge.exposeInMainWorld('petApi', api);

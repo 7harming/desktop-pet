@@ -54,9 +54,25 @@ export function bodyWidth(pack: Pack, scale: number): number {
   return windowSize(pack, scale).width * 0.35;
 }
 
-/** Where a card `width`×`height` goes: centred over the head at `head` (screen px), its bottom `gap` above it, inside the work area. */
-export function cardBounds(head: { x: number; y: number }, width: number, height: number, wa: WorkArea, gap: number): Bounds {
+/** Where a card `width`×`height` goes: centred over the head at `head` (screen px), its bottom on it, inside the work area. */
+export function cardBounds(head: { x: number; y: number }, width: number, height: number, wa: WorkArea): Bounds {
   const x = Math.round(Math.min(Math.max(head.x - width / 2, wa.x), wa.x + wa.width - width));
-  const y = Math.round(Math.min(Math.max(head.y - gap - height, wa.y), wa.y + wa.height - height));
+  const y = Math.round(Math.min(Math.max(head.y - height, wa.y), wa.y + wa.height - height));
   return { x, y, width, height };
+}
+
+const overlaps = (a: Bounds, b: Bounds) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+/** The cards over the cats' heads, where each would go: two that would overlap stand side by side instead, touching, around the middle of the two, inside the work area. */
+export function layoutCards(cards: Bounds[], wa: WorkArea): Bounds[] {
+  if (cards.length !== 2 || !overlaps(cards[0], cards[1])) return cards;
+  const centre = (b: Bounds) => b.x + b.width / 2;
+  const [l, r] = centre(cards[0]) <= centre(cards[1]) ? [0, 1] : [1, 0];
+  const width = cards[l].width + cards[r].width;
+  const mid = (centre(cards[0]) + centre(cards[1])) / 2;
+  const x = Math.round(Math.min(Math.max(mid - width / 2, wa.x), wa.x + wa.width - width));
+  const out = [...cards];
+  out[l] = { ...cards[l], x };
+  out[r] = { ...cards[r], x: x + cards[l].width };
+  return out;
 }

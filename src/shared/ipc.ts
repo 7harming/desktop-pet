@@ -58,8 +58,13 @@ export interface PetApi {
   woke(): void;
   /** A reminder is due (true): sit up and look at the user until it is answered (false). */
   onAttend(cb: (on: boolean) => void): void;
-  /** Where the head is on screen (px), and whether the cat stands still there (not walking in, not dragged): cards go above it. */
+  /**
+   * Where a card over the head goes (screen px: the head's middle, and the ear tips or a little above them), and whether the cat
+   * stands still there (not walking in, not dragged).
+   */
   reportHead(x: number, y: number, settled: boolean): void;
+  /** Where the cards stand now (screen px): speech bubbles go beside them, not under them. */
+  onCardsAt(cb: (cards: { x: number; y: number; width: number; height: number }[]) => void): void;
   /** The wheel turned over the cat: up brings its card, down puts it away. */
   wheel(up: boolean): void;
 }

@@ -1,7 +1,7 @@
 import { CardWindow } from './card-window';
 import type { Logger } from './logger';
 import type { NotesStore } from './notes-store';
-import type { WorkArea } from './pet-geometry';
+import { cardBounds, layoutCards, type Bounds, type WorkArea } from './pet-geometry';
 import type { CardAction, CardState, TodoView } from '../shared/ipc';
 import type { Notes } from '../shared/notes';
 import type { CardSettings } from '../shared/settings';
@@ -35,6 +35,8 @@ export interface CardHost {
   /** Have the cat sit up and look at the user (true), or go back to its ways (false). */
   attend(id: string, on: boolean): void;
   notify(body: string, onClick: () => void): void;
+  /** Where the cards stand now (screen px): the cats keep their speech bubbles beside them. */
+  cardsAt(cards: Bounds[]): void;
   log: Logger;
 }
 
@@ -96,8 +98,7 @@ export class CardController {
     const o = this.open.get(kind);
     if (o) {
       if (RANK[mode] > RANK[o.mode]) o.mode = mode;
-      const head = this.heads.get(o.petId);
-      if (mode === 'hand' && head) o.card.showAt(head, true);
+      if (mode === 'hand') o.card.focus();
       this.arm(kind);
       this.push(kind);
       return true;
@@ -109,13 +110,15 @@ export class CardController {
     const head = this.heads.get(petId);
     if (!head?.settled) { this.waiting.set(kind, { petId, mode }); return true; }
     this.waiting.delete(kind);
-    const card = new CardWindow(kind, this.state(kind), () => this.host.workArea(), {
+    const card = new CardWindow(kind, this.state(kind), {
       act: a => this.act(a),
       hot: on => this.setHot(kind, on),
       close: () => this.close(kind),
+      resized: () => this.layout(),
     }, this.preloadDir);
     this.open.set(kind, { card, petId, mode, hot: false, timer: undefined });
-    card.showAt(head, mode === 'hand');
+    if (mode === 'hand') card.focus();
+    this.layout();
     this.arm(kind);
     this.host.log.info(`卡片：${kind} 打開（${mode}，${petId}）`);
     return true;
@@ -128,13 +131,14 @@ export class CardController {
     clearTimeout(o.timer);
     o.card.close();
     this.open.delete(kind);
+    this.layout();
     if (kind === 'todo') this.endAttend();
   }
 
-  /** A cat says where its head is: cards over it follow it; cards waiting for it to stand still show. */
+  /** A cat says where its head is (where a card's bottom goes): cards over it follow it; cards waiting for it to stand still show. */
   head(petId: string, head: { x: number; y: number }, settled: boolean): void {
     this.heads.set(petId, { ...head, settled });
-    for (const o of this.open.values()) if (o.petId === petId) o.card.follow(head);
+    if ([...this.open.values()].some(o => o.petId === petId)) this.layout();
     if (!settled) return;
     for (const [kind, w] of [...this.waiting]) if (w.petId === petId) this.show(kind, petId, w.mode);
   }
@@ -197,6 +201,15 @@ export class CardController {
   }
 
   flush(): void { this.store.flush(this.notes); }
+
+  /** Every open card over its cat's head, two that would overlap side by side; the cats hear where, for their speech bubbles. */
+  private layout(): void {
+    const wa = this.host.workArea();
+    const cards = [...this.open.values()].filter(o => this.heads.has(o.petId));
+    const want = cards.map(o => cardBounds(this.heads.get(o.petId)!, o.card.width, o.card.height, wa));
+    layoutCards(want, wa).forEach((b, i) => cards[i].card.place(b));
+    this.host.cardsAt(cards.map(o => o.card.placed!));
+  }
 
   private pop(kind: CardKind, why: string): void {
     const now = Date.now();

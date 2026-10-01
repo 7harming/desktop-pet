@@ -117,6 +117,7 @@ export class AppController {
         n.on('click', onClick);
         n.show();
       },
+      cardsAt: cards => { for (const pet of this.pets.values()) pet.send('pet:cards-at', cards); },
       log,
     }, new NotesStore(paths.notesFile, log), paths.uiDir);
     for (const ch of PET_CHANNELS) ipcMain.on(ch, (e, ...args) => this.petFor(e.sender)?.handle(ch, args));
