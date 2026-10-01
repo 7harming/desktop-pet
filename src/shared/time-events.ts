@@ -46,3 +46,11 @@ export function clockEvents(from: Date, to: Date): TimeEvent[] {
   }
   return out;
 }
+
+/** Whether the clock passed `minuteOfDay` (minutes after midnight) after `from`, up to and including `to`; not across a sleep. */
+export function crossedMinute(minuteOfDay: number, from: Date, to: Date): boolean {
+  if (to.getTime() - from.getTime() > MAX_GAP_MS) return false;
+  const t = new Date(to);
+  t.setHours(0, minuteOfDay, 0, 0);
+  return from.getTime() < t.getTime() && t.getTime() <= to.getTime();
+}

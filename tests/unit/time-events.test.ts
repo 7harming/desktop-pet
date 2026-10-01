@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clockEvents, dayPart, helloDay, helloEvent } from '../../src/shared/time-events';
+import { clockEvents, crossedMinute, dayPart, helloDay, helloEvent } from '../../src/shared/time-events';
 
 // 2026-10-05 is a Monday; the 9th a Friday, the 10th a Saturday
 const at = (day: number, h: number, m = 0, s = 0) => new Date(2026, 9, day, h, m, s);
@@ -30,6 +30,15 @@ describe('the first hello of the day', () => {
   it('counts the small hours as the day before', () => {
     expect(helloDay(at(6, 2, 0))).toBe(helloDay(at(5, 9, 0)));
     expect(helloDay(at(6, 5, 0))).not.toBe(helloDay(at(5, 9, 0)));
+  });
+});
+
+describe('crossedMinute', () => {
+  it('says when the clock passed a time of day, not across a sleep', () => {
+    expect(crossedMinute(9 * 60, new Date(at(5, 8, 59, 50)), new Date(at(5, 9, 0, 5)))).toBe(true);
+    expect(crossedMinute(9 * 60, new Date(at(5, 9, 0, 5)), new Date(at(5, 9, 0, 20)))).toBe(false);
+    expect(crossedMinute(0, new Date(at(5, 23, 59, 50)), new Date(at(6, 0, 0, 5)))).toBe(true);
+    expect(crossedMinute(9 * 60, new Date(at(5, 8, 0)), new Date(at(5, 10, 0)))).toBe(false);
   });
 });
 
