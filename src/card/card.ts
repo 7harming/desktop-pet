@@ -4,8 +4,6 @@ import { MINUTES, type Repeat } from '../shared/todo';
 const api = window.cardApi;
 const card = document.getElementById('card')!;
 const body = document.getElementById('body')!;
-/** The memo is saved this long after the last key. */
-const SAVE_MS = 500;
 /** The memo grows with its text up to this many lines, then scrolls. */
 const MEMO_LINES = 10;
 const REPEAT_LABEL: Record<Repeat, string> = { once: '一次', daily: '每天', weekdays: '平日' };
@@ -37,12 +35,10 @@ let state: CardState | null = null;
 
 // ---- 阿胖's memo: one free text, saved as it is typed ----
 let memo: HTMLTextAreaElement | null = null;
-let saveTimer = 0;
 function buildMemo(): void {
   const m = el('textarea', { placeholder: '寫點什麼……', rows: 3 });
-  const save = () => { window.clearTimeout(saveTimer); saveTimer = 0; act({ kind: 'memo', text: m.value }); };
-  m.addEventListener('input', () => { fitMemo(); window.clearTimeout(saveTimer); saveTimer = window.setTimeout(save, SAVE_MS); });
-  m.addEventListener('blur', () => { if (saveTimer) save(); });
+  // main has every key at once (it writes the file a moment later): a card closed straight after typing loses nothing
+  m.addEventListener('input', () => { fitMemo(); act({ kind: 'memo', text: m.value }); });
   memo = m;
   body.replaceChildren(m);
 }
@@ -132,7 +128,7 @@ api.onState(s => {
   }
   document.getElementById('title')!.textContent = s.title;
   // what is being typed wins over what main last saw
-  if (s.kind === 'memo' && memo && (fresh || (document.activeElement !== memo && !saveTimer))) { memo.value = s.memo; fitMemo(); }
+  if (s.kind === 'memo' && memo && (fresh || document.activeElement !== memo)) { memo.value = s.memo; fitMemo(); }
   if (s.kind === 'todo' && !list.querySelector('.edit')) renderTodos(s.todos);
 });
 api.onFocus(() => { (state?.kind === 'memo' ? memo : newText)?.focus(); });

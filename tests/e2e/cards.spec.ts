@@ -60,6 +60,20 @@ test('the memo is typed on the card over its own cat and kept in notes.json', as
   await app.close();
 });
 
+test('what was typed in the memo is kept though the card is closed at once', async () => {
+  const userDir = cardUserDir();
+  const { app } = await launch({ DESKTOP_PET_PACKS: cardPacks() }, userDir);
+  await petPage(app);
+  await controllerCall(app, c => c.cards.show('memo', null, 'hand'));
+  const card = await cardPage(app, 'memo');
+  await card.locator('textarea').pressSequentially('貓砂和罐罐');
+  // straight away, before the card's own pause after typing (the card closes under the key: the press may not hear back)
+  await card.keyboard.press('Escape').catch(() => {});
+  await expect.poll(() => controllerCall(app, c => c.cards.open.has('memo'))).toBe(false);
+  await expect.poll(() => readNotes(userDir)?.memo, { timeout: 5_000 }).toBe('貓砂和罐罐');
+  await app.close();
+});
+
 test('a reminder added on the card, and one that falls due: the cat sits up, ticking it puts the card away', async () => {
   const userDir = cardUserDir();
   const { app } = await launch({ DESKTOP_PET_PACKS: cardPacks() }, userDir);
