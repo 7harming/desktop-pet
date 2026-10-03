@@ -94,6 +94,8 @@ export class AppController {
   private lastTick = new Date();
   /** The day the cats last said good morning (days start at 5:00). */
   private helloDay: string | null = null;
+  /** Notifications that open a card when clicked, kept until they are (or are gone). */
+  private readonly notices = new Set<Notification>();
 
   constructor(protected readonly paths: AppPaths, readonly log: Logger, readonly debug: boolean) {
     this.packs = loadPacks(paths.packsDir);
@@ -117,7 +119,12 @@ export class AppController {
       notify: (body, onClick) => {
         if (!Notification.isSupported()) return;
         const n = new Notification({ title: '打工貓貓', body });
-        n.on('click', onClick);
+        // held until clicked or gone: one collected as garbage no longer says it was clicked
+        this.notices.add(n);
+        const gone = () => this.notices.delete(n);
+        n.on('click', () => { gone(); onClick(); });
+        n.on('close', gone);
+        n.on('failed', gone);
         n.show();
       },
       cardsAt: cards => { for (const pet of this.pets.values()) pet.send('pet:cards-at', cards); },
