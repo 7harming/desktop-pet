@@ -84,7 +84,8 @@ test('a cat busy when the feather first moves by still plays once it is free, th
   await app.close();
 });
 
-test('a swat in a new direction cuts in as the last one ends; the cats do not start a play-fight while the wand is out', async () => {
+test('a swat in a new direction waits until the last one is back to sitting; the cats do not start a play-fight while the wand is out', async () => {
+  // owner, on 0.7.2: a swat that cut in before the last had come back to sitting did not look smooth
   const { app } = await launch();
   const page = await calmPetPage(app);
   await expect.poll(() => controllerCall(app, c => !!c.cards.heads.get('testcat')?.settled)).toBe(true);
@@ -92,8 +93,15 @@ test('a swat in a new direction cuts in as the last one ends; the cats do not st
   await toyPage(app);
   await expect.poll(async () => { await feather(app, 120, -120, 400); return endPose(page); }, { timeout: 20_000 }).toBe('sit');
   await expect.poll(async () => { await feather(app, 10, -100, 400); return history(page); }, { timeout: 20_000 }).toMatch(/swat_up$/);
-  // the feather swings to its left: the next swat comes before the first has gone back to sitting
-  await expect.poll(async () => { await feather(app, -110, 0, 400); return history(page); }, { timeout: 20_000 }).toMatch(/swat_up,swat_left/);
+  // the feather swings to its left as it swats up, and keeps moving there (15 times a second, as the wand's window says it): it
+  // swats left once it sits again
+  await app.evaluate(() => {
+    const c = (globalThis as any).__controller;
+    c.pump = setInterval(() => { const h = c.cards.heads.get('testcat'); c.toys.feather({ x: h.x - 110, y: h.y }, 400); }, 66);
+  });
+  await expect.poll(() => history(page), { timeout: 20_000 }).toMatch(/swat_left/);
+  expect(await history(page)).toMatch(/swat_up,(idle_sit,)+swat_left/);
+  await app.evaluate(() => clearInterval((globalThis as any).__controller.pump));
   await controllerCall(app, c => c.showPet('testcat2'));
   expect(await controllerCall(app, c => c.startFight(false))).toContain('逗貓棒');
   await app.close();

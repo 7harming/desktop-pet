@@ -234,17 +234,6 @@ describe('BehaviorEngine', () => {
     expect(f.interject('pounce_left', 'rest')).toBeNull();          // already pouncing
   });
 
-  it('lets one swat cut in on another as it ends, but not on a clip on its way somewhere', () => {
-    const e = new BehaviorEngine(makePack(), constRng(0)); e.start();
-    e.interject('pounce_right', 'rest');
-    expect(e.interject('pounce_left', 'rest')).toBeNull();                                   // not unless asked to cut in
-    expect(e.interject('pounce_left', 'rest', true)).toMatchObject({ clip: 'pounce_left', from: 'rest', to: 'rest' });
-    e.command('sit');
-    expect(e.interject('pounce_right', 'rest', true)).toBeNull();                            // something is planned
-    e.next();                                                                                // rest_to_sit
-    expect(e.interject('pounce_right', 'rest', true)).toBeNull();
-  });
-
   it('pounces on command: at once while resting, otherwise once it is back in that pose', () => {
     const e = new BehaviorEngine(makePack(), constRng(0)); e.start();
     expect(e.perform('pounce_left', 'rest')).toMatchObject({ clip: 'pounce_left', from: 'rest', to: 'rest' });

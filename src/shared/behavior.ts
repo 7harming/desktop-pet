@@ -95,14 +95,9 @@ export class BehaviorEngine {
     return !!s && s.from === pose && s.to === pose && (this.pack.poses[pose]?.idle ?? []).includes(s.clip) && !this.queue.length;
   }
 
-  /**
-   * Play `clip` now instead of the idle it rests in (a pounce, a play-fight): only while resting in `pose` with nothing planned.
-   * `cutIn`: also in place of another clip from `pose` back to it (one swat at the wand cutting in on another as it ends).
-   */
-  interject(clip: ClipId, pose: PoseId, cutIn = false): Step | null {
-    const s = this.current;
-    const back = !!s && s.from === pose && s.to === pose && !this.queue.length;
-    if (!this.restingIn(pose) && !(cutIn && back)) return null;
+  /** Play `clip` now instead of the idle it rests in (a pounce, a play-fight): only while resting in `pose` with nothing planned. */
+  interject(clip: ClipId, pose: PoseId): Step | null {
+    if (!this.restingIn(pose)) return null;
     return this.take(idleStep(this.pack, pose, clip));
   }
 
