@@ -20,6 +20,13 @@ if (!app.requestSingleInstanceLock()) {
   void app.whenReady().then(() => {
     const log = new Logger(paths.logsDir);
     log.info(`啟動 ${app.getVersion()}`);
+    // an error here would otherwise pop up Electron's error box, which holds up the whole app, and leave nothing in the log
+    const logError = (e: unknown) => {
+      const where = e instanceof Error ? e.stack?.split('\n')[1]?.trim() : undefined;
+      log.error(`主程式出錯：${e instanceof Error ? e.message : String(e)}${where ? `（${where}）` : ''}`);
+    };
+    process.on('uncaughtException', logError);
+    process.on('unhandledRejection', logError);
     handleAppProtocol({ ui: paths.uiDir, packs: paths.packsDir });
     controller = new AppController(paths, log, debug);
     if (debug) (globalThis as Record<string, unknown>).__controller = controller;

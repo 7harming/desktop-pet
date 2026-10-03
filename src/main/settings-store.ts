@@ -3,6 +3,9 @@ import { dirname } from 'node:path';
 import { normalizeSettings, type Settings } from '../shared/settings';
 import type { Logger } from './logger';
 
+/** A save that failed is tried again after this long. */
+const RETRY_MS = 2_000;
+
 export class SettingsStore {
   private timer: NodeJS.Timeout | null = null;
 
@@ -35,7 +38,15 @@ export class SettingsStore {
 
   saveSoon(settings: Settings, delayMs = 500): void {
     if (this.timer) clearTimeout(this.timer);
-    this.timer = setTimeout(() => { this.timer = null; this.save(settings); }, delayMs);
+    this.timer = setTimeout(() => { this.timer = null; this.trySave(settings); }, delayMs);
+  }
+
+  /** A save in the background: one that fails (another program holding the file a moment) is logged and tried once more. */
+  private trySave(settings: Settings, again = true): void {
+    try { this.save(settings); } catch (e) {
+      this.log.error(`設定檔存不了：${(e as Error).message}${again ? '，等一下再試一次' : ''}`);
+      if (again && !this.timer) this.timer = setTimeout(() => { this.timer = null; this.trySave(settings, false); }, RETRY_MS);
+    }
   }
 
   flush(settings: Settings): void {

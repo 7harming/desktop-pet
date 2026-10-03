@@ -3,6 +3,9 @@ import { dirname } from 'node:path';
 import { normalizeNotes, type Notes } from '../shared/notes';
 import type { Logger } from './logger';
 
+/** A save that failed is tried again after this long. */
+const RETRY_MS = 2_000;
+
 /** notes.json (the memo and the reminders), written like settings.json: a temp file, then a rename. */
 export class NotesStore {
   private timer: NodeJS.Timeout | null = null;
@@ -29,7 +32,15 @@ export class NotesStore {
 
   saveSoon(notes: Notes, delayMs = 500): void {
     if (this.timer) clearTimeout(this.timer);
-    this.timer = setTimeout(() => { this.timer = null; this.save(notes); }, delayMs);
+    this.timer = setTimeout(() => { this.timer = null; this.trySave(notes); }, delayMs);
+  }
+
+  /** A save in the background: one that fails (another program holding the file a moment) is logged and tried once more. */
+  private trySave(notes: Notes, again = true): void {
+    try { this.save(notes); } catch (e) {
+      this.log.error(`備忘錄存不了：${(e as Error).message}${again ? '，等一下再試一次' : ''}`);
+      if (again && !this.timer) this.timer = setTimeout(() => { this.timer = null; this.trySave(notes, false); }, RETRY_MS);
+    }
   }
 
   flush(notes: Notes): void {

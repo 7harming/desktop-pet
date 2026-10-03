@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { describe, it, expect, vi } from 'vitest';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Logger } from '../../src/main/logger';
@@ -26,6 +26,21 @@ describe('SettingsStore', () => {
     expect(warning).toBe('設定檔損壞，已備份成 settings.bad.json 並改用預設值');
     expect(existsSync(join(dir, 'settings.bad.json'))).toBe(true);
     expect(settings.pets.testcat.visible).toBe(true);
+  });
+  it('a save that fails later (the file held by another program) is logged, not thrown', () => {
+    // thrown in its timer, it was an uncaught error in main: a blocking error box, and nothing in the log
+    const dir = mkdtempSync(join(tmpdir(), 'dpet-set-'));
+    const file = join(dir, 'settings.json');
+    const log = new Logger(join(dir, 'logs'));
+    const store = new SettingsStore(file, log);
+    const { settings } = store.load(['testcat']);
+    mkdirSync(file);                                  // the rename onto it cannot succeed
+    vi.useFakeTimers();
+    try {
+      store.saveSoon(settings, 10);
+      expect(() => vi.runAllTimers()).not.toThrow();
+    } finally { vi.useRealTimers(); }
+    expect(readFileSync(log.file, 'utf8')).toContain('[ERROR] 設定檔存不了');
   });
   it('flush writes a pending save immediately', () => {
     const { file, store } = setup();

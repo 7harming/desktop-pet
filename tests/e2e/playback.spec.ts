@@ -57,6 +57,16 @@ test('an error in a cat window is written to the log', async () => {
   await app.close();
 });
 
+test('an error in the main process is written to the log, and the app carries on', async () => {
+  // it popped up Electron's error box instead, holding up the app, with nothing in the log
+  const { app, userDir } = await launch();
+  await petPage(app);
+  await app.evaluate(() => { setTimeout(() => { throw new Error('主程式測試錯誤'); }); });
+  await expect.poll(() => readLog(userDir)).toContain('[ERROR] 主程式出錯：主程式測試錯誤');
+  expect(await controllerCall(app, c => c.pets.size)).toBe(1);
+  await app.close();
+});
+
 test('a paused cat stays still: its clip is not given up on as stalled, and it plays on once resumed', async () => {
   const { app, userDir } = await launch();
   const page = await calmPetPage(app);
