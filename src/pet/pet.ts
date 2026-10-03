@@ -1,10 +1,10 @@
 import { pounceSide } from '../shared/actions';
 import { BehaviorEngine } from '../shared/behavior';
 import { fightClip } from '../shared/fight';
-import type { PetInit } from '../shared/ipc';
+import type { PetInit, ReminderResult } from '../shared/ipc';
 import type { DayPart } from '../shared/time-events';
 import { swatRate } from '../shared/toy';
-import type { PounceSide, ToyDef } from '../shared/types';
+import type { PounceSide, ReminderType, ToyDef } from '../shared/types';
 import { clickLine, commandLine, pickLine, reminderLine } from '../shared/lines';
 import { isAsleep, poseValueAt, showsShadow, sleepPoses } from '../shared/pose-geometry';
 import { arriveGlidePx, departGlidePx, planWalkIn, planWalkOut, type WalkPlan } from '../shared/walk-plan';
@@ -272,16 +272,20 @@ api.onInit((init: PetInit) => {
   });
 
   const DONE_LABEL = { water: '喝好了', stretch: '動好了', eyes: '休息好了' } as const;
+  let asking: ReminderType | null = null;   // the reminder its bubble asks about
   api.onReminder(type => {
     // a reminder pose (drinking from the bowl): go there for a while, then back to what it was doing
     const pose = pack.reminderPoses?.[type];
     const going = !!pose && mode === 'live' && engine.visit(pose);
+    asking = type;
+    const answer = (result: ReminderResult) => () => { asking = null; api.reminderResult(type, result); };
     bubbles.ask(reminderLine(pack, type, going ? pose : engine.endPose), [
-      { label: DONE_LABEL[type], onClick: () => api.reminderResult(type, 'done') },
-      { label: '10 分鐘後', onClick: () => api.reminderResult(type, 'snooze') },
-    ], 15_000, () => api.reminderResult(type, 'done'));
+      { label: DONE_LABEL[type], onClick: answer('done') },
+      { label: '10 分鐘後', onClick: answer('snooze') },
+    ], 15_000, answer('done'));
   });
-  api.onReminderClose(() => bubbles.clear());
+  // the other cat answered it: its bubble goes, but not one that asks about another reminder
+  api.onReminderClose(type => { if (type === asking) { asking = null; bubbles.clear(); } });
 
   // styles are written only when they change: rewriting them every frame kept the page repainting at 60 fps
   let drawn = '';

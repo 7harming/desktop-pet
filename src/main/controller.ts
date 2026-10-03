@@ -7,7 +7,7 @@ import type { FightState, PanelAction, PanelState } from '../shared/ipc';
 import { reminderLine } from '../shared/lines';
 import { findFreeCenter } from '../shared/placement';
 import { ReminderScheduler } from '../shared/reminders';
-import { ACTION_INTERVALS, AWAY_CHOICES, DEFAULT_X, MAX_SCALE, MIN_SCALE, normalizeCardSettings, type Settings } from '../shared/settings';
+import { ACTION_INTERVALS, AWAY_CHOICES, DEFAULT_X, MAX_SCALE, MIN_SCALE, normalizeCardSettings, REMINDER_CHOICES, type Settings } from '../shared/settings';
 import { clockEvents, dayPart, helloDay, helloEvent, type DayPart } from '../shared/time-events';
 import type { Pack, ReminderType, TimeEvent } from '../shared/types';
 import { APP_ORIGIN } from './app-protocol';
@@ -457,7 +457,9 @@ export class AppController {
 
   setReminders(patch: { water?: number; stretch?: number; eyes?: number; notify?: boolean }): void {
     const r = this.settings.reminders;
-    Object.assign(r, patch);
+    // only what the panel offers: its whole action comes in here, `kind` and all
+    for (const t of ['water', 'stretch', 'eyes'] as const) if (REMINDER_CHOICES.includes(patch[t] as number)) r[t] = patch[t]!;
+    if (typeof patch.notify === 'boolean') r.notify = patch.notify;
     this.scheduler.setIntervals({ water: r.water, stretch: r.stretch, eyes: r.eyes }, Date.now());
     this.saveSoon();
     this.changed();

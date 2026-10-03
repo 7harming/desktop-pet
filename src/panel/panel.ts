@@ -1,6 +1,6 @@
 import { pounceSide } from '../shared/actions';
 import type { PanelAction, PanelPet, PanelState } from '../shared/ipc';
-import { ACTION_INTERVALS, AWAY_CHOICES, MAX_SCALE, MIN_SCALE, type CardSettings } from '../shared/settings';
+import { ACTION_INTERVALS, AWAY_CHOICES, MAX_SCALE, MIN_SCALE, REMINDER_CHOICES, type CardSettings } from '../shared/settings';
 import { MINUTES } from '../shared/todo';
 
 const api = window.panelApi;
@@ -8,7 +8,6 @@ const $ = (id: string) => document.getElementById(id)!;
 type ReminderKey = 'water' | 'stretch' | 'eyes';
 const REMINDER_ROWS: [ReminderKey, string][] = [['water', '喝水'], ['stretch', '伸展'], ['eyes', '休息眼睛（全螢幕休息 30 秒）']];
 const reminderPatch = (key: ReminderKey, minutes: number) => ({ kind: 'reminders', [key]: minutes }) as PanelAction;
-const CHOICES = [0, 30, 45, 60, 90];
 
 let state: PanelState;
 /** The state the tabs were last built from, statuses left out. */
@@ -88,7 +87,7 @@ function remindersTab(): HTMLElement[] {
   const rows: HTMLElement[] = REMINDER_ROWS.map(([key, label]) => {
     const sel = el('select');
     sel.dataset.reminder = key;
-    for (const c of CHOICES) sel.append(el('option', { value: String(c), textContent: c ? `每 ${c} 分鐘` : '關閉', selected: state.reminders[key] === c }));
+    for (const c of REMINDER_CHOICES) sel.append(el('option', { value: String(c), textContent: c ? `每 ${c} 分鐘` : '關閉', selected: state.reminders[key] === c }));
     sel.addEventListener('change', () => act(reminderPatch(key, Number(sel.value))));
     return el('div', { className: 'line' }, el('span', {}, label), sel);
   });

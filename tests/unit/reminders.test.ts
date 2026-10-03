@@ -5,12 +5,20 @@ const M = 60_000;
 const make = () => new ReminderScheduler({ water: 45, stretch: 60, eyes: 0 }, 0);
 
 describe('ReminderScheduler', () => {
-  it('fires each type after its interval and waits for an answer', () => {
+  it('fires each type after its interval, once', () => {
     const s = make();
     expect(s.due(44 * M)).toEqual([]);
     expect(s.due(45 * M)).toEqual(['water']);
     expect(s.due(50 * M)).toEqual([]);
     expect(s.due(60 * M)).toEqual(['stretch']);
+  });
+  it('comes again an interval after it came up, answered or not', () => {
+    // a bubble can go unanswered (another reminder took its place, the cat walked off): that reminder must not stop for good
+    const s = make();
+    expect(s.due(45 * M)).toEqual(['water']);
+    expect(s.nextAt('water')).toBe(90 * M);
+    expect(s.due(89 * M)).toEqual(['stretch']);
+    expect(s.due(90 * M)).toEqual(['water']);
   });
   it('never fires a reminder set to 0', () => {
     expect(make().due(1000 * M)).not.toContain('eyes');

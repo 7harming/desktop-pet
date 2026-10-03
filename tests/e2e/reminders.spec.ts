@@ -15,6 +15,15 @@ test('a reminder bubble asks, and snoozing pushes the timer 10 minutes', async (
   await app.close();
 });
 
+test('the reminder settings keep only what the panel offers', async () => {
+  // the panel's whole action went into settings.json, its `kind` too, and any number of minutes was taken
+  const { app } = await launch();
+  await petPage(app);
+  const r = await controllerCall(app, c => { c.act({ kind: 'reminders', water: 0.01, stretch: 30, notify: false }); return c.settings.reminders; });
+  expect(r).toEqual({ water: 45, stretch: 30, eyes: 0, notify: false, pausedUntil: null });
+  await app.close();
+});
+
 test('with two cats out, both remind, and the first answer settles it for both', async () => {
   const { app } = await launch();
   await petPage(app, 'testcat');
@@ -26,6 +35,20 @@ test('with two cats out, both remind, and the first answer settles it for both',
   await pages[1].locator('.bubble.reminder button', { hasText: '10 分鐘後' }).click();
   await expect(pages[0].locator('.bubble.reminder')).toHaveCount(0);            // the other cat's bubble went with it
   await expect.poll(() => controllerCall(app, c => c.scheduler.nextAt('water'))).toBeGreaterThanOrEqual(before + 10 * 60_000 - 5_000);
+  await app.close();
+});
+
+test("the other cat's answer to one reminder leaves a different one asking", async () => {
+  const { app } = await launch();
+  const page = await petPage(app);
+  const bubble = page.locator('.bubble.reminder');
+  await controllerCall(app, c => c.pets.get('testcat').send('pet:reminder', 'stretch'));
+  await expect(bubble).toContainText('動一動。');
+  await controllerCall(app, c => c.pets.get('testcat').send('pet:reminder-close', 'water'));   // the other cat answered water
+  await page.waitForTimeout(500);
+  await expect(bubble).toContainText('動一動。');
+  await controllerCall(app, c => c.pets.get('testcat').send('pet:reminder-close', 'stretch'));
+  await expect(bubble).toHaveCount(0);
   await app.close();
 });
 

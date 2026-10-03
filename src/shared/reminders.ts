@@ -32,7 +32,8 @@ export class ReminderScheduler {
       return [];
     }
     const out = TYPES.filter(t => this.next[t] <= now);
-    for (const t of out) this.next[t] = Infinity;   // pending until done() or snooze()
+    // its next time counts from now, answered or not (done() and snooze() move it): an unanswered one must not stop for good
+    for (const t of out) this.restart(t, now);
     return out;
   }
 
