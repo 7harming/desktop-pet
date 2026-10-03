@@ -112,6 +112,7 @@ api.onInit((init: BreakInit) => {
       cat.style.visibility = '';
       await within(player.play(engine.start()), SETTLE_WAIT_MS);  // its first idle covers the walker's last frame
       walker!.clear();
+      if (phase === 'leaving') return;     // a clip failed meanwhile: it counts as gone already, and must not be counted again
       phase = 'resting';                   // only now, so a depart cannot start before the clear above
       if (timeUp) void depart();
     };

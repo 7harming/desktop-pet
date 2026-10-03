@@ -38,6 +38,36 @@ test('with two cats out, the break brings both, each lying in the middle of its 
   await app.close();
 });
 
+test("a cat whose lying clips fail in the break does not end it before the other cat has walked off", async () => {
+  // the failed cat was counted as gone twice, so the break closed as soon as it had walked off, cutting the other one short
+  const { app } = await launch({ DESKTOP_PET_BREAK_SECONDS: '4' });
+  await petPage(app, 'testcat');
+  await controllerCall(app, c => c.showPet('testcat2'));
+  await petPage(app, 'testcat2');
+  await app.context().addInitScript(() => {                         // the left cat's lying clips will not decode in the break
+    const src = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src')!;
+    Object.defineProperty(HTMLMediaElement.prototype, 'src', {
+      ...src,
+      set(this: HTMLMediaElement, url: string) {
+        const fails = String(url).includes('/packs/testcat/') && (this.dataset.clip ?? '').startsWith('idle_rest');
+        src.set!.call(this, fails ? 'data:video/webm;base64,AAAA' : url);
+      },
+    });
+  });
+  await controllerCall(app, c => { void c.startBreak(); });
+  const brk = await breakPage(app);
+  // where the right cat's frame was last drawn (it walks off the left edge), up to the moment the break window closes
+  await brk.evaluate(() => { (window as any).__break.cats[1].walker.onDraw = (x: number, w: number) => { (window as any).__last = { x, w }; }; });
+  let last: { x: number; w: number } | null = null;
+  for (;;) {
+    try { last = await brk.evaluate(() => (window as any).__last ?? null); } catch { break; }
+    await new Promise(r => setTimeout(r, 40));
+  }
+  // the test pack's cat walking left spans up to 0.8125 of its frame: off the screen means that edge is past the left side
+  expect(last!.x + 0.8125 * last!.w).toBeLessThanOrEqual(1);
+  await app.close();
+});
+
 test('a break whose cat will not walk still shows it lying there, and still ends', async () => {
   const { app, userDir } = await launch({ DESKTOP_PET_BREAK_SECONDS: '2' });
   await petPage(app);
