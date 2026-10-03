@@ -6,7 +6,7 @@ import type { DayPart } from '../shared/time-events';
 import { swatRate } from '../shared/toy';
 import type { PounceSide, ReminderType, ToyDef } from '../shared/types';
 import { clickLine, commandLine, pickLine, reminderLine } from '../shared/lines';
-import { isAsleep, poseValueAt, showsShadow, sleepPoses } from '../shared/pose-geometry';
+import { HEADROOM, isAsleep, poseValueAt, showsShadow, sleepPoses } from '../shared/pose-geometry';
 import { arriveGlidePx, departGlidePx, planWalkIn, planWalkOut, type WalkPlan } from '../shared/walk-plan';
 import { Bubbles } from './bubble';
 import { Interactions } from './interactions';
@@ -18,6 +18,7 @@ const layer = document.getElementById('layer')!;
 const shadow = document.getElementById('shadow')!;
 const cat = document.getElementById('cat')!;
 const stage = document.getElementById('stage')!;
+stage.style.top = `${HEADROOM}px`;   // the cat's frame starts below the room for speech bubbles (see frameH)
 /** After lunch and late at night auto mode picks asleep poses this many times as often, and rests this many times as long. */
 const SLEEPY: Record<DayPart, number> = { day: 1, nap: 3, night: 3 };
 const SLOW: Record<DayPart, number> = { day: 1, nap: 1, night: 2 };
@@ -146,8 +147,10 @@ api.onInit((init: PetInit) => {
   const g0 = pack.poses[pack.start].ground;
   let busy = false;   // walking in or out: no dragging
 
-  // the window is a strip as wide as the screen; the cat's frame sits at frameX inside it
-  const frameW = () => window.innerHeight * pack.frame.aspect;
+  // the window is a strip as wide as the screen; the cat's frame sits at frameX inside it, HEADROOM below its top (the stage
+  // starts there: room above for speech bubbles)
+  const frameH = () => window.innerHeight - HEADROOM;
+  const frameW = () => frameH() * pack.frame.aspect;
   let frameX = init.frameX;
   const setFrameX = (x: number) => { frameX = x; cat.style.left = `${x}px`; };
   setFrameX(frameX);
@@ -156,16 +159,17 @@ api.onInit((init: PetInit) => {
     const to = player.step ? player.step.to : pack.start;
     const pose = pack.poses[to];
     const gap = to === pack.alert ? 0 : CARD_GAP_LYING;   // a pose's `head` is its ear tips at their highest
-    api.reportHead(window.screenX + frameX + pose.centerX * frameW(), winY + (g0 - pose.head) * window.innerHeight - gap, mode === 'live' && !moving);
+    api.reportHead(window.screenX + frameX + pose.centerX * frameW(), winY + HEADROOM + (g0 - pose.head) * frameH() - gap, mode === 'live' && !moving);
   };
   api.onFrameX(x => { setFrameX(x); reportHead(); });
 
   let cards: { x: number; y: number; width: number; height: number }[] = [];   // where the cards stand (screen px)
   api.onCardsAt(c => { cards = c; });
+  // in the stage's px: a bubble may rise into the room above it, up to the window's top
   const bubbles = new Bubbles(stage, () => ({
     x: frameX + poseValueAt(pack, player.step, player.progress, 'centerX') * frameW(),
-    y: (g0 - poseValueAt(pack, player.step, player.progress, 'head')) * window.innerHeight - 8,
-  }), () => cards.map(c => ({ ...c, x: c.x - window.screenX, y: c.y - window.screenY })));
+    y: (g0 - poseValueAt(pack, player.step, player.progress, 'head')) * frameH() - 8,
+  }), () => cards.map(c => ({ ...c, x: c.x - window.screenX, y: c.y - window.screenY - HEADROOM })), -HEADROOM);
   if (init.debug) Object.assign((window as unknown as Record<string, object>).__pet, { bubbles });
 
   // a click this many probe pixels (~2% of the frame) beside a paw or the tail still picks the cat up
@@ -203,7 +207,8 @@ api.onInit((init: PetInit) => {
     return true;
   };
   const interactions = new Interactions({
-    api, hitTest, wrap: cat, restY: init.restY, getFrameX: () => frameX, setFrameX, onDoubleClick: pounce,
+    // main says where the frame's top rests; the window's top is HEADROOM above it
+    api, hitTest, wrap: cat, restY: init.restY - HEADROOM, getFrameX: () => frameX, setFrameX, onDoubleClick: pounce,
     canDrag: () => !busy,   // any pose; only not while it walks in or out
     onClick: () => {
       bubbles.say(clickLine(pack, engine.endPose, Math.random));
@@ -214,7 +219,7 @@ api.onInit((init: PetInit) => {
     onWheel: up => api.wheel(up),
     onMoved: (winY, dragging) => { moving = dragging; reportHead(winY); },
   });
-  api.onRestY(y => { interactions.setRestY(y); requestAnimationFrame(() => reportHead()); });
+  api.onRestY(y => { interactions.setRestY(y - HEADROOM); requestAnimationFrame(() => reportHead()); });
   // the wand: a feather moving near it - it sits up and watches; in reach - it swats towards it (each swat faster or slower than
   // the last, so repeats look less alike); still a while - it tires and goes back to its ways
   const watch = (toy: ToyDef) => {
@@ -291,7 +296,7 @@ api.onInit((init: PetInit) => {
   // styles are written only when they change: rewriting them every frame kept the page repainting at 60 fps
   let drawn = '';
   const frame = () => {
-    const H = window.innerHeight;
+    const H = frameH();
     const W = frameW();
     const step = player.step;
     const k = player.progress;
@@ -322,7 +327,7 @@ api.onInit((init: PetInit) => {
     Object.assign(debug, { walker, drawn, sizes });
   }
   const walkLoops = (plan: WalkPlan, mirror: boolean, onFirstFrame?: () => void) =>
-    walker!.run({ plan, frameW: frameW(), frameH: window.innerHeight, ground: g0, mirror, onFirstFrame });
+    walker!.run({ plan, frameW: frameW(), frameH: frameH(), ground: g0, mirror, onFirstFrame });
   const greetLines = (init.hello && pack.lines.time?.[init.hello]) || pack.lines.greet;
   const greet = (ms: number) => setTimeout(() => { if (mode === 'live') bubbles.say(pickLine(greetLines, Math.random), init.hello ? SAY_MS : undefined); }, ms);
 
@@ -336,7 +341,7 @@ api.onInit((init: PetInit) => {
     const arriveFrom = frameX - arriveGlidePx(walk!, W);   // arrive glides from here to the resting spot
     const secs = await walker!.duration();
     const walked = secs !== null && await walkLoops(planWalkIn(walk!, W, arriveFrom, secs), false)
-      && await walker!.playClip({ url: clipUrl(walk!.arrive), base: arriveFrom, glide: walk!.arriveGlide, frameW: W, frameH: window.innerHeight, ground: g0 });
+      && await walker!.playClip({ url: clipUrl(walk!.arrive), base: arriveFrom, glide: walk!.arriveGlide, frameW: W, frameH: frameH(), ground: g0 });
     if (!walked) {                     // walking in stalled: rather than stay away, it is simply there, resting at its spot
       api.log('warn', '走進來的影片卡住了，直接在位置上休息');
       walker!.clear();
@@ -373,7 +378,7 @@ api.onInit((init: PetInit) => {
     const W = frameW();
     // depart takes over from the cat's own clip (both show it lying there), then the mirrored loop walks it off
     const departed = await walker!.playClip({ url: clipUrl(walk!.depart), base: frameX, glide: walk!.departGlide, frameW: W,
-      frameH: window.innerHeight, ground: g0, onFirstFrame: () => { cat.style.visibility = 'hidden'; } });
+      frameH: frameH(), ground: g0, onFirstFrame: () => { cat.style.visibility = 'hidden'; } });
     const secs = departed ? await walker!.duration(true) : null;
     const walked = secs !== null && await walkLoops(planWalkOut(walk!, W, frameX + departGlidePx(walk!, W), secs), true);
     if (!walked) api.log('warn', '走出去的影片卡住了，直接離開');   // it is simply gone: its window closes

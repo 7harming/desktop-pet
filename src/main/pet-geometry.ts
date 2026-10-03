@@ -10,7 +10,7 @@ export function windowSize(pack: Pack, scale: number): { width: number; height: 
   return { width: Math.round(height * pack.frame.aspect), height };
 }
 
-/** Window top while the cat stands on the taskbar (the start pose's ground line on the work-area bottom). */
+/** The frame's top while the cat stands on the taskbar (the start pose's ground line on the work-area bottom; see PetWindow). */
 export function restY(pack: Pack, scale: number, wa: WorkArea): number {
   const { height } = windowSize(pack, scale);
   return Math.round(wa.y + wa.height - pack.poses[pack.start].ground * height);

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { APP_ORIGIN } from './app-protocol';
 import type { Bounds, WorkArea } from './pet-geometry';
 import type { FightState, LogLevel, PetInit, ReminderResult } from '../shared/ipc';
+import { HEADROOM } from '../shared/pose-geometry';
 import type { Pack, ReminderType } from '../shared/types';
 
 export interface PetEvents {
@@ -21,7 +22,8 @@ export interface PetEvents {
 
 /**
  * A pet lives in a transparent strip as wide as the work area, so it can walk across the screen without the window moving.
- * `frame` is where its video frame sits on screen (what used to be the window); the renderer draws the frame at `frame.x - strip x`.
+ * `frame` is where its video frame sits on screen (what used to be the window); the renderer draws the frame at `frame.x - strip x`,
+ * HEADROOM below the strip's top (the room above the frame is for speech bubbles over the head).
  */
 export class PetWindow {
   readonly win: BrowserWindow;
@@ -105,8 +107,9 @@ export class PetWindow {
 
   get stripBounds(): Bounds { return this.strip; }
 
+  /** The strip for a frame: as wide as the work area, and HEADROOM taller than the frame, above it (room for speech bubbles). */
   static stripFor(frame: Bounds, wa: WorkArea): Bounds {
-    return { x: wa.x, y: frame.y, width: wa.width, height: frame.height };
+    return { x: wa.x, y: frame.y - HEADROOM, width: wa.width, height: frame.height + HEADROOM };
   }
   close(): void { if (!this.win.isDestroyed()) this.win.destroy(); }
 }

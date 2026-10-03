@@ -3,6 +3,12 @@ import type { Pack, PoseId } from './types';
 
 export type PoseKey = 'ground' | 'centerX' | 'head';
 
+/**
+ * Clear space (px) at the top of a cat's window, above its frame: a speech bubble with buttons over a sitting cat's head fits at
+ * any size (at the smallest, the head is only about 40 px below the frame's top).
+ */
+export const HEADROOM = 96;
+
 export const smooth = (k: number): number => k * k * (3 - 2 * k);
 
 /** A pose value (ground line, body centre, head height) eased from one pose to the next while a transition plays. */

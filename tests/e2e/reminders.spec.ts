@@ -114,16 +114,22 @@ test('pausing from the tray holds reminders for an hour', async () => {
   await app.close();
 });
 
-test('a reminder bubble stays inside the window when the head is near the top', async () => {
+test('a reminder bubble over a small sitting cat floats above its head, inside its window', async () => {
+  // owner: from lying to sitting for the reminder, the bubble did not go up with the head - at a small size the cat's window had
+  // no room above the head, so the bubble was pushed down over the face
   const { app } = await launch();
   const page = await petPage(app);
-  // a sitting cat at the smallest size puts the anchor about 40 px from the top; the reminder bubble is taller
-  const top = await page.evaluate(() => {
-    const Bubbles = (window as any).__pet.bubbles.constructor;
-    const b = new Bubbles(document.getElementById('stage'), () => ({ x: 200, y: 40 }));
-    b.ask('喝水。', [{ label: '喝好了', onClick: () => {} }, { label: '10 分鐘後', onClick: () => {} }], 5_000, () => {});
-    return document.querySelectorAll('.bubble.reminder')[0].getBoundingClientRect().top;
+  await page.evaluate(() => { (window as any).__pet.engine.auto = false; });
+  await controllerCall(app, c => { c.setReminders({ notify: false }); c.setScale('testcat', 0.4); });
+  await controllerCall(app, c => c.testReminder());
+  await expect.poll(() => page.evaluate(() => (window as any).__pet.engine.currentStep?.clip), { timeout: 20_000 }).toBe('idle_sit');
+  await page.waitForTimeout(300);                                   // the bubble follows the head every frame
+  const bubble = await page.evaluate(() => {
+    const r = document.querySelector('.bubble.reminder')!.getBoundingClientRect();
+    return { top: r.top, bottom: window.screenY + r.bottom };
   });
-  expect(top).toBeGreaterThanOrEqual(0);
+  const head = await controllerCall(app, c => c.cards.heads.get('testcat').y);   // its ear tips, on screen
+  expect(bubble.top).toBeGreaterThanOrEqual(0);
+  expect(bubble.bottom).toBeLessThanOrEqual(head + 1);
   await app.close();
 });

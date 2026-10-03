@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { HEADROOM } from '../../src/shared/pose-geometry';
 import { calmPetPage, controllerCall, launch, petPage, readLog, stallClips } from './helpers';
 
 test('the first cat walks in, lies down and plays an idle of its start pose', async () => {
@@ -15,8 +16,10 @@ test('the first cat walks in, lies down and plays an idle of its start pose', as
   expect([frame.width, frame.height]).toEqual([533, 300]);
   expect(strip.width - wa.width).toBeGreaterThanOrEqual(0);
   expect(strip.width - wa.width).toBeLessThanOrEqual(1);
-  expect(strip.height - 300).toBeGreaterThanOrEqual(0);
-  expect(strip.height - 300).toBeLessThanOrEqual(1);
+  // the strip has room above the frame for speech bubbles
+  expect(strip.height - (300 + HEADROOM)).toBeGreaterThanOrEqual(0);
+  expect(strip.height - (300 + HEADROOM)).toBeLessThanOrEqual(1);
+  expect(Math.abs(frame.y - strip.y - HEADROOM)).toBeLessThanOrEqual(1);
   await app.close();
 });
 

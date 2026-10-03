@@ -6,9 +6,12 @@ export class Bubbles {
   private el: HTMLDivElement | null = null;
   private timer = 0;
 
-  /** `cards`: where the cards over the cats are, in this window's px: a bubble does not go under them. */
+  /**
+   * In the stage's px: `cards`, where the cards over the cats are (a bubble does not go under them); `top`, the highest a bubble's
+   * top may be (above the stage: room for bubbles over the cat's head).
+   */
   constructor(private readonly stage: HTMLElement, private readonly anchor: () => { x: number; y: number },
-              private readonly cards: () => Rect[] = () => []) {}
+              private readonly cards: () => Rect[] = () => [], private readonly top = 0) {}
 
   say(text: string, ms = 2200): void {
     if (this.el?.classList.contains('reminder')) return;   // a reminder waits for its answer; a passing line must not replace it
@@ -51,7 +54,7 @@ export class Bubbles {
     const bw = this.el.offsetWidth;
     const bh = this.el.offsetHeight;
     // the bubble hangs above its anchor: keep its whole height (taller with reminder buttons) inside the window
-    const bottom = Math.round(Math.max(y, bh + 4));
+    const bottom = Math.round(Math.max(y, this.top + bh + 4));
     let centre = Math.min(Math.max(x, 80), w - 80);
     // a card over the head would hide it: it stands beside the cards instead, on the left if there is room
     const level = this.cards().filter(c => c.y < bottom && c.y + c.height > bottom - bh);
