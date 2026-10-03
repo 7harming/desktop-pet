@@ -1,5 +1,5 @@
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test';
-import { calmPetPage, controllerCall, launch, readLog } from './helpers';
+import { calmPetPage, controllerCall, launch, petPage, readLog } from './helpers';
 
 const endPose = (page: Page) => page.evaluate(() => (window as any).__pet.engine.endPose);
 const history = (page: Page) => page.evaluate(() => (window as any).__pet.history.join(','));
@@ -104,5 +104,93 @@ test('a swat in a new direction waits until the last one is back to sitting; the
   await app.evaluate(() => clearInterval((globalThis as any).__controller.pump));
   await controllerCall(app, c => c.showPet('testcat2'));
   expect(await controllerCall(app, c => c.startFight(false))).toContain('逗貓棒');
+  await app.close();
+});
+
+test('swat after swat in the same direction, the cat never fades out as one begins', async () => {
+  // owner: an obvious flicker each time a swat began - the clip on screen was hidden to be started over, before the sitting idle
+  // in between had shown
+  const { app } = await launch();
+  const page = await calmPetPage(app);
+  await expect.poll(() => controllerCall(app, c => !!c.cards.heads.get('testcat')?.settled)).toBe(true);
+  await controllerCall(app, c => c.toggleToy('testcat'));
+  await toyPage(app);
+  await app.evaluate(() => {
+    const c = (globalThis as any).__controller;
+    c.pump = setInterval(() => { const h = c.cards.heads.get('testcat'); if (h) c.toys.feather({ x: h.x + 10, y: h.y - 100 }, 400); }, 66);
+  });
+  await expect.poll(() => history(page), { timeout: 20_000 }).toMatch(/swat_up/);
+  // from now on, every display frame: how opaque the most opaque clip that has a picture is (one going back to its start keeps
+  // showing the frame it had until the new one is there)
+  await page.evaluate(() => {
+    const w = window as any;
+    w.__dips = [];
+    const loop = () => {
+      const shown = [...document.querySelectorAll<HTMLVideoElement>('#layer video')]
+        .filter(v => v.readyState >= 2 || (v.seeking && (v as any).webkitDecodedFrameCount > 0));
+      const most = Math.max(0, ...shown.map(v => Number(getComputedStyle(v).opacity)));
+      if (most < 0.95) w.__dips.push(`${w.__pet.player.step?.clip} ${most.toFixed(2)}`);
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  });
+  await expect.poll(() => page.evaluate(() => ((window as any).__pet.history.join(',').match(/swat_up/g) ?? []).length), { timeout: 30_000 })
+    .toBeGreaterThanOrEqual(6);
+  expect(await page.evaluate(() => (window as any).__dips)).toEqual([]);
+  await app.evaluate(() => clearInterval((globalThis as any).__controller.pump));
+  await app.close();
+});
+
+test('the wand left hanging still is not redrawn, and still says where its feather is now and then', async () => {
+  // it was redrawn 60 times a second, and told main 15 times a second, for as long as it was out
+  const { app } = await launch();
+  await petPage(app);
+  await app.context().addInitScript(() => {
+    const clear = CanvasRenderingContext2D.prototype.clearRect;
+    (window as any).__clears = 0;
+    CanvasRenderingContext2D.prototype.clearRect = function (this: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+      (window as any).__clears++;
+      return clear.call(this, x, y, w, h);
+    };
+  });
+  await controllerCall(app, c => c.toggleToy(null));
+  const toy = await toyPage(app);
+  await app.evaluate(() => {
+    const c = (globalThis as any).__controller;
+    const feather = c.toys.feather.bind(c.toys);
+    c.reports = 0;
+    c.toys.feather = (...a: unknown[]) => { c.reports++; return feather(...a); };
+  });
+  await toy.waitForTimeout(6_000);                                  // hanging still by now
+  const clears = await toy.evaluate(() => (window as any).__clears);
+  const reports = await controllerCall(app, c => c.reports);
+  await toy.waitForTimeout(2_000);
+  expect(await toy.evaluate(() => (window as any).__clears)).toBe(clears);
+  const more = (await controllerCall(app, c => c.reports)) - reports;
+  expect(more).toBeGreaterThan(0);                                  // a cat watching it can still tire of it
+  expect(more).toBeLessThan(10);
+  await app.close();
+});
+
+test('a reminder answered while the cat plays with the wand leaves it sitting at the wand', async () => {
+  // it lay down when the reminder was ticked, and then let the moving feather be until it had been still for 5 s
+  const { app } = await launch();
+  const page = await calmPetPage(app);
+  await expect.poll(() => controllerCall(app, c => !!c.cards.heads.get('testcat')?.settled)).toBe(true);
+  await controllerCall(app, c => c.toggleToy('testcat'));
+  await toyPage(app);
+  await app.evaluate(() => {
+    const c = (globalThis as any).__controller;
+    c.pump = setInterval(() => { const h = c.cards.heads.get('testcat'); if (h) c.toys.feather({ x: h.x + 120, y: h.y - 120 }, 400); }, 66);
+  });
+  await expect.poll(() => endPose(page), { timeout: 20_000 }).toBe('sit');
+  await controllerCall(app, c => c.pets.get('testcat').send('pet:attend', true));    // a reminder falls due
+  await page.waitForTimeout(500);
+  const n = await page.evaluate(() => (window as any).__pet.history.length);
+  await controllerCall(app, c => c.pets.get('testcat').send('pet:attend', false));   // and is ticked
+  await page.waitForTimeout(3_000);
+  expect(await page.evaluate(k => (window as any).__pet.history.slice(k).join(','), n)).not.toContain('sit_to_rest');
+  expect(await endPose(page)).toBe('sit');
+  await app.evaluate(() => clearInterval((globalThis as any).__controller.pump));
   await app.close();
 });

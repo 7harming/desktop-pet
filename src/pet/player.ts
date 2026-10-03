@@ -94,7 +94,9 @@ export class Player {
     const token = ++this.token;
     clearTimeout(this.watchdog);
     const v = this.load(step.clip);
-    const same = this.current?.video === v && v.style.opacity === '1';   // on screen already (not one that stalled unseen)
+    // on screen already - though another step came in between that had not shown yet (a swat again, the sitting idle between them
+    // only just begun): it plays from its start without being hidden first, which blinked the cat out
+    const same = v.style.opacity === '1';
     const c: Current = { step, video: v, state: 'starting' };
     this.current = c;
     this.onStepStart(step);

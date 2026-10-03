@@ -19,8 +19,9 @@ const FEATHER = 54 * K;      // each feather's length
 const FEATHER_R = 24 * K;    // the feather catches the mouse within this of its middle
 const STICK_REACH = Math.max(6, 9 * K);
 const STRING_REACH = 5;
-/** How often main hears where the feather is. */
+/** How often main hears where the feather is; hanging still, only every STILL_EVERY-th time (a cat still tires of it). */
 const REPORT_MS = 66;
+const STILL_EVERY = 8;
 
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 const lerp = (a: P, b: P, t: number): P => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
@@ -38,6 +39,8 @@ let knot: P = { x: win.x + TIP.x, y: win.y + TIP.y + STRING };
 let vel: P = { x: 0, y: 0 };
 let speed = 0;               // the feather's speed on screen, smoothed (px/s)
 let interactive = false;
+let drawn = '';              // where the knot was last drawn (in the window): there still, the canvas is left as it is
+let still = 0;               // reports skipped while it hangs still
 
 const local = (p: P): P => ({ x: p.x - win.x, y: p.y - win.y });
 /** The angle the feathers hang at: along the string. */
@@ -93,8 +96,11 @@ function feather(color: string, degrees: number): void {
 }
 
 function draw(): void {
-  ctx.clearRect(0, 0, W, H);
   const k = local(knot);
+  const at = `${k.x.toFixed(1)},${k.y.toFixed(1)}`;
+  if (at === drawn) return;
+  drawn = at;
+  ctx.clearRect(0, 0, W, H);
   ctx.lineCap = 'round';
   ctx.strokeStyle = '#8f8d86';
   ctx.lineWidth = 1.5;
@@ -165,6 +171,8 @@ const tick = (now: number) => {
 };
 requestAnimationFrame(tick);
 setInterval(() => {
+  if (!drag && speed < 1 && ++still < STILL_EVERY) return;
+  still = 0;
   const m = featherMiddle(local(knot));
   api.feather(win.x + m.x, win.y + m.y, Math.round(speed));
 }, REPORT_MS);

@@ -239,14 +239,15 @@ api.onInit((init: PetInit) => {
     }
   });
 
-  // a reminder is due: it sits up and looks at the user until it is answered, then lies down again
+  // a reminder is due: it sits up and looks at the user until it is answered, then lies down again (or, playing with the wand,
+  // goes on playing)
   api.onAttend(on => {
     if (on === attending) return;
     attending = on;
     applyAuto();
     if (mode !== 'live' || fight || away) return;
     if (on) { if (pack.alert) engine.command(pack.alert); }
-    else engine.command(pack.start);
+    else engine.command(toying && pack.toy ? pack.toy.pose : pack.start);
   });
   api.onSay(what => {
     if (mode !== 'live') return;
