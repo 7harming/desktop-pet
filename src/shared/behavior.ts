@@ -60,7 +60,7 @@ export class BehaviorEngine {
     if (!this.auto || (mayStay && this.restsOn(def))) return this.take(this.autoPounce(pose) ?? this.idleOf(pose, 0));
     const target = this.pickTarget(pose);
     if (target && this.plan(target)) {
-      if (this.pack.poses[target].brief) this.visiting = { pose: target, back: pose };
+      if (this.pack.poses[target].brief) this.visiting = { pose: target, back: this.wayBack(pose) };
       return this.take(this.queue.shift()!);
     }
     if (!findPath(this.pack.edges, pose, this.pack.start, this.broken)) return this.dissolveHome(pose);
@@ -83,7 +83,7 @@ export class BehaviorEngine {
 
   /** Go to `target` for a while and come back to the pose it was in (or was heading for). */
   visit(target: PoseId): boolean {
-    const back = this.visiting?.back ?? this.endPose;
+    const back = this.visiting?.back ?? this.wayBack();
     if (!this.go(target)) return false;
     this.visiting = { pose: target, back };
     return true;
@@ -202,6 +202,15 @@ export class BehaviorEngine {
     const { steps, pendingFade } = pathToSteps(this.pack, path);
     this.queue.push(...steps, this.idleOf(target, pendingFade));
     return true;
+  }
+
+  /**
+   * Where a visit comes back to: the pose it rests in once what is planned has played (by default the pose it is in, or is on its
+   * way to). Not a prop's pose, which it cannot rest in, nor a brief one, which it would not leave again: then its start pose.
+   */
+  private wayBack(pose = this.queue.length ? this.queue[this.queue.length - 1].to : this.endPose): PoseId {
+    const def = this.pack.poses[pose];
+    return def && !def.transient && !def.brief ? pose : this.pack.start;
   }
 
   /** Stuck in `pose` for good otherwise: dissolve into the start pose, as a prop's pose does. */

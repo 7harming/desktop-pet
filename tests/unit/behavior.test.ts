@@ -164,6 +164,32 @@ describe('BehaviorEngine', () => {
     expect(stranded).toEqual(['sit']);
   });
 
+  it('comes back from a visit that began as it was leaving a prop, to where it was heading', () => {
+    // 小昭 froze over her bowl: a reminder came as bowl_exit played, and the way back led to the bowl's prop pose, which has no idle
+    const e = new BehaviorEngine(makePack(), constRng(0.99)); e.auto = false; e.start();
+    e.command('perch'); e.next(); e.next();              // resting on the perch
+    e.command('rest');
+    expect(e.next().clip).toBe('leave_perch');           // ends in restProp, where it cannot rest
+    expect(e.visit('sit')).toBe(true);
+    expect(e.next()).toMatchObject({ clip: 'rest_to_sit', fadeIn: 0.5 });
+    expect(e.next().clip).toBe('idle_sit');
+    expect(e.next().clip).toBe('sit_to_rest');
+    expect(e.next()).toMatchObject({ from: 'rest', to: 'rest' });
+  });
+
+  it('comes back from a visit to the brief pose it is already in, to where it was heading', () => {
+    // called away from the bowl (a play-fight), then sent back to it (the reminder) before it had left
+    const p = makePack(); p.poses.sit.brief = true;
+    const e = new BehaviorEngine(p, constRng(0.99)); e.auto = false; e.start();
+    e.visit('sit'); e.next(); e.next();                  // in the brief pose
+    e.command('rest');
+    expect(e.visit('sit')).toBe(true);
+    expect(e.next().clip).toBe('idle_sit');
+    expect(e.next().clip).toBe('sit_to_rest');
+    expect(e.next()).toMatchObject({ from: 'rest', to: 'rest' });
+    expect(e.next()).toMatchObject({ from: 'rest', to: 'rest' });
+  });
+
   it('keeps the way back of a visit when told to go somewhere it cannot get to', () => {
     const p = makePack(); p.poses.sit.brief = true;
     const e = new BehaviorEngine(p, constRng(0.99)); e.auto = false; e.start();

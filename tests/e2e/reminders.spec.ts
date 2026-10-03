@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { calmPetPage, controllerCall, failClips, launch, petPage, readLog } from './helpers';
+import { calmPetPage, controllerCall, failClips, launch, petPage, readLog, stallClips } from './helpers';
 
 test('a reminder bubble asks, and snoozing pushes the timer 10 minutes', async () => {
   const { app } = await launch();
@@ -56,6 +56,26 @@ test('a reminder pose whose one way back fails is left all the same: the cat dis
   const log = readLog(userDir);
   expect(log).toContain('[testcat2] 片段 sit_to_rest 播放失敗（錯誤碼');
   expect(log).toContain('[testcat2] 姿勢 sit 的出路都壞了，直接淡回 rest');
+  await app.close();
+});
+
+test('a reminder that comes as the cat gets up from a prop sends it to its reminder pose and back all the same', async () => {
+  // 小昭 froze over her bowl when the water reminder came as she got up from it: the way back led into the bowl's prop pose
+  const { app, userDir } = await launch();
+  await petPage(app, 'testcat');
+  await stallClips(app, ['leave_perch'], 'end');      // it takes its time getting off the perch: time enough to remind it then
+  await controllerCall(app, c => { c.setReminders({ notify: false }); c.hidePet('testcat'); c.showPet('testcat2'); });
+  const page = await calmPetPage(app, 'testcat2');
+  await controllerCall(app, c => c.command('testcat2', 'perch'));
+  await expect.poll(() => page.evaluate(() => (window as any).__pet.history.at(-1)), { timeout: 20_000 }).toBe('idle_perch');
+  await controllerCall(app, c => c.command('testcat2', 'rest'));
+  await expect.poll(() => page.evaluate(() => (window as any).__pet.engine.currentStep.clip), { timeout: 20_000 }).toBe('leave_perch');
+  const n = await page.evaluate(() => (window as any).__pet.history.length);
+  await page.evaluate(() => { (window as any).__pet.engine.rng = () => 0.99; });   // one idle of the reminder pose, then back
+  await controllerCall(app, c => c.testReminder());
+  await expect.poll(() => page.evaluate(k => (window as any).__pet.history.slice(k).join(','), n), { timeout: 30_000 })
+    .toMatch(/^rest_to_sit,idle_sit,sit_to_rest,idle_rest/);
+  expect(readLog(userDir)).not.toContain('[ERROR]');
   await app.close();
 });
 
