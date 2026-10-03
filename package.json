@@ -10,6 +10,7 @@
     "pretest": "node scripts/make-test-pack.mjs",
     "test": "vitest run",
     "test:e2e": "npm run build && node scripts/make-test-pack.mjs && playwright test",
+    "test:e2e:hidden": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e-hidden.ps1",
     "start": "npm run build && electron .",
     "check-pack": "node dist/check-pack.js",
     "dist": "node scripts/require-installer-password.mjs && npm run build && electron-builder --win nsis",
