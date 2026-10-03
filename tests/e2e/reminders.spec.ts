@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { calmPetPage, controllerCall, failClips, launch, petPage, readLog, stallClips } from './helpers';
+import { calmPetPage, controllerCall, failClips, launch, packsWith, petPage, readLog, stallClips } from './helpers';
 
 test('a reminder bubble asks, and snoozing pushes the timer 10 minutes', async () => {
   const { app } = await launch();
@@ -99,6 +99,24 @@ test('a reminder that comes as the cat gets up from a prop sends it to its remin
   await expect.poll(() => page.evaluate(k => (window as any).__pet.history.slice(k).join(','), n), { timeout: 30_000 })
     .toMatch(/^rest_to_sit,idle_sit,sit_to_rest,idle_rest/);
   expect(readLog(userDir)).not.toContain('[ERROR]');
+  await app.close();
+});
+
+test('by the right edge, a reminder whose pose has no room there only asks: the cat stays where it is', async () => {
+  // it was moved over to make room for drinking every time, and stayed there
+  const { app } = await launch({ DESKTOP_PET_PACKS: packsWith(p => { p.poses.perch.right = 0.95; p.reminderPoses = { water: 'perch' }; }) });
+  const page = await calmPetPage(app);
+  await controllerCall(app, c => c.setReminders({ notify: false }));
+  const wa = await controllerCall(app, c => c.workArea());
+  const frameX = async () => (await controllerCall(app, c => c.pets.get('testcat').frame)).x;
+  await page.evaluate(v => window.petApi.dragEnded(v), wa.width - 50);
+  await expect.poll(frameX).toBe(Math.floor(wa.x + wa.width - 0.5 * 533));
+  const n = await page.evaluate(() => (window as any).__pet.history.length);
+  await controllerCall(app, c => c.testReminder());
+  await expect(page.locator('.bubble.reminder')).toContainText('喝水。');
+  await page.waitForTimeout(3_000);
+  expect(await page.evaluate(k => (window as any).__pet.history.slice(k).join(','), n)).not.toContain('go_perch');
+  expect(await frameX()).toBe(Math.floor(wa.x + wa.width - 0.5 * 533));
   await app.close();
 });
 

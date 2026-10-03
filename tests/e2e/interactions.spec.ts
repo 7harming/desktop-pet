@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { calmPetPage, catPoint, controllerCall, launch, petPage } from './helpers';
+import { calmPetPage, catPoint, controllerCall, launch, packsWith, petPage } from './helpers';
 
 test('clicking the cat shows a line and a heart', async () => {
   const { app } = await launch();
@@ -79,6 +79,26 @@ test('a cat dropped at the right edge rests there, the empty part of its window 
   // everything the test cat draws is in the left half of its frame, so the right half may hang off the screen
   await expect.poll(async () => (await controllerCall(app, c => c.pets.get('testcat').frame)).x)
     .toBe(Math.floor(wa.x + wa.width - 0.5 * 533));
+  await app.close();
+});
+
+test('a cat put by the right edge rests right by it, and by itself does not go where it has no room there', async () => {
+  // owner: both cats rested well away from the right edge - room was kept there for poses like 小昭's box
+  const { app } = await launch({ DESKTOP_PET_PACKS: packsWith(p => { p.poses.perch.right = 0.95; }) });
+  const page = await petPage(app);
+  const wa = await controllerCall(app, c => c.workArea());
+  const frameX = async () => (await controllerCall(app, c => c.pets.get('testcat').frame)).x;
+  const allowed = () => page.evaluate(() => [...((window as any).__pet.engine.allowed ?? [])]);
+  const drop = (x: number) => page.evaluate(v => window.petApi.dragEnded(v), x);
+  await drop(wa.width - 50);
+  await expect.poll(frameX).toBe(Math.floor(wa.x + wa.width - 0.5 * 533));   // as far as resting needs, not as the perch does
+  await expect.poll(allowed).not.toContain('perch');
+  await drop(wa.width / 2);                                                  // in the middle it may go there again
+  await expect.poll(allowed).toContain('perch');
+  await drop(wa.width - 50);
+  await expect.poll(allowed).not.toContain('perch');
+  await controllerCall(app, c => c.command('testcat', 'perch'));            // told to, by the edge, it moves over first
+  expect(await frameX()).toBeLessThanOrEqual(Math.floor(wa.x + wa.width - 0.95 * 533));
   await app.close();
 });
 

@@ -1,9 +1,8 @@
+import { actionExtent, restExtent, union, type Extent } from '../shared/pose-geometry';
 import type { Pack } from '../shared/types';
 
 export interface WorkArea { x: number; y: number; width: number; height: number }
 export type Bounds = WorkArea;
-/** Left and right edge of what the cat draws, as shares of the window width. */
-export type Extent = [number, number];
 
 export function windowSize(pack: Pack, scale: number): { width: number; height: number } {
   const height = Math.round(pack.frame.displayHeight * scale);
@@ -17,20 +16,11 @@ export function restY(pack: Pack, scale: number, wa: WorkArea): number {
 }
 
 /**
- * Everything the cat may draw at its resting spot: the ticked poses (null = all), the start pose it passes through, walking,
- * pouncing and play-fighting.
- * A pose without `left`/`right` may use the whole frame.
+ * What must stay on screen where the cat rests: what it always has room for (restExtent: resting, sitting up, the wand,
+ * walking), and `actions` it is about to do there (a pose or a pounce it was told to). Wider things it does by itself only where
+ * they fit, so it can rest right by the screen's edge.
  */
-export function extentOf(pack: Pack, poses: string[] | null): Extent {
-  const ticked = (poses ?? []).filter(p => pack.poses[p]);
-  const ids = new Set([pack.start, ...(ticked.length ? ticked : Object.keys(pack.poses))]);
-  const spans: Extent[] = [...ids].map(id => [pack.poses[id].left ?? 0, pack.poses[id].right ?? 1]);
-  if (pack.walk) spans.push([pack.walk.left, pack.walk.right]);
-  if (pack.pounce) spans.push([pack.pounce.left, pack.pounce.right]);
-  if (pack.fight) spans.push([pack.fight.left, pack.fight.right]);
-  if (pack.toy) spans.push([pack.toy.left, pack.toy.right]);
-  return [Math.min(...spans.map(e => e[0])), Math.max(...spans.map(e => e[1]))];
-}
+export const extentOf = (pack: Pack, actions: string[] = []): Extent => union([restExtent(pack), ...actions.map(k => actionExtent(pack, k))]);
 
 /**
  * `xRatio` is where the start pose's body centre sits across the work area. The window may hang past the screen edge as long as

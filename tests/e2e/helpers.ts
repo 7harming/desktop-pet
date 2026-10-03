@@ -120,6 +120,17 @@ export async function failClips(app: ElectronApplication, clips: string[]): Prom
   }, clips);
 }
 
+/** A copy of the test packs with testcat's pack.json changed by `change` (say, a pose that reaches far right, like the box). */
+export function packsWith(change: (pack: any) => void): string {
+  const dir = mkdtempSync(join(tmpdir(), 'dpet-packs-'));
+  cpSync(resolve('tests/fixtures/packs'), dir, { recursive: true });
+  const file = join(dir, 'testcat', 'pack.json');
+  const pack = JSON.parse(readFileSync(file, 'utf8'));
+  change(pack);
+  writeFileSync(file, JSON.stringify(pack));
+  return dir;
+}
+
 /** A copy of the test packs in which testcat holds the reminders and testcat2 the memo. */
 export function cardPacks(): string {
   const dir = mkdtempSync(join(tmpdir(), 'dpet-cards-'));

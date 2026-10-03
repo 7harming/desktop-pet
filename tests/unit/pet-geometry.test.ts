@@ -27,20 +27,17 @@ describe('pet geometry', () => {
     expect(windowBounds(pack, 1, 1, wa, [0.1875, 0.5]).x).toBe(1920 - 267);
     expect(windowBounds(pack, 1, 0, wa, [0.1875, 0.5]).x).toBe(-99);
   });
-  it('covers the ticked poses, the start pose and walking', () => {
+  it('covers what the cat always needs room for, and a pose it is about to go to', () => {
     const p = makePack();
-    p.poses.perch.right = 0.9;
-    p.poses.sit.left = 0.1; p.poses.sit.right = 0.6;
+    p.poses.perch.right = 0.9;                           // like the box: not kept room for where it rests
     p.walk!.left = 0.15; p.walk!.right = 0.55;
-    expect(extentOf(p, ['sit'])).toEqual([0.1, 0.6]);
-    expect(extentOf(p, ['rest'])).toEqual([0.15, 0.55]);
-    expect(extentOf(p, null)).toEqual([0.1, 0.9]);
-    delete p.poses.rest.left;
-    expect(extentOf(p, ['rest'])[0]).toBe(0);           // a pose without an extent may use the whole frame
+    expect(extentOf(p)).toEqual([0.15, 0.55]);
+    expect(extentOf(p, ['perch'])).toEqual([0.15, 0.9]);
   });
-  it('always covers the pounces (a double-click can start one any time)', () => {
+  it('covers a pounce only to the side it goes', () => {
     const p = makePack(); p.pounce!.left = 0.05; p.pounce!.right = 0.8;
-    expect(extentOf(p, ['sit'])).toEqual([0.05, 0.8]);
+    expect(extentOf(p)).toEqual([0.1875, 0.5]);
+    expect(extentOf(p, ['pounce:right'])).toEqual([0.1875, 0.8]);
   });
   it('estimates the body width for placement', () => {
     expect(bodyWidth(pack, 1)).toBeCloseTo(186.55);

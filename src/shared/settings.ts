@@ -30,8 +30,8 @@ export const REMINDER_CHOICES = [0, 30, 45, 60, 90];
 export const ACTION_INTERVALS = [15, 30, 60];
 export const AWAY_CHOICES = [0, 3, 5, 10];
 export const SIZE_PRESETS = { s: 0.5, m: 1, l: 1.3 } as const;
-/** A new cat rests near the bottom-right corner (pulled in as far as its props need). */
-export const DEFAULT_X = 0.85;
+/** A new cat rests in the bottom-right corner, as close to the edge as what it always needs room for allows (see extentOf). */
+export const DEFAULT_X = 1;
 export const MIN_SCALE = 0.4;
 export const MAX_SCALE = 1.5;
 

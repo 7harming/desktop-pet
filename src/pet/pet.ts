@@ -6,7 +6,7 @@ import type { DayPart } from '../shared/time-events';
 import { swatRate } from '../shared/toy';
 import type { PounceSide, ReminderType, ToyDef } from '../shared/types';
 import { clickLine, commandLine, pickLine, reminderLine } from '../shared/lines';
-import { HEADROOM, isAsleep, poseValueAt, showsShadow, sleepPoses } from '../shared/pose-geometry';
+import { actionExtent, fitsAt, HEADROOM, isAsleep, poseValueAt, showsShadow, sleepPoses } from '../shared/pose-geometry';
 import { arriveGlidePx, departGlidePx, planWalkIn, planWalkOut, type WalkPlan } from '../shared/walk-plan';
 import { Bubbles } from './bubble';
 import { Interactions } from './interactions';
@@ -37,7 +37,6 @@ api.onInit((init: PetInit) => {
   const { pack } = init;
   const engine = new BehaviorEngine(pack, Math.random);
   engine.auto = init.auto && !init.away;
-  engine.setAllowed(init.actions);
   let interval = init.interval;
   let part = init.dayPart;
   const applyPart = () => { engine.setSleepiness(SLEEPY[part]); engine.setDwell(interval * SLOW[part]); };
@@ -139,7 +138,6 @@ api.onInit((init: PetInit) => {
     void player.play(step);
   });
   api.onFightCancel(endFight);
-  api.onSetActions(actions => engine.setAllowed(actions));
   api.onSetInterval(seconds => { interval = seconds; applyPart(); });
   api.onDayPart(p => { part = p; applyPart(); });
   api.onPause(paused => { if (paused) player.pause(); else player.resume(); });
@@ -161,7 +159,21 @@ api.onInit((init: PetInit) => {
     const gap = to === pack.alert ? 0 : CARD_GAP_LYING;   // a pose's `head` is its ear tips at their highest
     api.reportHead(window.screenX + frameX + pose.centerX * frameW(), winY + HEADROOM + (g0 - pose.head) * frameH() - gap, mode === 'live' && !moving);
   };
-  api.onFrameX(x => { setFrameX(x); reportHead(); });
+  api.onFrameX(x => { setFrameX(x); reportHead(); applyAllowed(); });
+
+  /** Whether doing `key` (a pose, or a pounce) keeps what it draws on screen where the cat is now. */
+  const fits = (key: string) => fitsAt(actionExtent(pack, key), frameX, frameW(), window.innerWidth);
+  // by itself it does only the ticked poses and pounces that have room where it is: it can rest right by the screen's edge, and
+  // not go into the box there (told to, main moves it over first)
+  let ticked = init.actions;
+  const everything = [...Object.keys(pack.poses).filter(k => !pack.poses[k].transient), 'pounce:left', 'pounce:right'];
+  const applyAllowed = () => {
+    const keys = (ticked ?? everything).filter(fits);
+    engine.setAllowed(keys.some(k => pack.poses[k]) ? keys : [...keys, pack.start]);   // no pose would mean every pose
+  };
+  applyAllowed();
+  window.addEventListener('resize', applyAllowed);
+  api.onSetActions(actions => { ticked = actions; applyAllowed(); });
 
   let cards: { x: number; y: number; width: number; height: number }[] = [];   // where the cards stand (screen px)
   api.onCardsAt(c => { cards = c; });
@@ -196,11 +208,12 @@ api.onInit((init: PetInit) => {
     for (let i = 3; i < data.length; i += 4) if (data[i] > 40) return true;
     return false;
   };
-  /** Double-clicked while resting: pounce towards the side of the cat that was clicked. */
+  /** Double-clicked while resting: pounce towards the side of the cat that was clicked (if there is room that way). */
   const pounce = (x: number): boolean => {
     const p = pack.pounce;
     if (!p || mode !== 'live' || busy) return false;
     const toLeft = x < frameX + pack.poses[p.pose].centerX * frameW();
+    if (!fits(toLeft ? 'pounce:left' : 'pounce:right')) return false;
     const step = engine.interject(toLeft ? p.toLeft : p.toRight, p.pose);
     if (!step) return false;
     void player.play(step);
@@ -264,7 +277,7 @@ api.onInit((init: PetInit) => {
   // if it went to sleep for that, and says so once it is up
   const settle = () => {
     if (!away || mode !== 'live' || fight || isAsleep(pack, engine.endPose)) return;
-    const poses = sleepPoses(pack);
+    const poses = sleepPoses(pack).filter(fits);   // none with room: it stays as it is
     const pose = poses[Math.floor(Math.random() * poses.length)];
     if (pose && engine.command(pose)) slept = true;
   };
@@ -282,7 +295,7 @@ api.onInit((init: PetInit) => {
   api.onReminder(type => {
     // a reminder pose (drinking from the bowl): go there for a while, then back to what it was doing
     const pose = pack.reminderPoses?.[type];
-    const going = !!pose && mode === 'live' && engine.visit(pose);
+    const going = !!pose && mode === 'live' && fits(pose) && engine.visit(pose);   // by the edge maybe only the bubble
     asking = type;
     const answer = (result: ReminderResult) => () => { asking = null; api.reminderResult(type, result); };
     bubbles.ask(reminderLine(pack, type, going ? pose : engine.endPose), [

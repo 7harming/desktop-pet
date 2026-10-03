@@ -1,6 +1,6 @@
 import { app, ipcMain, Menu, Notification, powerMonitor, screen, type WebContents } from 'electron';
 import { join } from 'node:path';
-import { actionKey, pounceSide } from '../shared/actions';
+import { actionKey } from '../shared/actions';
 import { AwayWatch } from '../shared/away';
 import { closestPair } from '../shared/fight';
 import type { FightState, PanelAction, PanelState } from '../shared/ipc';
@@ -202,7 +202,7 @@ export class AppController {
     }));
     const want = wa.x + (ps.x ?? DEFAULT_X) * wa.width;
     // search only where the cat can really rest: what it draws must stay on screen
-    const [left, right] = extentOf(pack, ps.actions);
+    const [left, right] = extentOf(pack);
     const w = windowSize(pack, ps.scale).width;
     const cx = pack.poses[pack.start].centerX;
     const center = findFreeCenter(others, want, bodyWidth(pack, ps.scale), wa.x + (cx - left) * w, wa.x + wa.width - (right - cx) * w);
@@ -378,6 +378,15 @@ export class AppController {
     if (spots.length < 2) return '要兩隻會打鬧的貓都在桌面上才行。';
     const pair = closestPair(spots);
     if (!pair) return '兩隻貓離太遠了，把牠們拖近一點再試。';
+    // each one swats towards the other, reaching out that way: by the screen's edge there may be no room for it
+    const wa = this.workArea();
+    const room = (id: string, side: 'left' | 'right') => {
+      const pet = this.pets.get(id)!;
+      const f = pet.pack.fight!;
+      return side === 'right' ? pet.frame.x + f.right * pet.frame.width <= wa.x + wa.width + 0.5
+        : pet.frame.x + f.left * pet.frame.width >= wa.x - 0.5;
+    };
+    if (!room(pair.left, 'right') || !room(pair.right, 'left')) return '有一隻貓太靠螢幕邊緣，沒有空間打鬧。';
     const ids: [string, string] = [pair.left, pair.right];
     this.fight = { ids, ready: new Set(), done: new Set(), manual, timer: setTimeout(() => this.endFight(), FIGHT_TIMEOUT_MS) };
     this.log.info(`打鬧：${ids.join(' 和 ')}（${manual ? '面板' : '自己'}）`);
@@ -589,18 +598,13 @@ export class AppController {
   }
 
   /**
-   * Every cat on the desktop reminds at once (each dropping in on its reminder pose, if it has one); the first answer, from
-   * either, settles it and closes the other's bubble. Without a cat only the notification shows.
+   * Every cat on the desktop reminds at once (each dropping in on its reminder pose, if it has one and room for it there); the
+   * first answer, from either, settles it and closes the other's bubble. Without a cat only the notification shows.
    */
   private deliver(type: ReminderType): void {
     if (type === 'eyes') { void this.startBreak(); return; }   // resting the eyes is a full-screen break, not a bubble
     const ids = this.settings.petOrder.filter(i => this.pets.has(i) && this.onScreen(i));
-    for (const id of ids) {
-      const pet = this.pets.get(id)!;
-      const pose = pet.pack.reminderPoses?.[type];   // the cat drops in on this pose (drinks from its bowl) while it reminds
-      if (pose) this.makeRoom(id, pet, pose);
-      pet.send('pet:reminder', type);
-    }
+    for (const id of ids) this.pets.get(id)!.send('pet:reminder', type);
     if (ids.length) this.reminding.set(type, new Set(ids));
     else this.scheduler.done(type, Date.now());
     if (this.settings.reminders.notify && Notification.isSupported()) {
@@ -682,17 +686,17 @@ export class AppController {
     })).popup({ window: pet.win });
   }
 
-  /** `key`: a pose, or a pounce (`pounce:left` / `pounce:right`, which always has room - see extentOf). */
+  /** `key`: a pose, or a pounce (`pounce:left` / `pounce:right`). Told to, the cat makes room for it first if it must. */
   command(id: string, key: string): void {
     const pet = this.pets.get(id);
     if (!pet) return;
-    if (!pounceSide(key)) this.makeRoom(id, pet, key);
+    this.makeRoom(id, pet, key);
     pet.send('pet:command', key);
   }
 
-  /** An unticked pose (say the box) may need more room than the cat's spot leaves: make room before it goes there. */
-  private makeRoom(id: string, pet: PetWindow, pose: string): void {
-    const b = this.restBounds(id, pose);
+  /** A pose or pounce may need more room than the cat's spot leaves (the box, by the screen's edge): it moves over first. */
+  private makeRoom(id: string, pet: PetWindow, key: string): void {
+    const b = this.restBounds(id, key);
     if (b.x !== pet.frame.x) pet.place(b, this.workArea());
   }
 
@@ -745,14 +749,13 @@ export class AppController {
   }
 
   /**
-   * The resting window for a cat: its saved spot, pulled in just enough that everything it may draw there stays on screen
-   * (the ticked poses, plus `extra`, a pose it was just told to go to).
+   * The resting window for a cat: its saved spot, pulled in just enough that what it always has room for stays on screen
+   * (see extentOf), and `extra`, a pose or pounce it was just told to do.
    */
   restBounds(id: string, extra?: string): Bounds {
     const pack = this.packOf(id)!;
     const ps = this.settings.pets[id];
-    const poses = extra ? [...(ps.actions ?? Object.keys(pack.poses)), extra] : ps.actions;
-    return windowBounds(pack, ps.scale, ps.x ?? DEFAULT_X, this.workArea(), extentOf(pack, poses));
+    return windowBounds(pack, ps.scale, ps.x ?? DEFAULT_X, this.workArea(), extentOf(pack, extra ? [extra] : []));
   }
 
 
