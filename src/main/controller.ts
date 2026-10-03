@@ -351,9 +351,8 @@ export class AppController {
 
   resetAllPositions(): void {
     for (const ps of Object.values(this.settings.pets)) ps.x = null;
-    const visible = [...this.pets.keys()];
-    for (const id of visible) { this.cards.petGone(id); this.toys.petGone(id); this.pets.get(id)?.close(); }
-    this.pets.clear();
+    const visible = [...this.pets.keys()].filter(id => this.onScreen(id));   // not one walking off: it goes on
+    for (const id of visible) { this.cards.petGone(id); this.toys.petGone(id); this.pets.get(id)?.close(); this.pets.delete(id); }
     for (const id of this.settings.petOrder) if (visible.includes(id)) this.showPet(id, false);
   }
 
@@ -776,6 +775,8 @@ export class AppController {
     this.log.error(`貓咪視窗 ${id} 當掉了（第 ${n} 次）`);
     this.cards.petGone(id);
     this.toys.petGone(id);
+    const going = this.leaving.get(id);
+    if (going) { going.finish(); return; }   // it was walking off anyway: it is gone (and whoever waits for it hears so now)
     this.pets.get(id)?.close();
     this.pets.delete(id);
     if (n <= MAX_CRASH_RESTARTS) this.showPet(id, false);

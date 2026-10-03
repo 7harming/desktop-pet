@@ -45,6 +45,28 @@ test('opening the app by hand brings a hidden cat back; starting at login does n
   await byHand.app.close();
 });
 
+test('putting the cats back on the taskbar lets a cat that is walking off go on', async () => {
+  // it was brought straight back, and saved as out again, though the user had just put it away
+  const { app } = await launch();
+  await petPage(app, 'testcat');
+  await controllerCall(app, c => c.showPet('testcat2'));
+  await petPage(app, 'testcat2');
+  await controllerCall(app, c => { c.hidePet('testcat'); c.resetAllPositions(); });
+  await expect.poll(() => controllerCall(app, c => c.pets.has('testcat')), { timeout: 15_000 }).toBe(false);
+  expect(await controllerCall(app, c => [c.settings.pets.testcat.visible, c.onScreen('testcat2')])).toEqual([false, true]);
+  await app.close();
+});
+
+test('a cat whose window crashes as it walks off is gone, not brought back', async () => {
+  const { app } = await launch();
+  await petPage(app);
+  await controllerCall(app, c => { c.hidePet('testcat'); c.pets.get('testcat').win.webContents.forcefullyCrashRenderer(); });
+  await expect.poll(() => controllerCall(app, c => c.pets.has('testcat')), { timeout: 15_000 }).toBe(false);
+  await new Promise(r => setTimeout(r, 1_000));
+  expect(await controllerCall(app, c => [c.pets.has('testcat'), c.settings.pets.testcat.visible])).toEqual([false, false]);
+  await app.close();
+});
+
 test('asking for the app again while it runs opens the panel and brings a cat back', async () => {
   const { app } = await launch();
   await petPage(app);
