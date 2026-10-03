@@ -28,6 +28,12 @@ const SWAT_CUT_IN = 0.5;
 /** A card sits right on a sitting cat's ear tips; over a lying one it keeps this little gap (px). */
 const CARD_GAP_LYING = 8;
 
+// an error here shows only in devtools nobody opens: the cat just stops (it once froze over its bowl), so it goes in the log
+window.addEventListener('error', e =>
+  api.log('error', `出錯：${e.error instanceof Error ? e.error.message : e.message}（${e.filename.split('/').pop()}:${e.lineno}）`));
+window.addEventListener('unhandledrejection', e =>
+  api.log('error', `出錯：${e.reason instanceof Error ? e.reason.message : String(e.reason)}`));
+
 api.onInit((init: PetInit) => {
   const { pack } = init;
   const engine = new BehaviorEngine(pack, Math.random);

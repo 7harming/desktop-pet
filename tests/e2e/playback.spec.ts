@@ -48,6 +48,15 @@ for (const how of ['load', 'play', 'end'] as const) {
   });
 }
 
+test('an error in a cat window is written to the log', async () => {
+  // the cat froze over its bowl on such an error, and the log said nothing
+  const { app, userDir } = await launch();
+  const page = await petPage(app);
+  await page.evaluate(() => { setTimeout(() => { throw new Error('測試用的錯誤'); }); });
+  await expect.poll(() => readLog(userDir)).toContain('[ERROR] [testcat] 出錯：測試用的錯誤');
+  await app.close();
+});
+
 test('a paused cat stays still: its clip is not given up on as stalled, and it plays on once resumed', async () => {
   const { app, userDir } = await launch();
   const page = await calmPetPage(app);
