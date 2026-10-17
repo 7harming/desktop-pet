@@ -3,10 +3,10 @@ import { BehaviorEngine } from '../shared/behavior';
 import { fightClip } from '../shared/fight';
 import type { PetInit, ReminderResult } from '../shared/ipc';
 import type { DayPart } from '../shared/time-events';
-import { swatRate } from '../shared/toy';
+import { swatRate, UP_PEAK } from '../shared/toy';
 import type { PounceSide, ReminderType, ToyDef } from '../shared/types';
-import { clickLine, commandLine, pickLine, reminderLine } from '../shared/lines';
-import { actionExtent, fitsAt, HEADROOM, isAsleep, poseValueAt, showsShadow, sleepPoses } from '../shared/pose-geometry';
+import { clickLine, commandLine, dishLine, pickLine, reminderLine } from '../shared/lines';
+import { actionExtent, fitsAt, HEADROOM, isAsleep, poseValueAt, showsShadow, sleepPoses, union } from '../shared/pose-geometry';
 import { arriveGlidePx, departGlidePx, planWalkIn, planWalkOut, type WalkPlan } from '../shared/walk-plan';
 import { Bubbles } from './bubble';
 import { Interactions } from './interactions';
@@ -55,8 +55,9 @@ api.onInit((init: PetInit) => {
   let attending = false;      // sitting up for a reminder that is due, until it is answered
   let moving = false;         // dragged or falling: cards wait for it to land
   let toying = false;         // watching the wand's feather, swatting it when it comes near
+  let wheel: 'swat' | 'hit' | 'said' | null = null;   // the dinner wheel: swatting it, the paw has reached it, the dish said
   // auto mode holds off while it fights, while the user is away, while it looks at them for a reminder, and while it plays
-  const applyAuto = () => { engine.auto = userAuto && !fight && !away && !attending && !toying; };
+  const applyAuto = () => { engine.auto = userAuto && !fight && !away && !attending && !toying && !wheel; };
   const debug = init.debug ? { id: pack.id, history, engine, player, get mode() { return mode; } } : null;
   if (debug) (window as unknown as Record<string, unknown>).__pet = debug;
 
@@ -257,6 +258,40 @@ api.onInit((init: PetInit) => {
     }
   });
 
+  // the dinner wheel over its head: it sits up and swats it, and main turns the wheel as the paw comes up (or at once, when it
+  // will not swat now); told the dish, it says it, and a while later goes back to its ways - or plays on, or keeps looking at the
+  // user for a reminder
+  const WHEEL_BACK_MS = 5_000;
+  let wheelBack: ReturnType<typeof setTimeout> | undefined;
+  const canSwat = (toy: ToyDef): boolean => {
+    const pose = pack.poses[engine.endPose];
+    return mode === 'live' && !busy && !moving && !fight && !away && !isAsleep(pack, engine.endPose) && !pose.brief && !pose.transient
+      && fitsAt(union([actionExtent(pack, toy.pose), [toy.left, toy.right]]), frameX, frameW(), window.innerWidth);
+  };
+  const wheelDone = () => {
+    clearTimeout(wheelBack);
+    if (!wheel) return;
+    wheel = null;
+    applyAuto();
+    if (mode === 'live' && !fight && !away && !attending && !toying) engine.command(pack.start);
+  };
+  api.onSpin(() => {
+    clearTimeout(wheelBack);
+    const toy = pack.toy;
+    if (!toy || !canSwat(toy)) { api.spinHit(false); return; }
+    wheel = 'swat';
+    applyAuto();
+    const step = engine.perform(toy.swats.up, toy.pose);   // now if it sits, else once it has sat up
+    if (step) void player.play(step);
+  });
+  api.onDish(dish => {
+    bubbles.say(dishLine(pack, dish, Math.random), SAY_MS);
+    if (!wheel) return;   // it did not get up for it: it stays as it is
+    wheel = 'said';
+    wheelBack = setTimeout(wheelDone, WHEEL_BACK_MS);
+  });
+  api.onSpinCancel(wheelDone);
+
   // a reminder is due: it sits up and looks at the user until it is answered, then lies down again (or, playing with the wand,
   // goes on playing)
   api.onAttend(on => {
@@ -323,6 +358,11 @@ api.onInit((init: PetInit) => {
       cat.style.width = `${W}px`;
       layer.style.transform = `translateY(${dy}px)`;
       Object.assign(shadow.style, { width: `${H * 0.5}px`, left: `${cx - H * 0.25}px`, top: `${g0 * H - 7}px`, opacity: shade });
+    }
+    // the swat for the wheel: past the paws' highest point the wheel turns
+    if (wheel === 'swat' && pack.toy && player.step?.clip === pack.toy.swats.up && player.progress >= (pack.toy.upPeak ?? UP_PEAK)) {
+      wheel = 'hit';
+      api.spinHit(true);
     }
     bubbles.place();
     requestAnimationFrame(frame);

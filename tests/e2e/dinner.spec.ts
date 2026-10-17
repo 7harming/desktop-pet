@@ -122,3 +122,55 @@ test("yesterday's dish is greyed, and the wheel does not stop on it", async () =
   expect(await dishUnderPointer(card)).toBe('便當');
   await app.close();
 });
+
+test('the cat under the card sits up and swats the wheel, which turns as its paw comes up, and then says the dish', async () => {
+  const userDir = cardUserDir();
+  const { app } = await launch({ DESKTOP_PET_PACKS: cardPacks() }, userDir);
+  const page = await calmPetPage(app);
+  await controllerCall(app, c => c.cards.show('dinner', null, 'hand'));
+  const card = await cardPage(app, 'dinner');
+  await card.locator('button.spin').click();
+  await expect.poll(() => page.evaluate(() => (window as any).__pet.history.includes('swat_up')), { timeout: 15_000 }).toBe(true);
+  // well before main's 4 s wait: the paw started it
+  await expect.poll(() => readLog(userDir), { timeout: 8_000 }).toContain('轉盤：testcat 拍了轉盤');
+  await expect(card.locator('.result')).toHaveText(/^今晚吃：/, { timeout: 15_000 });
+  const dish = (await card.locator('.result').textContent())!.replace('今晚吃：', '');
+  await expect(page.locator('.bubble')).toContainText(`今晚吃${dish}！`);
+  // a while after saying it, it lies down again
+  await expect.poll(() => page.evaluate(() => (window as any).__pet.engine.endPose), { timeout: 20_000 }).toBe('rest');
+  await app.close();
+});
+
+test('a cat asleep does not get up: the wheel turns by itself, and it still says the dish', async () => {
+  const userDir = cardUserDir();
+  const { app } = await launch({ DESKTOP_PET_PACKS: cardPacks() }, userDir);
+  const page = await calmPetPage(app);
+  await controllerCall(app, c => c.command('testcat', 'perch'));
+  await expect.poll(() => page.evaluate(() => (window as any).__pet.engine.endPose), { timeout: 20_000 }).toBe('perch');
+  await controllerCall(app, c => c.cards.show('dinner', null, 'hand'));
+  const card = await cardPage(app, 'dinner');
+  await card.locator('button.spin').click();
+  await expect.poll(() => readLog(userDir), { timeout: 3_000 }).toContain('轉盤：testcat 沒有拍');
+  await expect(card.locator('.result')).toHaveText(/^今晚吃：/, { timeout: 10_000 });
+  const dish = (await card.locator('.result').textContent())!.replace('今晚吃：', '');
+  await expect(page.locator('.bubble')).toContainText(dish);
+  expect(await page.evaluate(() => (window as any).__pet.history.includes('swat_up'))).toBe(false);
+  expect(await page.evaluate(() => (window as any).__pet.engine.endPose)).toBe('perch');
+  await app.close();
+});
+
+test('closing the card before the wheel stops: nothing is kept, and the cat goes back to its ways', async () => {
+  const userDir = cardUserDir();
+  const { app } = await launch({ DESKTOP_PET_PACKS: cardPacks() }, userDir);
+  const page = await calmPetPage(app);
+  await controllerCall(app, c => c.cards.show('dinner', null, 'hand'));
+  const card = await cardPage(app, 'dinner');
+  await card.locator('button.spin').click();
+  await expect.poll(() => page.evaluate(() => (window as any).__pet.engine.endPose), { timeout: 15_000 }).toBe('sit');
+  await card.keyboard.press('Escape').catch(() => {});
+  await expect.poll(() => isOpen(app)).toBe(false);
+  expect(readLog(userDir)).toContain('不算');
+  await expect.poll(() => page.evaluate(() => (window as any).__pet.engine.endPose), { timeout: 20_000 }).toBe('rest');
+  expect(readNotes(userDir)?.dinner?.last ?? null).toBeNull();
+  await app.close();
+});
