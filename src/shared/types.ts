@@ -72,11 +72,12 @@ export type ReminderType = 'water' | 'stretch' | 'eyes';
 export type SwatDir = 'left' | 'upLeft' | 'up' | 'upRight' | 'right';
 /**
  * The cat wand: sitting in `pose`, the cat swats with both front paws towards one of five sides; each clip goes from `pose` back
- * to it. `left` / `right` bound everything they draw, as shares of the frame width.
+ * to it. `left` / `right` bound everything they draw, as shares of the frame width. `upPeak`: where in the upward swat (a share of
+ * its length) the paws are highest - the dinner wheel starts turning then (none: UP_PEAK).
  */
-export interface ToyDef { pose: PoseId; swats: Record<SwatDir, ClipId>; left: number; right: number }
-/** The card a cat holds over its head: 小昭 the reminders (`todo`), 阿胖 the memo (`memo`). */
-export type CardKind = 'memo' | 'todo';
+export interface ToyDef { pose: PoseId; swats: Record<SwatDir, ClipId>; left: number; right: number; upPeak?: number }
+/** A card a cat holds over its head: 小昭 the reminders (`todo`) and the dinner wheel (`dinner`), 阿胖 the memo (`memo`). */
+export type CardKind = 'memo' | 'todo' | 'dinner';
 /** What the clock has the cats say (see time-events): the day's first hello, lunch, the end of the working day, Friday evening, bedtime. */
 export type TimeEvent = 'morning' | 'weekend' | 'lunch' | 'offWork' | 'friday' | 'bedtime';
 
@@ -92,6 +93,8 @@ export interface PackLines {
   /** Said on waking up when the user is back at the computer. */
   back?: LineSet;
   time?: Partial<Record<TimeEvent, LineSet>>;
+  /** Said when the dinner wheel stops: `{dish}` is the dish. */
+  dinner?: LineSet;
 }
 
 /** A menu / panel command: go to a pose, or pounce to one side. Exactly one of the two. */
@@ -122,7 +125,7 @@ export interface Pack {
   fight?: FightDef;
   /** The pose it sits up in to look at the user: woken when they are back, or with a reminder that is due. */
   alert?: PoseId;
-  /** The card this cat holds (see the cards spec). */
-  card?: CardKind;
+  /** The cards this cat holds (see the cards spec): one, or several, the first being the one the wheel over it brings. */
+  card?: CardKind | CardKind[];
   toy?: ToyDef;
 }

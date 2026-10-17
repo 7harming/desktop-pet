@@ -1,8 +1,12 @@
-import type { Pack, ReminderType, SwatDir, TimeEvent } from './types';
+import type { CardKind, Pack, ReminderType, SwatDir, TimeEvent } from './types';
 
 export const REMINDER_TYPES: ReminderType[] = ['water', 'stretch', 'eyes'];
 const TIME_EVENTS: TimeEvent[] = ['morning', 'weekend', 'lunch', 'offWork', 'friday', 'bedtime'];
 export const SWAT_DIRS: SwatDir[] = ['left', 'upLeft', 'up', 'upRight', 'right'];
+const CARD_KINDS: CardKind[] = ['memo', 'todo', 'dinner'];
+
+/** The cards a cat holds, the wheel's first. */
+export const cardsOf = (pack: Pack): CardKind[] => (pack.card === undefined ? [] : Array.isArray(pack.card) ? pack.card : [pack.card]);
 
 export interface ParseResult { pack: Pack | null; errors: string[] }
 
@@ -147,6 +151,7 @@ export function parsePack(raw: unknown): ParseResult {
   }
   if (isObj(lines) && lines.fight !== undefined && !isStrArr(lines.fight)) err('lines.fight 要是至少一句台詞的陣列');
   if (isObj(lines) && lines.back !== undefined && !isStrArr(lines.back)) err('lines.back 要是至少一句台詞的陣列');
+  if (isObj(lines) && lines.dinner !== undefined && !isStrArr(lines.dinner)) err('lines.dinner 要是至少一句台詞的陣列');
   if (isObj(lines) && lines.time !== undefined) {
     if (!isObj(lines.time)) err('lines.time 要是一個物件');
     else for (const [k, v] of Object.entries(lines.time)) {
@@ -164,10 +169,15 @@ export function parsePack(raw: unknown): ParseResult {
       for (const k of ['left', 'right'] as const) {
         if (!isNum(toy[k]) || (toy[k] as number) < 0 || (toy[k] as number) > 1) err(`toy 的 ${k} 要在 0 到 1 之間`);
       }
+      if (toy.upPeak !== undefined && (!isNum(toy.upPeak) || toy.upPeak < 0 || toy.upPeak > 1)) err('toy 的 upPeak 要在 0 到 1 之間');
     }
   }
   if (raw.alert !== undefined && !isStr(raw.alert)) err('alert 要是姿勢名稱');
-  if (raw.card !== undefined && raw.card !== 'memo' && raw.card !== 'todo') err('card 要是 memo 或 todo');
+  if (raw.card !== undefined) {
+    const list = Array.isArray(raw.card) ? raw.card : [raw.card];
+    const ok = list.length > 0 && list.every(k => CARD_KINDS.includes(k as CardKind)) && new Set(list).size === list.length;
+    if (!ok) err('card 要是 memo、todo、dinner，或它們排成的陣列（不重複）');
+  }
   if (typeof raw.clickHeart !== 'boolean') err('clickHeart 要是 true 或 false');
   if (!Array.isArray(raw.commands)) err('缺少 commands');
   else raw.commands.forEach((c, i) => {

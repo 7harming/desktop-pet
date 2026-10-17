@@ -5,6 +5,7 @@ import { AwayWatch } from '../shared/away';
 import { closestPair } from '../shared/fight';
 import type { FightState, PanelAction, PanelState } from '../shared/ipc';
 import { reminderLine } from '../shared/lines';
+import { cardsOf } from '../shared/pack';
 import { findFreeCenter } from '../shared/placement';
 import { ReminderScheduler } from '../shared/reminders';
 import { ACTION_INTERVALS, AWAY_CHOICES, DEFAULT_X, MAX_SCALE, MIN_SCALE, normalizeCardSettings, REMINDER_CHOICES, type Settings } from '../shared/settings';
@@ -111,7 +112,7 @@ export class AppController {
     this.cards = new CardController({
       onScreen: () => this.settings.petOrder.filter(id => this.onScreen(id)),
       packOf: id => this.packOf(id),
-      ownerOf: kind => this.validPacks().find(p => p.pack.card === kind)?.id ?? null,
+      ownerOf: kind => this.validPacks().find(p => cardsOf(p.pack).includes(kind))?.id ?? null,
       workArea: () => this.workArea(),
       away: () => this.awayWatch.away,
       settings: () => this.settings.cards,

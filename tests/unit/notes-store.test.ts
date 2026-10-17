@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Logger } from '../../src/main/logger';
 import { NotesStore } from '../../src/main/notes-store';
+import { defaultDinner } from '../../src/shared/dinner';
 
 const setup = () => {
   const dir = mkdtempSync(join(tmpdir(), 'dpet-notes-'));
@@ -14,10 +15,12 @@ describe('NotesStore', () => {
   it('starts empty without a file, and round-trips', () => {
     const { store } = setup();
     const notes = store.load();
-    expect(notes).toEqual({ version: 1, memo: '', todos: [] });
+    expect(notes).toEqual({ version: 1, memo: '', todos: [], dinner: defaultDinner() });
     notes.memo = '要買貓砂';
+    notes.dinner = { items: ['便當', '拉麵'], last: { day: '2026-10-17', dish: '拉麵' }, prev: null };
     store.save(notes);
     expect(store.load().memo).toBe('要買貓砂');
+    expect(store.load().dinner).toEqual(notes.dinner);
   });
   it('backs up a broken file and starts empty', () => {
     const { dir, file, store } = setup();

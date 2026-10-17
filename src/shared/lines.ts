@@ -17,3 +17,8 @@ export function reminderLine(pack: Pack, type: ReminderType, pose: PoseId): stri
   const r = pack.lines.reminders[type];
   return r[pose] ?? r.default;
 }
+
+/** What a cat says when the dinner wheel stops at `dish`: one of its dinner lines (none: a plain one), the dish put in. */
+export function dishLine(pack: Pack, dish: string, rng: Rng): string {
+  return pickLine(pack.lines.dinner ?? ['今晚吃{dish}！'], rng).replaceAll('{dish}', dish);
+}

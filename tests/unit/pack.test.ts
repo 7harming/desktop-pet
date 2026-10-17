@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parsePack } from '../../src/shared/pack';
+import { cardsOf, parsePack } from '../../src/shared/pack';
 import { makePack } from './fixtures';
 
 describe('parsePack', () => {
@@ -95,14 +95,23 @@ describe('parsePack', () => {
     expect(e).toHaveLength(3);
   });
 
-  it('checks the optional card and alert', () => {
+  it("checks the optional card (one, or several: the first is the wheel's) and alert", () => {
     const ok: any = makePack(); ok.card = 'memo'; ok.alert = 'sit';
     expect(parsePack(ok).errors).toEqual([]);
+    const many: any = makePack(); many.card = ['todo', 'dinner'];
+    expect(parsePack(many).errors).toEqual([]);
+    expect(cardsOf(many)).toEqual(['todo', 'dinner']);
+    expect(cardsOf(ok)).toEqual(['memo']);
+    expect(cardsOf(makePack())).toEqual([]);
     const p: any = makePack(); p.card = 'diary'; p.alert = 3;
     const e = parsePack(p).errors;
-    expect(e).toContain('card 要是 memo 或 todo');
+    expect(e).toContain('card 要是 memo、todo、dinner，或它們排成的陣列（不重複）');
     expect(e).toContain('alert 要是姿勢名稱');
     expect(e).toHaveLength(2);
+    for (const card of [[], ['todo', 'todo'], ['todo', 'diary']]) {
+      const q: any = makePack(); q.card = card;
+      expect(parsePack(q).errors).toEqual(['card 要是 memo、todo、dinner，或它們排成的陣列（不重複）']);
+    }
   });
 
   it('checks the optional toy', () => {
@@ -110,6 +119,15 @@ describe('parsePack', () => {
     const e = parsePack(p).errors;
     expect(e).toContain('toy.swats 要有 left、upLeft、up、upRight、right 五個方向的片段');
     expect(e).toContain('toy 的 right 要在 0 到 1 之間');
+  });
+
+  it("checks the wand's paw peak and the dinner lines", () => {
+    const ok: any = makePack(); ok.toy.upPeak = 0.4; ok.lines.dinner = ['今晚吃{dish}！'];
+    expect(parsePack(ok).errors).toEqual([]);
+    const p: any = makePack(); p.toy.upPeak = 1.2; p.lines.dinner = [];
+    const e = parsePack(p).errors;
+    expect(e).toContain('toy 的 upPeak 要在 0 到 1 之間');
+    expect(e).toContain('lines.dinner 要是至少一句台詞的陣列');
   });
 
   it('checks pounce commands', () => {

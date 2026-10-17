@@ -23,6 +23,9 @@ describe('normalizeSettings', () => {
     const { cards } = normalizeSettings(undefined, ['a']).settings;
     expect(cards.memo).toEqual({ start: true, resume: true, unlock: true, back: true, daily: 540 });
     expect(cards.todo).toEqual({ start: true, resume: true, unlock: true, back: false, daily: 540 });
+    expect(cards.dinner).toEqual({ start: false, resume: false, unlock: false, back: false, daily: 17 * 60 + 30 });
+    expect(normalizeSettings({ cards: { dinner: { daily: 18 * 60, start: true } } }, ['a']).settings.cards.dinner)
+      .toEqual({ start: true, resume: false, unlock: false, back: false, daily: 18 * 60 });
     const raw = { cards: { memo: { start: false, back: 'yes', daily: null }, todo: { daily: 615 } } };
     const s = normalizeSettings(raw, ['a']).settings.cards;
     expect(s.memo).toEqual({ start: false, resume: true, unlock: true, back: true, daily: null });

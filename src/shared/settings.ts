@@ -46,6 +46,7 @@ export function defaultSettings(): Settings {
     cards: {
       memo: { start: true, resume: true, unlock: true, back: true, daily: 9 * 60 },
       todo: { start: true, resume: true, unlock: true, back: false, daily: 9 * 60 },
+      dinner: { start: false, resume: false, unlock: false, back: false, daily: 17 * 60 + 30 },
     },
   };
 }
@@ -71,7 +72,11 @@ export function normalizeSettings(raw: unknown, packIds: string[]): { settings: 
     pets: {},
     petOrder: order,
     reminders: normalizeReminders(r.reminders, d.reminders),
-    cards: { memo: normalizeCardSettings(rawCards.memo, d.cards.memo), todo: normalizeCardSettings(rawCards.todo, d.cards.todo) },
+    cards: {
+      memo: normalizeCardSettings(rawCards.memo, d.cards.memo),
+      todo: normalizeCardSettings(rawCards.todo, d.cards.todo),
+      dinner: normalizeCardSettings(rawCards.dinner, d.cards.dinner),
+    },
   };
   order.forEach((id, i) => { settings.pets[id] = normalizePet(rawPets[id], fresh && i === 0); });
   return { settings, warnings };

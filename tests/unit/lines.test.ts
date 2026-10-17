@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pickLine, clickLine, commandLine, reminderLine } from '../../src/shared/lines';
+import { pickLine, clickLine, commandLine, dishLine, reminderLine } from '../../src/shared/lines';
 import { makePack, constRng } from './fixtures';
 
 const pack = makePack();
@@ -19,5 +19,10 @@ describe('lines', () => {
     expect(commandLine(pack, 'sit')).toBeNull();
     expect(reminderLine(pack, 'water', 'perch')).toBe('（夢中）喝水。');
     expect(reminderLine(pack, 'eyes', 'perch')).toBe('休息眼睛。');
+  });
+  it('says the dish in one of its dinner lines, or a plain one', () => {
+    expect(dishLine(pack, '拉麵', constRng(0))).toBe('今晚吃拉麵！');
+    const own = makePack(); own.lines.dinner = ['……{dish}吧。', '就{dish}，{dish}！'];
+    expect(dishLine(own, '拉麵', constRng(0.9))).toBe('就拉麵，拉麵！');
   });
 });

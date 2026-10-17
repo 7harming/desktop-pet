@@ -7,6 +7,8 @@ export const TOY_SCALE = 0.7;
 export const TOY_BASE = { width: 240, height: 280 };
 /** The feather moves when it goes at least this fast (px/s); slower, the cat takes it for still. */
 export const MIN_SPEED = 120;
+/** Where in the upward swat the paws are highest, as a share of its length, for a pack that does not say (ToyDef.upPeak). */
+export const UP_PEAK = 0.45;
 
 /** Which side of the head (`head`: its middle, at the ear tips) the feather is on; null: below the head, under its chin. */
 export function swatDir(head: Point, feather: Point): SwatDir | null {

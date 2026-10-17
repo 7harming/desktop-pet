@@ -4,6 +4,7 @@ import type { NotesStore } from './notes-store';
 import { cardBounds, layoutCards, type Bounds, type WorkArea } from './pet-geometry';
 import type { CardAction, CardState, TodoView } from '../shared/ipc';
 import type { Notes } from '../shared/notes';
+import { cardsOf } from '../shared/pack';
 import type { CardSettings } from '../shared/settings';
 import { crossedMinute } from '../shared/time-events';
 import { dropOldDone, dueTodos, isDone, markDone, markFired, markUndone, MINUTES, newTodo, sortTodos, timeText, type DueTodo, type Repeat, type Todo } from '../shared/todo';
@@ -157,7 +158,8 @@ export class CardController {
       for (const [kind, o] of [...this.open]) if (o.petId === petId) this.close(kind);
       return;
     }
-    const kind = this.host.packOf(petId)?.card;
+    const pack = this.host.packOf(petId);
+    const kind = pack ? cardsOf(pack)[0] : undefined;
     if (kind) this.show(kind, petId, 'hand');
   }
 
