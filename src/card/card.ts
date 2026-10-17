@@ -1,5 +1,7 @@
 import type { CardAction, CardState, TodoView } from '../shared/ipc';
 import { MINUTES, type Repeat } from '../shared/todo';
+import { buildDinner } from './dinner';
+import { el } from './dom';
 
 const api = window.cardApi;
 const card = document.getElementById('card')!;
@@ -8,12 +10,6 @@ const body = document.getElementById('body')!;
 const MEMO_LINES = 10;
 const REPEAT_LABEL: Record<Repeat, string> = { once: '一次', daily: '每天', weekdays: '平日' };
 const pad = (n: number) => String(n).padStart(2, '0');
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...kids: (Node | string)[]): HTMLElementTagNameMap[K] {
-  const e: HTMLElementTagNameMap[K] = Object.assign(document.createElement(tag), props);
-  e.append(...kids);
-  return e;
-}
 const act = (a: CardAction) => api.act(a);
 
 // the window fits the card, ears included
@@ -32,6 +28,7 @@ document.querySelector('header')!.addEventListener('wheel', e => { if (e.deltaY 
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !(e.target as HTMLElement).classList.contains('edit')) api.close(); });
 
 let state: CardState | null = null;
+let dinner: ReturnType<typeof buildDinner> | null = null;
 
 // ---- 阿胖's memo: one free text, saved as it is typed ----
 let memo: HTMLTextAreaElement | null = null;
@@ -124,12 +121,13 @@ api.onState(s => {
   if (fresh) {
     card.className = `card ${s.kind}`;
     document.body.dataset.kind = s.kind;
-    if (s.kind === 'memo') buildMemo(); else buildTodo();
+    if (s.kind === 'memo') buildMemo(); else if (s.kind === 'dinner') dinner = buildDinner(body, act); else buildTodo();
   }
   document.getElementById('title')!.textContent = s.title;
   // what is being typed wins over what main last saw
   if (s.kind === 'memo' && memo && (fresh || document.activeElement !== memo)) { memo.value = s.memo; fitMemo(); }
   if (s.kind === 'todo' && !list.querySelector('.edit')) renderTodos(s.todos);
+  if (s.kind === 'dinner') dinner?.render(s.dinner);
 });
-api.onFocus(() => { (state?.kind === 'memo' ? memo : newText)?.focus(); });
+api.onFocus(() => { if (state?.kind === 'dinner') dinner?.focus(); else (state?.kind === 'memo' ? memo : newText)?.focus(); });
 api.ready();
