@@ -1,7 +1,7 @@
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { calmPetPage, cardPacks, cardPage, cardUserDir, controllerCall, launch, readLog, readNotes } from './helpers';
+import { calmPetPage, cardPacks, cardPage, cardUserDir, controllerCall, launch, petPage, readLog, readNotes } from './helpers';
 
 const isOpen = (app: ElectronApplication) => controllerCall(app, c => c.cards.open.has('dinner'));
 
@@ -20,6 +20,22 @@ test('the dinner wheel is a third card: in the menu and the panel, 242 px beside
   expect(dinner.width).toBe(242);
   const [l, r] = todo.x < dinner.x ? [todo, dinner] : [dinner, todo];
   expect(r.x).toBe(l.x + l.width);
+  await app.close();
+});
+
+test("only its own cat's menu offers the wheel, and it goes only over her: put away, she comes out for it", async () => {
+  const { app } = await launch({ DESKTOP_PET_PACKS: cardPacks() }, cardUserDir());
+  await petPage(app);   // testcat, who holds the wheel
+  expect(await controllerCall(app, c => c.cards.menuItems('testcat').map((i: any) => i.kind))).toEqual(['todo', 'memo', 'dinner']);
+  expect(await controllerCall(app, c => c.cards.menuItems('testcat2').map((i: any) => i.kind))).toEqual(['todo', 'memo']);
+  await controllerCall(app, c => { c.hidePet('testcat'); c.showPet('testcat2'); });
+  await petPage(app, 'testcat2');
+  await expect.poll(() => controllerCall(app, c => c.onScreen('testcat'))).toBe(false);
+  // asked for over testcat2 (the panel, the 17:30 pop): testcat walks in, and the wheel shows over her once she is home
+  await controllerCall(app, c => c.cards.show('dinner', 'testcat2', 'hand'));
+  await expect.poll(() => controllerCall(app, c => c.onScreen('testcat')), { timeout: 5_000 }).toBe(true);
+  await cardPage(app, 'dinner');
+  expect(await controllerCall(app, c => c.cards.open.get('dinner').petId)).toBe('testcat');
   await app.close();
 });
 

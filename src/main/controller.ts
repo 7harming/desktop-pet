@@ -117,6 +117,7 @@ export class AppController {
       away: () => this.awayWatch.away,
       settings: () => this.settings.cards,
       attend: (id, on) => this.pets.get(id)?.send('pet:attend', on),
+      bringOut: id => this.showPet(id),
       spin: id => this.pets.get(id)?.send('pet:spin'),
       sayDish: (id, dish) => this.pets.get(id)?.send('pet:dish', dish),
       cancelSpin: id => this.pets.get(id)?.send('pet:spin-cancel'),
@@ -679,7 +680,7 @@ export class AppController {
     const pet = this.pets.get(id);
     const ps = this.settings.pets[id];
     if (!pet || !ps) return;
-    Menu.buildFromTemplate(petMenuTemplate({ commands: commandItems(pet.pack), auto: ps.auto, scale: ps.scale, cards: this.cards.menuItems(),
+    Menu.buildFromTemplate(petMenuTemplate({ commands: commandItems(pet.pack), auto: ps.auto, scale: ps.scale, cards: this.cards.menuItems(id),
       toy: this.toyState() }, {
       openCard: kind => { this.cards.show(kind, id, 'hand'); },
       toggleToy: () => this.toggleToy(id),

@@ -17,8 +17,13 @@ const MENU_LABEL: Record<CardKind, string> = { todo: '提醒事項', memo: '備�
 /** In the panel, after the owner's name. */
 const PANEL_NAME: Record<CardKind, string> = { todo: '提醒事項', memo: '備忘錄', dinner: '晚餐轉盤' };
 /**
- * The wheel waits this long for the cat's paw at most, then turns all the same: the longest way up is 阿胖's, from his loaf (to
- * lying 1.5 s, sitting up 7.2 s, the paw at its highest 0.5 s), about 9 s.
+ * Cards that go only over their own cat (owner 2026-10-18: the wheel is 小昭's alone): the other cats' menus do not offer them, and
+ * with their cat put away they bring it out first. The others go over whichever cat asked when theirs is not out.
+ */
+const OWN_CAT_ONLY: CardKind[] = ['dinner'];
+/**
+ * The wheel waits this long for the cat's paw at most, then turns all the same: 小昭 takes about 5.5 s from lying (sitting up 5 s,
+ * the paw at its highest 0.5 s); a slower cat - 阿胖 takes about 9 s from his loaf - would still make it.
  */
 const SWAT_WAIT_MS = 12_000;
 const DINNER_ACTIONS = new Set<CardAction['kind']>(['spin', 'spun', 'dishAdd', 'dishRename', 'dishDelete']);
@@ -47,6 +52,8 @@ export interface CardHost {
   settings(): Record<CardKind, CardSettings>;
   /** Have the cat sit up and look at the user (true), or go back to its ways (false). */
   attend(id: string, on: boolean): void;
+  /** Bring a cat that was put away out onto the desktop (it walks in). */
+  bringOut(id: string): void;
   /** The dinner wheel: have the cat swat it (it answers through spinHit), say the dish it stopped at, or never mind. */
   spin(id: string): void;
   sayDish(id: string, dish: string): void;
@@ -94,8 +101,10 @@ export class CardController {
     return `${(owner && this.host.packOf(owner)?.name) ?? ''}的${PANEL_NAME[kind]}`;
   }
 
-  menuItems(): { kind: CardKind; label: string }[] {
-    return CARD_KINDS.filter(k => this.has(k)).map(kind => ({ kind, label: MENU_LABEL[kind] }));
+  /** The cards there are (the panel); `petId`: those this cat's menu offers - not another cat's own-cat-only card. */
+  menuItems(petId?: string): { kind: CardKind; label: string }[] {
+    return CARD_KINDS.filter(k => this.has(k) && (!petId || !OWN_CAT_ONLY.includes(k) || this.host.ownerOf(k) === petId))
+      .map(kind => ({ kind, label: MENU_LABEL[kind] }));
   }
 
   state(kind: CardKind): CardState {
@@ -110,11 +119,14 @@ export class CardController {
     return { kind, title: kind === 'dinner' ? '今晚吃什麼' : this.title(kind), memo: this.notes.memo, todos, dinner };
   }
 
-  /** Over its own cat if that one is out; else over `via` (the cat asked); else over the first cat out. */
+  /**
+   * Over its own cat if that one is out; else over `via` (the cat asked); else over the first cat out. An own-cat-only card always
+   * goes over its own cat, which show() brings out if it is put away.
+   */
   private target(kind: CardKind, via: string | null): string | null {
     const out = this.host.onScreen();
     const owner = this.host.ownerOf(kind);
-    if (owner && out.includes(owner)) return owner;
+    if (owner && (out.includes(owner) || OWN_CAT_ONLY.includes(kind))) return owner;
     if (via && out.includes(via)) return via;
     return out[0] ?? null;
   }
@@ -132,6 +144,10 @@ export class CardController {
     }
     const petId = this.target(kind, via);
     if (!petId) return false;
+    if (!this.host.onScreen().includes(petId)) {   // its own cat, put away: it walks in, and the card waits for it to be home
+      this.host.log.info(`卡片：${kind} 先叫 ${petId} 出來`);
+      this.host.bringOut(petId);
+    }
     const waiting = this.waiting.get(kind);
     if (waiting && RANK[waiting.mode] > RANK[mode]) mode = waiting.mode;
     const head = this.heads.get(petId);
