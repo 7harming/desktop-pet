@@ -439,7 +439,11 @@
     "（打哈欠）喵～好晚了。",
     "喵～去睡覺啦。"
    ]
-  }
+  },
+  "dinner": [
+   "今晚吃{dish}好不好～",
+   "阿胖覺得{dish}！"
+  ]
  },
  "clickHeart": true,
  "commands": [
@@ -867,7 +871,8 @@
    "right": "swat_right"
   },
   "left": 0.175,
-  "right": 0.722
+  "right": 0.722,
+  "upPeak": 0.324
  },
  "hd": {
   "idle_lie": "hd/idle_lie.webm",

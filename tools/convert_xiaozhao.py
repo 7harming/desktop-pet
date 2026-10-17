@@ -138,10 +138,21 @@ def portrait(lie: Path, dst: Path) -> None:
     img.convert('RGBa').crop(box).resize((256, 256), Image.LANCZOS).convert('RGBA').save(dst)
 
 
+def up_peak(mp4: Path) -> float:
+    """Where in the upward swat (a share of its length) the paws are highest: the frame whose topmost cat pixel is highest."""
+    raw = subprocess.run([FF, '-v', 'error', '-i', str(mp4), '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '320x180', '-'],
+                         capture_output=True, check=True).stdout
+    fr = np.frombuffer(raw, np.uint8).reshape(-1, 180, 320, 3).astype(np.float32)
+    bg = np.concatenate([fr[0, :4, :4].reshape(-1, 3), fr[0, :4, -4:].reshape(-1, 3)]).mean(0)
+    rows = (np.linalg.norm(fr - bg, axis=3) > 70).any(axis=2)          # (frames, rows): the rows with cat in them
+    top = np.where(rows.any(axis=1), rows.argmax(axis=1), 180)          # each frame's topmost cat row
+    return round(float(np.argmin(top)) / len(top), 3)
+
+
 def toy_section(clips: Path) -> dict:
-    """The wand: the swats from sitting, and how far they reach."""
+    """The wand: the swats from sitting, how far they reach, and when the upward one is highest (the dinner wheel turns then)."""
     left, right = clip_extent([clips / f'{c}.mp4' for c in SWATS.values()])
-    return {'pose': 'sit', 'swats': SWATS, 'left': left, 'right': right}
+    return {'pose': 'sit', 'swats': SWATS, 'left': left, 'right': right, 'upPeak': up_peak(clips / f"{SWATS['up']}.mp4")}
 
 
 def build_pack(geo: dict, walk: dict, pounce: tuple, fight: tuple, toy: dict) -> dict:
@@ -205,6 +216,8 @@ def build_pack(geo: dict, walk: dict, pounce: tuple, fight: tuple, toy: dict) ->
                 'friday': ['……週末了。', '……再撐一下就週末了。'],
                 'bedtime': ['……該睡了。', '……很晚了，去睡覺。', '……（打哈欠）睡吧。'],
             },
+            # the dinner wheel stopped (2026-10-17; the owner approved these)
+            'dinner': ['喵～今晚吃{dish}！', '喵～就決定是{dish}了！', '喵～{dish}，好像不錯喔'],
         },
         'clickHeart': True,
         'commands': [{'label': '趴著', 'pose': 'lie'}, {'label': '坐下', 'pose': 'sit'}, {'label': '睡覺', 'pose': 'sleep'},
@@ -216,7 +229,7 @@ def build_pack(geo: dict, walk: dict, pounce: tuple, fight: tuple, toy: dict) ->
                    'autoChance': 0.08},
         'fight': {'pose': 'lie', 'toLeft': 'fight_left', 'toRight': 'fight_right', 'left': fight[0], 'right': fight[1]},
         'alert': 'sit',          # she sits up to look at the user (back at the computer, a reminder due)
-        'card': 'todo',          # she holds the reminders
+        'card': ['todo', 'dinner'],   # she holds the reminders (the wheel over her brings them) and the dinner wheel
         'toy': toy,
     }
 

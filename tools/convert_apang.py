@@ -165,6 +165,8 @@ def build_pack(geo: dict, walk: dict, fight: tuple, toy: dict) -> dict:
                 'friday': ['喵～週末快到了！', '喵～再撐一下就週末了。'],
                 'bedtime': ['喵～該睡了。', '（打哈欠）喵～好晚了。', '喵～去睡覺啦。'],
             },
+            # the dinner wheel stopped over him (小昭 not out) (2026-10-17; the owner approved these)
+            'dinner': ['今晚吃{dish}好不好～', '阿胖覺得{dish}！'],
         },
         'clickHeart': True,
         'commands': [{'label': '母雞蹲', 'pose': 'loaf'}, {'label': '坐下', 'pose': 'sit'}, {'label': '睡覺', 'pose': 'sleep'},

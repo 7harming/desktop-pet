@@ -451,7 +451,12 @@
     "……很晚了，去睡覺。",
     "……（打哈欠）睡吧。"
    ]
-  }
+  },
+  "dinner": [
+   "喵～今晚吃{dish}！",
+   "喵～就決定是{dish}了！",
+   "喵～{dish}，好像不錯喔"
+  ]
  },
  "clickHeart": true,
  "commands": [
@@ -862,7 +867,10 @@
   "right": 0.756
  },
  "alert": "sit",
- "card": "todo",
+ "card": [
+  "todo",
+  "dinner"
+ ],
  "toy": {
   "pose": "sit",
   "swats": {
@@ -873,7 +881,8 @@
    "right": "swat_right"
   },
   "left": 0.094,
-  "right": 0.678
+  "right": 0.678,
+  "upPeak": 0.324
  },
  "hd": {
   "idle_lie": "hd/idle_lie.webm",
