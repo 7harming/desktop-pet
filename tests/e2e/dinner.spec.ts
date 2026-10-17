@@ -70,6 +70,20 @@ test('the card turns the wheel to the dish main picked, and its zoomed page fits
   await app.close();
 });
 
+test('the card window grows to fit its menu side, though focusing the box at its bottom scrolled it', async () => {
+  const { app } = await launch({ DESKTOP_PET_PACKS: cardPacks() }, cardUserDir());
+  await calmPetPage(app);
+  await controllerCall(app, c => c.cards.show('dinner', null, 'hand'));
+  const card = await cardPage(app, 'dinner');
+  const fits = () => card.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight && document.documentElement.scrollTop === 0);
+  await expect.poll(fits).toBe(true);
+  await card.locator('button.edit-menu').click();   // taller than the wheel side; the cursor goes to the box at its bottom
+  await expect.poll(fits).toBe(true);
+  await card.locator('button.done').click();
+  await expect.poll(fits).toBe(true);
+  await app.close();
+});
+
 test('the menu is changed on the back of the card and kept; what breaks the rules shows in red', async () => {
   const userDir = cardUserDir();
   const { app } = await launch({ DESKTOP_PET_PACKS: cardPacks() }, userDir);

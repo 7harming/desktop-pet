@@ -12,8 +12,9 @@ const REPEAT_LABEL: Record<Repeat, string> = { once: '一次', daily: '每天', 
 const pad = (n: number) => String(n).padStart(2, '0');
 const act = (a: CardAction) => api.act(a);
 
-// the window fits the card, ears included
-new ResizeObserver(() => api.resize(Math.ceil(card.getBoundingClientRect().bottom) + 1)).observe(card);
+// the window fits the card, ears included: measured from the page's top, not the window's - focusing a box at the bottom of a card
+// taller than its window yet scrolls the page, and the card then seemed to fit (the dinner wheel's stayed cut off)
+new ResizeObserver(() => api.resize(Math.ceil(card.getBoundingClientRect().bottom + document.documentElement.scrollTop) + 1)).observe(card);
 
 // hot while the pointer is over the card or it has the focus: it does not close by itself then
 let over = false;
