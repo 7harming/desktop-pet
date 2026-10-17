@@ -1,12 +1,10 @@
 import { BrowserWindow } from 'electron';
 import { join } from 'node:path';
 import { APP_ORIGIN } from './app-protocol';
-import type { Bounds } from './pet-geometry';
+import { cardWidth, type Bounds } from './pet-geometry';
 import type { CardAction, CardState } from '../shared/ipc';
 import type { CardKind } from '../shared/types';
 
-/** Both cards are this wide: two thirds of what the reminders first had, the memo the same. */
-export const CARD_WIDTH = 186;
 const MAX_HEIGHT = 560;
 
 /** `resized`: the card's content changed height, so where it goes may change. */
@@ -15,7 +13,8 @@ export interface CardEvents { act(a: CardAction): void; hot(on: boolean): void; 
 /** One card's window: transparent, frameless, over everything and typed into; the CardController says where it goes. */
 export class CardWindow {
   readonly win: BrowserWindow;
-  readonly width = CARD_WIDTH;
+  /** The reminders and the memo 186 px, the dinner wheel (drawn bigger) 242. */
+  readonly width: number;
   height = 160;
   private bounds: Bounds | null = null;
   private ready = false;
@@ -23,6 +22,7 @@ export class CardWindow {
   private wantFocus = false;
 
   constructor(readonly kind: CardKind, private state: CardState, events: CardEvents, preloadDir: string) {
+    this.width = cardWidth(kind);
     this.win = new BrowserWindow({
       width: this.width, height: this.height, transparent: true, frame: false, resizable: false, alwaysOnTop: true, skipTaskbar: true,
       hasShadow: false, show: false, minimizable: false, maximizable: false, fullscreenable: false, backgroundColor: '#00000000',

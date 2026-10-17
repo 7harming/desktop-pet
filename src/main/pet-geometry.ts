@@ -1,5 +1,5 @@
 import { actionExtent, restExtent, union, type Extent } from '../shared/pose-geometry';
-import type { Pack } from '../shared/types';
+import type { CardKind, Pack } from '../shared/types';
 
 export interface WorkArea { x: number; y: number; width: number; height: number }
 export type Bounds = WorkArea;
@@ -45,6 +45,12 @@ export function bodyWidth(pack: Pack, scale: number): number {
   return windowSize(pack, scale).width * 0.35;
 }
 
+/** The reminders and the memo are this wide: two thirds of what the reminders first had. */
+export const CARD_WIDTH = 186;
+/** The dinner wheel is drawn this much bigger (card.css zooms `.card.dinner` by the same), so its window is that much wider. */
+export const DINNER_ZOOM = 1.3;
+export const cardWidth = (kind: CardKind): number => (kind === 'dinner' ? Math.round(CARD_WIDTH * DINNER_ZOOM) : CARD_WIDTH);
+
 /** Where a card `width`×`height` goes: centred over the head at `head` (screen px), its bottom on it, inside the work area. */
 export function cardBounds(head: { x: number; y: number }, width: number, height: number, wa: WorkArea): Bounds {
   const x = Math.round(Math.min(Math.max(head.x - width / 2, wa.x), wa.x + wa.width - width));
@@ -54,16 +60,25 @@ export function cardBounds(head: { x: number; y: number }, width: number, height
 
 const overlaps = (a: Bounds, b: Bounds) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 
-/** The cards over the cats' heads, where each would go: two that would overlap stand side by side instead, touching, around the middle of the two, inside the work area. */
+/**
+ * The cards over the cats' heads, where each would go: cards that would overlap (one another, or through a card between them) stand
+ * in a row instead, touching, in the order of their middles, around the middle of them all, inside the work area.
+ */
 export function layoutCards(cards: Bounds[], wa: WorkArea): Bounds[] {
-  if (cards.length !== 2 || !overlaps(cards[0], cards[1])) return cards;
-  const centre = (b: Bounds) => b.x + b.width / 2;
-  const [l, r] = centre(cards[0]) <= centre(cards[1]) ? [0, 1] : [1, 0];
-  const width = cards[l].width + cards[r].width;
-  const mid = (centre(cards[0]) + centre(cards[1])) / 2;
-  const x = Math.round(Math.min(Math.max(mid - width / 2, wa.x), wa.x + wa.width - width));
+  const root = cards.map((_, i) => i);
+  const find = (i: number): number => (root[i] === i ? i : (root[i] = find(root[i])));
+  for (let i = 0; i < cards.length; i++) for (let j = i + 1; j < cards.length; j++) if (overlaps(cards[i], cards[j])) root[find(i)] = find(j);
+  const rows = new Map<number, number[]>();
+  cards.forEach((_, i) => rows.set(find(i), [...(rows.get(find(i)) ?? []), i]));
+  const centre = (i: number) => cards[i].x + cards[i].width / 2;
   const out = [...cards];
-  out[l] = { ...cards[l], x };
-  out[r] = { ...cards[r], x: x + cards[l].width };
+  for (const row of rows.values()) {
+    if (row.length < 2) continue;
+    row.sort((a, b) => centre(a) - centre(b) || a - b);
+    const width = row.reduce((s, i) => s + cards[i].width, 0);
+    const mid = row.reduce((s, i) => s + centre(i), 0) / row.length;
+    let x = Math.round(Math.min(Math.max(mid - width / 2, wa.x), wa.x + wa.width - width));
+    for (const i of row) { out[i] = { ...cards[i], x }; x += cards[i].width; }
+  }
   return out;
 }

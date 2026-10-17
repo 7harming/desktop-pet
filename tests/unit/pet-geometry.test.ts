@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { windowSize, restY, windowBounds, xRatioFromBounds, bodyWidth, extentOf, cardBounds, layoutCards } from '../../src/main/pet-geometry';
+import { windowSize, restY, windowBounds, xRatioFromBounds, bodyWidth, extentOf, cardBounds, cardWidth, layoutCards } from '../../src/main/pet-geometry';
 import { makePack } from './fixtures';
 
 const pack = makePack();                                  // displayHeight 300, aspect 16:9, start centerX 0.34, ground 0.9
@@ -68,5 +68,31 @@ describe('layoutCards', () => {
   });
   it('keeps a pair inside the work area', () => {
     expect(layoutCards([card(814), card(800)], wa)).toEqual([card(814), card(628)]);
+  });
+  it('lines up three that overlap, in the order of their middles, around the middle of them all', () => {
+    const wheel = (x: number, y = 250) => ({ x, y, width: 242, height: 200 });
+    // todo and the wheel over one cat, the memo over a cat beside it
+    const out = layoutCards([card(400), wheel(372), card(450)], wa);
+    expect(out.map(b => b.x)).toEqual([203, 389, 631]);   // centres 493, 493, 543: the row, 614 wide, round their mean 509.67
+    expect(out[1].x).toBe(out[0].x + 186);
+    expect(out[2].x).toBe(out[1].x + 242);
+  });
+  it('lines up only the ones that overlap', () => {
+    const out = layoutCards([card(0), card(700), card(720)], wa);
+    expect(out[0].x).toBe(0);
+    expect(out[2].x).toBe(out[1].x + 186);
+  });
+  it('keeps a row of cards of two widths inside the work area', () => {
+    const out = layoutCards([card(814), { x: 760, y: 250, width: 242, height: 200 }], wa);
+    expect(out[1].x + 242 + 186).toBeLessThanOrEqual(1000);
+    expect(out[0].x).toBe(out[1].x + 242);
+  });
+});
+
+describe('cardWidth', () => {
+  it('draws the dinner wheel 1.3 times as wide; the others stay 186', () => {
+    expect(cardWidth('todo')).toBe(186);
+    expect(cardWidth('memo')).toBe(186);
+    expect(cardWidth('dinner')).toBe(242);
   });
 });
