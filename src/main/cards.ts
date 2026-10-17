@@ -16,8 +16,11 @@ export const CARD_KINDS: CardKind[] = ['todo', 'memo', 'dinner'];
 const MENU_LABEL: Record<CardKind, string> = { todo: '提醒事項', memo: '備忘錄', dinner: '今晚吃什麼' };
 /** In the panel, after the owner's name. */
 const PANEL_NAME: Record<CardKind, string> = { todo: '提醒事項', memo: '備忘錄', dinner: '晚餐轉盤' };
-/** The wheel waits this long for the cat's paw at most, then turns all the same. */
-const SWAT_WAIT_MS = 4_000;
+/**
+ * The wheel waits this long for the cat's paw at most, then turns all the same: the longest way up is 阿胖's, from his loaf (to
+ * lying 1.5 s, sitting up 7.2 s, the paw at its highest 0.5 s), about 9 s.
+ */
+const SWAT_WAIT_MS = 12_000;
 const DINNER_ACTIONS = new Set<CardAction['kind']>(['spin', 'spun', 'dishAdd', 'dishRename', 'dishDelete']);
 const isDinnerAction = (a: CardAction): a is DinnerAction => DINNER_ACTIONS.has(a.kind);
 type Mode = 'auto' | 'hand' | 'due';

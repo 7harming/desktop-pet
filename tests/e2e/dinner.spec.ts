@@ -1,4 +1,6 @@
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { calmPetPage, cardPacks, cardPage, cardUserDir, controllerCall, launch, readLog, readNotes } from './helpers';
 
 const isOpen = (app: ElectronApplication) => controllerCall(app, c => c.cards.open.has('dinner'));
@@ -21,7 +23,7 @@ test('the dinner wheel is a third card: in the menu and the panel, 242 px beside
   await app.close();
 });
 
-test('a spin picks a dish, waits for the cat at most 4 s, and is recorded once the card says the wheel stopped', async () => {
+test('a spin picks a dish, waits for the cat a while at most, and is recorded once the card says the wheel stopped', async () => {
   const userDir = cardUserDir();
   const { app } = await launch({ DESKTOP_PET_PACKS: cardPacks() }, userDir);
   await calmPetPage(app);
@@ -152,6 +154,25 @@ test('the cat under the card sits up and swats the wheel, which turns as its paw
   await expect(page.locator('.bubble')).toContainText(`今晚吃${dish}！`);
   // a while after saying it, it lies down again
   await expect.poll(() => page.evaluate(() => (window as any).__pet.engine.endPose), { timeout: 20_000 }).toBe('rest');
+  await app.close();
+});
+
+test('a lying cat gets up for the wheel at once, not once the idle it is in is over', async () => {
+  const packs = cardPacks();
+  const file = join(packs, 'testcat', 'pack.json');
+  const pack = JSON.parse(readFileSync(file, 'utf8'));
+  for (const clip of pack.poses[pack.start].idle) pack.clips[clip].rate = 0.1;   // idles 10 s long, as long as the real cats' are
+  writeFileSync(file, JSON.stringify(pack));
+  const { app } = await launch({ DESKTOP_PET_PACKS: packs }, cardUserDir());
+  const page = await calmPetPage(app);
+  await controllerCall(app, c => c.cards.show('dinner', null, 'hand'));
+  const card = await cardPage(app, 'dinner');
+  // just into an idle: left alone, it would lie there for some 8 s more
+  await expect.poll(() => page.evaluate(() => { const p = (window as any).__pet; return p.player.step?.from === p.player.step?.to && p.player.progress < 0.2; }),
+    { timeout: 30_000, intervals: [50] }).toBe(true);
+  await card.locator('button.spin').click();
+  await expect.poll(() => page.evaluate(() => (window as any).__pet.player.step?.clip), { timeout: 1_000 }).toBe('rest_to_sit');
+  await expect.poll(() => controllerCall(app, c => c.cards.spin?.started), { timeout: 3_000 }).toBe(true);   // the paw, not the wait
   await app.close();
 });
 

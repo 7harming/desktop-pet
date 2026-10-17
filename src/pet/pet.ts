@@ -283,6 +283,8 @@ api.onInit((init: PetInit) => {
     applyAuto();
     const step = engine.perform(toy.swats.up, toy.pose);   // now if it sits, else once it has sat up
     if (step) void player.play(step);
+    // lying in an idle, it gets up at once rather than when the idle is over (the real cats' last 4-7 s: the wheel waited too long)
+    else if (player.step && player.step.from === player.step.to) void player.play(engine.next());
   });
   api.onDish(dish => {
     bubbles.say(dishLine(pack, dish, Math.random), SAY_MS);
