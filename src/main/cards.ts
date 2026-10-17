@@ -2,7 +2,8 @@ import { CardWindow } from './card-window';
 import type { Logger } from './logger';
 import type { NotesStore } from './notes-store';
 import { cardBounds, layoutCards, type Bounds, type WorkArea } from './pet-geometry';
-import type { CardAction, CardState, TodoView } from '../shared/ipc';
+import { addDish, dishToAvoid, pickDish, recordDish, removeDish, renameDish, type DishChange } from '../shared/dinner';
+import type { CardAction, CardState, DinnerAction, TodoView } from '../shared/ipc';
 import type { Notes } from '../shared/notes';
 import { cardsOf } from '../shared/pack';
 import type { CardSettings } from '../shared/settings';
@@ -10,7 +11,15 @@ import { crossedMinute } from '../shared/time-events';
 import { dropOldDone, dueTodos, isDone, markDone, markFired, markUndone, MINUTES, newTodo, sortTodos, timeText, type DueTodo, type Repeat, type Todo } from '../shared/todo';
 import type { CardKind, Pack } from '../shared/types';
 
-export const CARD_KINDS: CardKind[] = ['todo', 'memo'];
+export const CARD_KINDS: CardKind[] = ['todo', 'memo', 'dinner'];
+/** In the cats' menus. */
+const MENU_LABEL: Record<CardKind, string> = { todo: '提醒事項', memo: '備忘錄', dinner: '今晚吃什麼' };
+/** In the panel, after the owner's name. */
+const PANEL_NAME: Record<CardKind, string> = { todo: '提醒事項', memo: '備忘錄', dinner: '晚餐轉盤' };
+/** The wheel waits this long for the cat's paw at most, then turns all the same. */
+const SWAT_WAIT_MS = 4_000;
+const DINNER_ACTIONS = new Set<CardAction['kind']>(['spin', 'spun', 'dishAdd', 'dishRename', 'dishDelete']);
+const isDinnerAction = (a: CardAction): a is DinnerAction => DINNER_ACTIONS.has(a.kind);
 type Mode = 'auto' | 'hand' | 'due';
 /** A due reminder outranks a card opened by hand, which outranks one that popped up by itself. */
 const RANK: Record<Mode, number> = { auto: 0, hand: 1, due: 2 };
@@ -35,6 +44,10 @@ export interface CardHost {
   settings(): Record<CardKind, CardSettings>;
   /** Have the cat sit up and look at the user (true), or go back to its ways (false). */
   attend(id: string, on: boolean): void;
+  /** The dinner wheel: have the cat swat it (it answers through spinHit), say the dish it stopped at, or never mind. */
+  spin(id: string): void;
+  sayDish(id: string, dish: string): void;
+  cancelSpin(id: string): void;
   notify(body: string, onClick: () => void): void;
   /** Where the cards stand now (screen px): the cats keep their speech bubbles beside them. */
   cardsAt(cards: Bounds[]): void;
@@ -43,7 +56,10 @@ export interface CardHost {
 
 interface OpenCard { card: CardWindow; petId: string; mode: Mode; hot: boolean; timer: ReturnType<typeof setTimeout> | undefined }
 
-/** The two cards (小昭's reminders, 阿胖's memo) over the cats' heads, the reminders' timing, and the cards popping up by themselves. */
+/**
+ * The cards (小昭's reminders and dinner wheel, 阿胖's memo) over the cats' heads, the reminders' timing, the wheel's spins, and the
+ * cards popping up by themselves.
+ */
 export class CardController {
   notes: Notes;
   /** Reminders that came up and are not ticked yet, each with whether it was missed: the card marks them. */
@@ -59,6 +75,9 @@ export class CardController {
   private lastTick = new Date();
   /** The cat sitting up for due reminders. */
   private attending: string | null = null;
+  /** The wheel's spin under way: the dish picked, its slice, the cat under the card; `started` once it turns. */
+  spin: { seq: number; dish: string; index: number; petId: string; started: boolean; timer: ReturnType<typeof setTimeout> } | null = null;
+  private spinSeq = 0;
 
   constructor(private readonly host: CardHost, private readonly store: NotesStore, private readonly preloadDir: string) {
     this.notes = store.load();
@@ -66,13 +85,14 @@ export class CardController {
 
   has(kind: CardKind): boolean { return this.host.ownerOf(kind) !== null; }
 
+  /** The card's name in the panel: its cat's name and what it is. */
   title(kind: CardKind): string {
     const owner = this.host.ownerOf(kind);
-    return `${(owner && this.host.packOf(owner)?.name) ?? ''}的${kind === 'todo' ? '提醒事項' : '備忘錄'}`;
+    return `${(owner && this.host.packOf(owner)?.name) ?? ''}的${PANEL_NAME[kind]}`;
   }
 
   menuItems(): { kind: CardKind; label: string }[] {
-    return CARD_KINDS.filter(k => this.has(k)).map(kind => ({ kind, label: kind === 'todo' ? '提醒事項' : '備忘錄' }));
+    return CARD_KINDS.filter(k => this.has(k)).map(kind => ({ kind, label: MENU_LABEL[kind] }));
   }
 
   state(kind: CardKind): CardState {
@@ -81,7 +101,10 @@ export class CardController {
       id: t.id, text: t.text, time: timeText(t), repeat: t.repeat, done: isDone(t, now),
       due: this.pending.has(t.id), missed: this.pending.get(t.id) === true,
     }));
-    return { kind, title: this.title(kind), memo: this.notes.memo, todos };
+    const s = this.spin;
+    const dinner = { items: [...this.notes.dinner.items], yesterday: dishToAvoid(this.notes.dinner, now),
+      spin: s ? { seq: s.seq, index: s.index, started: s.started } : null };
+    return { kind, title: kind === 'dinner' ? '今晚吃什麼' : this.title(kind), memo: this.notes.memo, todos, dinner };
   }
 
   /** Over its own cat if that one is out; else over `via` (the cat asked); else over the first cat out. */
@@ -130,6 +153,7 @@ export class CardController {
     const o = this.open.get(kind);
     if (!o) return;
     clearTimeout(o.timer);
+    if (kind === 'dinner') this.cancelSpin();
     o.card.close();
     this.open.delete(kind);
     this.layout();
@@ -253,6 +277,7 @@ export class CardController {
   }
 
   private act(a: CardAction): void {
+    if (isDinnerAction(a)) { this.dinnerAct(a); return; }
     const now = Date.now();
     const update = (id: string, f: (t: Todo) => Todo) => { this.notes.todos = this.notes.todos.map(t => (t.id === id ? f(t) : t)); };
     switch (a.kind) {
@@ -289,6 +314,70 @@ export class CardController {
     if (!this.pending.delete(id) || this.pending.size) return;
     this.endAttend();
     this.arm('todo');
+  }
+
+  /** The cat's paw reached the wheel, or it will not swat now: the wheel turns. */
+  spinHit(petId: string, swatted: boolean): void {
+    const s = this.spin;
+    if (!s || s.petId !== petId) return;
+    this.host.log.info(`轉盤：${petId} ${swatted ? '拍了轉盤' : '沒有拍'}`);
+    this.startSpin(s.seq);
+  }
+
+  private dinnerAct(a: DinnerAction): void {
+    if (a.kind === 'spin') { this.spinWheel(); return; }
+    if (a.kind === 'spun') { this.spun(Number(a.seq)); return; }
+    if (this.spin) return;   // while it turns the dishes stay as they are (the card does not offer the menu then)
+    const items = this.notes.dinner.items;
+    const r: DishChange = a.kind === 'dishAdd' ? addDish(items, String(a.text))
+      : a.kind === 'dishRename' ? renameDish(items, String(a.from), String(a.to)) : removeDish(items, String(a.dish));
+    if ('error' in r) return;   // the card showed why already
+    this.notes.dinner = { ...this.notes.dinner, items: r.items };
+    this.save();
+    this.push('dinner');
+  }
+
+  /** 「轉一下」: tonight's dish is picked now (not yesterday's); the cat under the card swats the wheel, which turns as its paw lands. */
+  private spinWheel(): void {
+    const o = this.open.get('dinner');
+    if (!o || this.spin) return;
+    const dish = pickDish(this.notes.dinner, Date.now(), Math.random);
+    const seq = ++this.spinSeq;
+    this.spin = { seq, dish, index: this.notes.dinner.items.indexOf(dish), petId: o.petId, started: false,
+      timer: setTimeout(() => this.startSpin(seq), SWAT_WAIT_MS) };
+    this.host.log.info(`轉盤：轉到 ${dish}`);
+    this.host.spin(o.petId);
+    this.push('dinner');
+  }
+
+  private startSpin(seq: number): void {
+    const s = this.spin;
+    if (!s || s.seq !== seq || s.started) return;
+    clearTimeout(s.timer);
+    s.started = true;
+    this.push('dinner');
+  }
+
+  /** The wheel stopped: tonight's dish is that (a later spin today replaces it), and the cat says so. */
+  private spun(seq: number): void {
+    const s = this.spin;
+    if (!s || s.seq !== seq || !s.started) return;
+    this.spin = null;
+    this.notes.dinner = recordDish(this.notes.dinner, s.dish, Date.now());
+    this.save();
+    this.host.log.info(`轉盤：今晚吃 ${s.dish}`);
+    this.host.sayDish(s.petId, s.dish);
+    this.push('dinner');
+  }
+
+  /** The card went before the wheel stopped: that spin does not count, and the cat goes back to its ways. */
+  private cancelSpin(): void {
+    const s = this.spin;
+    if (!s) return;
+    clearTimeout(s.timer);
+    this.spin = null;
+    this.host.log.info(`轉盤：沒轉完就收起來了（${s.dish} 不算）`);
+    this.host.cancelSpin(s.petId);
   }
 
   private endAttend(): void {

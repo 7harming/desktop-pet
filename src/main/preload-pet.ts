@@ -37,5 +37,9 @@ const api: PetApi = {
   wheel: up => ipcRenderer.send('pet:wheel', up),
   onCardsAt: cb => listen('pet:cards-at', cb),
   onToy: cb => listen('pet:toy', cb),
+  onSpin: cb => listen('pet:spin', cb),
+  spinHit: swatted => ipcRenderer.send('pet:spin-hit', swatted),
+  onDish: cb => listen('pet:dish', cb),
+  onSpinCancel: cb => listen('pet:spin-cancel', cb),
 };
 contextBridge.exposeInMainWorld('petApi', api);

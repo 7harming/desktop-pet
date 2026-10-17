@@ -131,11 +131,11 @@ export function packsWith(change: (pack: any) => void): string {
   return dir;
 }
 
-/** A copy of the test packs in which testcat holds the reminders and testcat2 the memo. */
+/** A copy of the test packs in which testcat holds the reminders (its wheel's card) and the dinner wheel, and testcat2 the memo. */
 export function cardPacks(): string {
   const dir = mkdtempSync(join(tmpdir(), 'dpet-cards-'));
   cpSync(resolve('tests/fixtures/packs'), dir, { recursive: true });
-  for (const [id, card] of [['testcat', 'todo'], ['testcat2', 'memo']]) {
+  for (const [id, card] of [['testcat', ['todo', 'dinner']], ['testcat2', 'memo']] as const) {
     const file = join(dir, id, 'pack.json');
     writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), card }));
   }
@@ -143,10 +143,11 @@ export function cardPacks(): string {
 }
 
 /** A user folder whose settings let the cards pop up by themselves only as given (by default never). */
-export function cardUserDir(cards: { memo?: object; todo?: object } = {}): string {
+export function cardUserDir(cards: { memo?: object; todo?: object; dinner?: object } = {}): string {
   const userDir = mkdtempSync(join(tmpdir(), 'dpet-e2e-'));
   const never = { start: false, resume: false, unlock: false, back: false, daily: null };
-  writeFileSync(join(userDir, 'settings.json'), JSON.stringify({ cards: { memo: { ...never, ...cards.memo }, todo: { ...never, ...cards.todo } } }));
+  writeFileSync(join(userDir, 'settings.json'), JSON.stringify({ cards: {
+    memo: { ...never, ...cards.memo }, todo: { ...never, ...cards.todo }, dinner: { ...never, ...cards.dinner } } }));
   return userDir;
 }
 

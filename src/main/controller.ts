@@ -27,7 +27,7 @@ import { SettingsStore } from './settings-store';
 import { TrayController } from './tray';
 
 const PET_CHANNELS = ['pet:ready', 'pet:set-interactive', 'pet:move', 'pet:drag-end', 'pet:menu', 'pet:status', 'pet:reminder-result', 'pet:log', 'pet:exited',
-  'pet:fight-state', 'pet:woke', 'pet:head', 'pet:wheel'];
+  'pet:fight-state', 'pet:woke', 'pet:head', 'pet:wheel', 'pet:spin-hit'];
 /** Walking off can mean first getting out of the box, then getting up and crossing the screen; never wait longer than this. */
 const EXIT_TIMEOUT_MS = 45_000;
 /** Passed by the login item, so a start at login can tell itself from being opened by hand. */
@@ -117,6 +117,9 @@ export class AppController {
       away: () => this.awayWatch.away,
       settings: () => this.settings.cards,
       attend: (id, on) => this.pets.get(id)?.send('pet:attend', on),
+      spin: id => this.pets.get(id)?.send('pet:spin'),
+      sayDish: (id, dish) => this.pets.get(id)?.send('pet:dish', dish),
+      cancelSpin: id => this.pets.get(id)?.send('pet:spin-cancel'),
       notify: (body, onClick) => {
         if (!Notification.isSupported()) return;
         const n = new Notification({ title: '打工貓貓', body });
@@ -650,6 +653,7 @@ export class AppController {
       woke: id => this.onWoke(id),
       head: (id, head, settled) => this.cards.head(id, head, settled),
       wheel: (id, up) => this.cards.wheel(id, up),
+      spinHit: (id, swatted) => this.cards.spinHit(id, swatted),
     };
   }
 

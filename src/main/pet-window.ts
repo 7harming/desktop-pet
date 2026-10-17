@@ -18,6 +18,8 @@ export interface PetEvents {
   woke(id: string): void;
   head(id: string, head: { x: number; y: number }, settled: boolean): void;
   wheel(id: string, up: boolean): void;
+  /** The dinner wheel: the cat's paw reached it (true), or it will not swat now (false). */
+  spinHit(id: string, swatted: boolean): void;
 }
 
 /**
@@ -82,6 +84,7 @@ export class PetWindow {
       case 'pet:woke': this.events.woke(this.id); break;
       case 'pet:head': this.events.head(this.id, { x: Number(args[0]), y: Number(args[1]) }, !!args[2]); break;
       case 'pet:wheel': this.events.wheel(this.id, !!args[0]); break;
+      case 'pet:spin-hit': this.events.spinHit(this.id, !!args[0]); break;
     }
   }
 

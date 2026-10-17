@@ -70,6 +70,16 @@ export interface PetApi {
   onCardsAt(cb: (cards: { x: number; y: number; width: number; height: number }[]) => void): void;
   /** The wheel turned over the cat: up brings its card, down puts it away. */
   wheel(up: boolean): void;
+  /**
+   * The dinner wheel over its head was spun: sit up and swat it, saying `spinHit(true)` as the paw reaches it, or `spinHit(false)`
+   * at once if it can not now (asleep, walking, dragged, ...).
+   */
+  onSpin(cb: () => void): void;
+  spinHit(swatted: boolean): void;
+  /** The wheel stopped at this dish: say it, then go back to its ways. */
+  onDish(cb: (dish: string) => void): void;
+  /** The wheel's card went before it stopped: never mind. */
+  onSpinCancel(cb: () => void): void;
 }
 
 export interface PanelPet {
@@ -120,14 +130,27 @@ export interface BreakApi {
 
 /** A reminder as the card shows it. */
 export interface TodoView { id: string; text: string; time: string; repeat: Repeat; done: boolean; due: boolean; missed: boolean }
-/** What a card shows: the memo's text, or the reminders in the order of the day. */
-export interface CardState { kind: CardKind; title: string; memo: string; todos: TodoView[] }
+/**
+ * The dinner wheel as its card shows it: the dishes round the wheel (clockwise from the top), yesterday's (greyed: it will not stop
+ * there), and the spin under way - which slice it stops at, and whether it turns yet (it waits for the cat's paw).
+ */
+export interface DinnerView { items: string[]; yesterday: string | null; spin: { seq: number; index: number; started: boolean } | null }
+/** What a card shows: the memo's text, the reminders in the order of the day, or the dinner wheel. */
+export interface CardState { kind: CardKind; title: string; memo: string; todos: TodoView[]; dinner: DinnerView }
 export type CardAction =
   | { kind: 'memo'; text: string }
   | { kind: 'add'; text: string; hour: number; minute: number; repeat: Repeat }
   | { kind: 'toggle'; id: string; done: boolean }
   | { kind: 'edit'; id: string; text: string }
-  | { kind: 'delete'; id: string };
+  | { kind: 'delete'; id: string }
+  | DinnerAction;
+/** The dinner wheel's card: spin it, it stopped (`seq`: which spin), and the menu's changes. */
+export type DinnerAction =
+  | { kind: 'spin' }
+  | { kind: 'spun'; seq: number }
+  | { kind: 'dishAdd'; text: string }
+  | { kind: 'dishRename'; from: string; to: string }
+  | { kind: 'dishDelete'; dish: string };
 export interface CardApi {
   onState(cb: (s: CardState) => void): void;
   /** Opened by hand: put the cursor in the memo, or in the new reminder's box. */
