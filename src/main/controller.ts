@@ -1,4 +1,4 @@
-import { app, ipcMain, Menu, Notification, powerMonitor, screen, shell, type WebContents } from 'electron';
+import { app, ipcMain, Menu, Notification, powerMonitor, screen, shell, type BrowserWindow, type WebContents } from 'electron';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { actionKey } from '../shared/actions';
@@ -60,6 +60,10 @@ const FALLBACK_LINES: Record<ReminderType, string> = { water: '該喝水了。',
 const PANEL_PROBLEMS = 50;
 const REPORT_PROBLEMS = 200;
 const REPORT_LOG_LINES = 300;
+/** How often the floating windows are checked for still being always on top (DESKTOP_PET_TOPMOST_SECONDS: tests). */
+const TOPMOST_CHECK_MS = (Number(process.env.DESKTOP_PET_TOPMOST_SECONDS) || 30) * 1000;
+/** After waking or unlocking they are checked again this much later, in case Windows takes it away a moment after. */
+const TOPMOST_SETTLE_MS = 3_000;
 
 type ValidPack = LoadedPack & { pack: Pack };
 
@@ -190,16 +194,36 @@ export class AppController {
     const pauseAll = (paused: boolean) => { for (const p of this.pets.values()) p.send('pet:pause', paused); };
     powerMonitor.on('suspend', () => pauseAll(true));
     powerMonitor.on('lock-screen', () => pauseAll(true));
-    powerMonitor.on('resume', () => { pauseAll(false); this.scheduler.resetAll(Date.now()); this.cards.popFor('resume'); });
-    powerMonitor.on('unlock-screen', () => { pauseAll(false); this.scheduler.resetAll(Date.now()); this.cards.popFor('unlock'); });
+    // back from a sleep Windows may have taken the cats' always-on-top away: give it back now, and once more when things settle
+    const backOnTop = (why: string) => { this.keepOnTop(why); setTimeout(() => this.keepOnTop(why), TOPMOST_SETTLE_MS); };
+    powerMonitor.on('resume', () => { pauseAll(false); this.scheduler.resetAll(Date.now()); this.cards.popFor('resume'); backOnTop('電腦醒來'); });
+    powerMonitor.on('unlock-screen', () => { pauseAll(false); this.scheduler.resetAll(Date.now()); this.cards.popFor('unlock'); backOnTop('解除鎖定'); });
+    setInterval(() => this.keepOnTop('定時檢查'), TOPMOST_CHECK_MS);
     if (!this.settings.firstRunDone) {
       this.openPanel();
       this.settings.firstRunDone = true;
       this.saveSoon();
     }
     this.applyAutoStart();
-    screen.on('display-metrics-changed', () => this.relayoutAll());
+    screen.on('display-metrics-changed', () => { this.relayoutAll(); backOnTop('螢幕設定改變'); });
     if (process.env.DESKTOP_PET_METRICS === '1') setInterval(() => this.logMetrics(), 60_000);
+  }
+
+  /**
+   * Windows can take a window's always-on-top away: after the computer slept the cats, their cards and the wand ended up under
+   * every other program until put away and brought out again (2026-10-18). Each of them that lost it gets it back, and the log
+   * (the panel's 問題紀錄) says which.
+   */
+  private keepOnTop(why: string): void {
+    const floating: [string, BrowserWindow][] = [
+      ...[...this.pets].map(([id, p]): [string, BrowserWindow] => [this.packOf(id)?.name ?? id, p.win]),
+      ...[...this.cards.open].map(([kind, o]): [string, BrowserWindow] => [this.cards.title(kind), o.card.win]),
+      ...(this.toys.window ? [['逗貓棒', this.toys.window.win] as [string, BrowserWindow]] : []),
+    ];
+    const lost = floating.filter(([, w]) => !w.isDestroyed() && w.isVisible() && !w.isAlwaysOnTop());
+    if (!lost.length) return;
+    for (const [, w] of lost) w.setAlwaysOnTop(true, 'pop-up-menu');   // the level they are made with (see PetWindow)
+    this.log.warn(`視窗不在最上層了（${why}），已放回最上層：${lost.map(([name]) => name).join('、')}`);
   }
 
   /** `enter`: walk in from the left edge (app start, showing it again) rather than appear in place. `hello`: greet with this. */
