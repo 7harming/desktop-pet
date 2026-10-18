@@ -3,6 +3,7 @@ import { handleAppProtocol, registerSchemePrivileges } from './app-protocol';
 import { AppController } from './controller';
 import { Logger } from './logger';
 import { resolvePaths } from './paths';
+import { watchProcesses } from './process-watch';
 
 registerSchemePrivileges();
 const paths = resolvePaths();
@@ -27,6 +28,7 @@ if (!app.requestSingleInstanceLock()) {
     };
     process.on('uncaughtException', logError);
     process.on('unhandledRejection', logError);
+    watchProcesses(app, log);   // before any window: a page that dies is loaded again, and logged
     handleAppProtocol({ ui: paths.uiDir, packs: paths.packsDir });
     controller = new AppController(paths, log, debug);
     if (debug) (globalThis as Record<string, unknown>).__controller = controller;
