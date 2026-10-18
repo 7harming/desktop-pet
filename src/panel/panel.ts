@@ -17,7 +17,7 @@ const act = async (a: PanelAction) => { state = await api.act(a); render(true); 
 for (const b of document.querySelectorAll<HTMLButtonElement>('.tab')) {
   b.addEventListener('click', () => {
     for (const t of document.querySelectorAll('.tab')) t.classList.toggle('active', t === b);
-    for (const id of ['pets', 'reminders', 'cards', 'settings']) $(`tab-${id}`).hidden = id !== b.dataset.tab;
+    for (const id of ['pets', 'reminders', 'cards', 'settings', 'problems']) $(`tab-${id}`).hidden = id !== b.dataset.tab;
   });
 }
 
@@ -155,6 +155,26 @@ function settingsTab(): HTMLElement[] {
     el('div', { className: 'line' }, el('span', {}, '版本'), `v${state.version}`))];
 }
 
+/** When a problem happened, in this computer's time. */
+const when = (iso: string) => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+
+/** What went wrong lately (the log's warnings and errors), and a button that makes a report of it to hand over for debugging. */
+function problemsTab(): HTMLElement[] {
+  const report = el('button', { className: 'cmd report', textContent: '產生問題報告' });
+  report.addEventListener('click', () => act({ kind: 'report' }));
+  const top = el('div', { className: 'card' },
+    el('div', { className: 'line' }, el('span', {},
+      '打工貓貓出問題時會自動記在這裡。按「產生問題報告」，會在「下載」資料夾存一份 MD 檔，把它傳給 Claude 就能幫忙查。報告裡不會有提醒事項、備忘錄和菜單的內容。'),
+    report));
+  if (state.reportSaved) top.append(el('div', { className: 'sub report-saved' }, `已存到：${state.reportSaved}`));
+  const list = state.problems.length
+    ? el('ul', { className: 'problems' }, ...state.problems.map(p => el('li', { className: p.level === 'ERROR' ? 'error' : 'warn' },
+      el('span', { className: 'when' }, when(p.at)), el('span', { className: 'level' }, p.level === 'ERROR' ? '錯誤' : '警告'),
+      el('span', { className: 'what' }, p.text))))
+    : el('div', { className: 'sub no-problems' }, '目前沒有記到問題。');
+  return [top, el('div', { className: 'card' }, el('div', { className: 'name' }, '最近的問題（新的在上）'), list)];
+}
+
 /** Two cats together: play-fighting now and then by themselves, or now on the button. */
 function fightCard(): HTMLElement {
   const auto = el('input', { type: 'checkbox', className: 'fight-auto', checked: state.fightAuto });
@@ -197,6 +217,7 @@ function render(rebuild = false): void {
   $('tab-reminders').replaceChildren(...remindersTab());
   $('tab-cards').replaceChildren(...cardsTab());
   $('tab-settings').replaceChildren(...settingsTab());
+  $('tab-problems').replaceChildren(...problemsTab());
 }
 
 api.onState(s => { state = s; render(); });

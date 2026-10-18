@@ -1,4 +1,5 @@
-import { app, ipcMain, Menu, Notification, powerMonitor, screen, type WebContents } from 'electron';
+import { app, ipcMain, Menu, Notification, powerMonitor, screen, shell, type WebContents } from 'electron';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { actionKey } from '../shared/actions';
 import { AwayWatch } from '../shared/away';
@@ -14,6 +15,7 @@ import type { Pack, ReminderType, TimeEvent } from '../shared/types';
 import { APP_ORIGIN } from './app-protocol';
 import { BreakWindow } from './break-window';
 import { CardController } from './cards';
+import { reportFileName, reportMarkdown, type ReportData } from './diagnostics';
 import { ToyController } from './toys';
 import type { Logger } from './logger';
 import { petMenuTemplate, trayMenuTemplate, type ToyState } from './menus';
@@ -54,6 +56,10 @@ const FIGHT_TIMEOUT_MS = 30_000;
 const NOTICE_MS = 6_000;
 const PAUSE_MS = 3_600_000;
 const FALLBACK_LINES: Record<ReminderType, string> = { water: '該喝水了。', stretch: '起來動一動。', eyes: '讓眼睛休息一下。' };
+/** The 問題紀錄 tab lists this many of the newest problems; a report this many, and the last lines of each log kept. */
+const PANEL_PROBLEMS = 50;
+const REPORT_PROBLEMS = 200;
+const REPORT_LOG_LINES = 300;
 
 type ValidPack = LoadedPack & { pack: Pack };
 
@@ -78,6 +84,8 @@ export class AppController {
   private readonly reminding = new Map<ReminderType, Set<string>>();
   /** Why the panel's fight button did nothing, shown for a moment. */
   private notice: { text: string; until: number } | null = null;
+  /** Where the last problem report went (the panel says so). */
+  private reportSaved: string | null = null;
   protected readonly panel: PanelWindow;
   private tray: TrayController | null = null;
   scheduler!: ReminderScheduler;
@@ -157,6 +165,7 @@ export class AppController {
   workArea(): WorkArea { return screen.getPrimaryDisplay().workArea; }
 
   start(): void {
+    this.log.onProblem = () => this.changed();   // the panel's 問題紀錄 shows it at once
     const first = this.validPacks()[0];
     this.tray = new TrayController(first ? join(first.dir, first.pack.portrait) : null, () => this.trayMenu(), () => this.openPanel());
     // opened by hand (not at login) with every cat put away: bring the first one back, or it looks as if nothing started
@@ -282,7 +291,68 @@ export class AppController {
       notice: this.notice && this.notice.until > Date.now() ? this.notice.text : null,
       version: app.getVersion(),
       warning: this.warning,
+      problems: [...this.log.problems].reverse().slice(0, PANEL_PROBLEMS),
+      reportSaved: this.reportSaved,
     };
+  }
+
+  /**
+   * The 問題紀錄 tab's report, to hand over for debugging: what the app is, is doing and logged lately, as a Markdown file in
+   * Downloads, shown in the file manager. Not the reminders', the memo's or the menu's contents (see ReportData).
+   */
+  private saveReport(): void {
+    const at = new Date();
+    const dir = process.env.DESKTOP_PET_DOWNLOADS ?? app.getPath('downloads');   // tests: a folder of their own
+    const file = join(dir, reportFileName(at));
+    const logs = readdirSync(this.log.dir).filter(f => /^app-.*\.log$/.test(f)).sort().map(f => {
+      let text = '';
+      try { text = readFileSync(join(this.log.dir, f), 'utf8'); } catch { /* gone meanwhile */ }
+      return { file: f, lines: text.split(/\r?\n/).filter(Boolean).slice(-REPORT_LOG_LINES) };
+    });
+    const r = this.settings.reminders;
+    const every = (m: number) => (m ? `每 ${m} 分鐘` : '關閉');
+    const yes = (b: boolean) => (b ? '是' : '否');
+    const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const pops = (s: Settings['cards'][keyof Settings['cards']]) => [s.start && '開啟時', s.resume && '喚醒時', s.unlock && '解鎖時',
+      s.back && '回到電腦時', s.daily !== null && `每天 ${hhmm(s.daily)}`].filter(Boolean).join('、') || '不自己跳出';
+    const os = process.platform === 'darwin' ? 'macOS' : process.platform === 'win32' ? 'Windows' : process.platform;
+    const primary = screen.getPrimaryDisplay().id;
+    const data: ReportData = {
+      at,
+      app: { version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome, uptimeS: process.uptime() },
+      system: { os: `${os} ${process.getSystemVersion()}`, arch: process.arch, locale: app.getLocale() },
+      displays: screen.getAllDisplays().map(d => ({ width: d.size.width, height: d.size.height, scale: d.scaleFactor, primary: d.id === primary })),
+      cats: this.packs.map(p => ({
+        name: p.pack?.name ?? p.id, out: this.onScreen(p.id), doing: this.onScreen(p.id) ? this.status.get(p.id) ?? '' : '',
+        scale: this.settings.pets[p.id]?.scale ?? 1, auto: this.settings.pets[p.id]?.auto ?? true,
+      })),
+      cards: [...this.cards.open].map(([kind, o]) => `${this.cards.title(kind)}（在 ${this.packOf(o.petId)?.name ?? o.petId} 頭上）`),
+      state: {
+        離開電腦: yes(this.awayWatch.away),
+        健康提醒: r.pausedUntil && r.pausedUntil > Date.now() ? `暫停到 ${new Date(r.pausedUntil).toLocaleString()}` : '沒有暫停',
+        逗貓棒: this.toys.out ? '拿出來了' : '收著',
+        貓咪視窗當掉後重開: [...this.crashes].map(([id, n]) => `${this.packOf(id)?.name ?? id} ${n} 次`).join('、') || '沒有',
+      },
+      settings: {
+        開機自動啟動: yes(this.settings.autoStart), 自動行動換動作: `約 ${this.settings.actionInterval} 秒`,
+        離開電腦多久算離開: this.settings.awayMinutes ? `${this.settings.awayMinutes} 分鐘` : '關閉', 兩隻貓偶爾打鬧: yes(this.settings.fightAuto),
+        喝水提醒: every(r.water), 伸展提醒: every(r.stretch), 休息眼睛: every(r.eyes), 提醒用系統通知: yes(r.notify),
+        ...Object.fromEntries(this.cards.menuItems().map(({ kind }) => [`${this.cards.title(kind)}自己跳出`, pops(this.settings.cards[kind])])),
+      },
+      processes: app.getAppMetrics().map(m => ({ type: m.type, pid: m.pid, memoryMB: m.memory.workingSetSize / 1024, cpu: m.cpu.percentCPUUsage })),
+      gpu: Object.fromEntries(Object.entries(app.getGPUFeatureStatus()).map(([k, v]) => [k, String(v)])),
+      problems: [...this.log.problems].reverse().slice(0, REPORT_PROBLEMS),
+      logs,
+    };
+    try {
+      writeFileSync(file, reportMarkdown(data), 'utf8');
+    } catch (e) {
+      this.log.error(`問題報告存不了：${(e as Error).message}`);
+      return;
+    }
+    this.reportSaved = file;
+    this.log.info(`問題報告存到 ${file}`);
+    if (!process.env.DESKTOP_PET_DOWNLOADS) shell.showItemInFolder(file);   // tests make theirs in a folder of their own: no window
   }
 
   act(a: PanelAction): PanelState {
@@ -320,6 +390,7 @@ export class AppController {
       }
       case 'resetPositions': this.resetAllPositions(); break;
       case 'testBreak': void this.startBreak(); break;
+      case 'report': this.saveReport(); break;
     }
     return this.panelState();
   }

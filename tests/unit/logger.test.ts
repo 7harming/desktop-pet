@@ -13,4 +13,17 @@ describe('Logger', () => {
     last.warn('哈囉');
     expect(readFileSync(last.file, 'utf8')).toMatch(/\[WARN\] 哈囉\n$/);
   });
+  it('remembers the warnings and errors of the runs it keeps and of this one, and says when one comes', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dpet-log-'));
+    const a = new Logger(dir, 5, new Date(Date.UTC(2026, 9, 18, 1, 0)));
+    a.info('啟動');
+    a.error('上次的錯誤');
+    const b = new Logger(dir, 5, new Date(Date.UTC(2026, 9, 18, 2, 0)));
+    let told = 0;
+    b.onProblem = () => { told++; };
+    b.warn('這次的警告');
+    b.info('平常的事');
+    expect(b.problems.map(p => [p.level, p.text])).toEqual([['ERROR', '上次的錯誤'], ['WARN', '這次的警告']]);
+    expect(told).toBe(1);
+  });
 });

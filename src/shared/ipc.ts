@@ -102,6 +102,10 @@ export interface PanelState {
   notice: string | null;
   version: string;
   warning: string | null;
+  /** The warnings and errors in the log (this run's and the last few runs'), newest first: the 問題紀錄 tab. */
+  problems: { at: string; level: 'WARN' | 'ERROR'; text: string }[];
+  /** Where the last problem report was saved (none made yet: null). */
+  reportSaved: string | null;
 }
 export type PanelAction =
   | { kind: 'pet'; id: string; visible?: boolean; scale?: number; auto?: boolean; actions?: PoseId[] }
@@ -117,7 +121,8 @@ export type PanelAction =
   | { kind: 'toy'; out: boolean }
   | { kind: 'fight' }
   | { kind: 'resetPositions' }
-  | { kind: 'testBreak' };
+  | { kind: 'testBreak' }
+  | { kind: 'report' };
 /** The full-screen break: `cats` (each in its own share of the screen), `seconds` of rest, `line` shown under the countdown. */
 export interface BreakInit { cats: { pack: Pack; packUrl: string }[]; seconds: number; line: string; debug: boolean }
 export interface BreakApi {
